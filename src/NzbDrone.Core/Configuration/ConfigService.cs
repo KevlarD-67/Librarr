@@ -269,6 +269,17 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("MetadataSource", value); }
         }
 
+        public string MetadataSourceType
+        {
+            // Selector for the active metadata proxy: "BookInfo" (legacy
+            // Goodreads-derived API, default for back-compat) or "OpenLibrary"
+            // (Phase 3+ native OL proxy). Wired by the MetadataSourceFactory
+            // that lands in Phase 5 alongside the reidentify wizard.
+            get { return GetValue("MetadataSourceType", "BookInfo"); }
+
+            set { SetValue("MetadataSourceType", value); }
+        }
+
         public WriteAudioTagsType WriteAudioTags
         {
             get { return GetValueEnum("WriteAudioTags", WriteAudioTagsType.No); }
