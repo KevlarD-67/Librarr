@@ -12,11 +12,15 @@ priority; nothing here is a hard commitment.
   `BookIdMappingSource.FileTag` row at 0.97 / 0.92 / 0.78 confidence
   respectively. `ResolveOverride` pure helper extracted for testing.
 
-- [ ] **Dedicated low-confidence review UI** (Phase 9 polish). The
-  current MetadataSwitchWizard surfaces low-confidence rows to the log
-  only. Add a Settings → Metadata sub-page that reads
-  `BookIdMappingRepository.GetLowConfidence(0.7)` and lets the user
-  override the OL ID manually.
+- [x] **Dedicated low-confidence review UI** (Phase 9c). Landed.
+  New API endpoint `/api/v1/metadata/lowconfidencemapping` (GET list,
+  PUT manual override). New Settings → Metadata panel
+  `LowConfidenceMappings` rendering rows with confidence < 0.70, with
+  inline OL Work/Edition ID editing and "Save as Manual" button. The
+  Phase 5 wizard's "done" copy now points at this panel instead of
+  System → Logs. Manual rows are pinned at confidence 1.0 and are
+  protected from overwriting by both reidentify pass and the file-tag
+  pass (per `ReidentifyService.ResolveOverride`).
 
 - [x] **Cover URL wiring for OpenLibrary** (Phase 4b). Landed. New
   helper `OpenLibraryCoverUrls` constructs `covers.openlibrary.org/b/id/…`

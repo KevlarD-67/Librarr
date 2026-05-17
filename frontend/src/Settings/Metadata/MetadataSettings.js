@@ -3,6 +3,7 @@ import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import SettingsToolbarConnector from 'Settings/SettingsToolbarConnector';
 import translate from 'Utilities/String/translate';
+import LowConfidenceMappings from './LowConfidenceMappings/LowConfidenceMappings';
 // import MetadatasConnector from './Metadata/MetadatasConnector';
 import MetadataProviderConnector from './MetadataProvider/MetadataProviderConnector';
 import MetadataSwitchWizardConnector from './MetadataSwitchWizard/MetadataSwitchWizardConnector';
@@ -62,6 +63,7 @@ class MetadataSettings extends Component {
             onChildStateChange={this.onChildStateChange}
           />
           <MetadataSwitchWizardConnector />
+          <LowConfidenceMappings />
           {/* <MetadatasConnector /> */}
         </PageContentBody>
       </PageContent>

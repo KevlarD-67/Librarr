@@ -89,10 +89,10 @@ class MetadataSwitchWizard extends Component {
             <div>
               <p>Reidentification finished.</p>
               <p>
-                Review System → Logs for low-confidence matches (lines starting
-                with <code>Low-confidence mapping for book</code>). These rows are
-                stored in the <code>BookIdMapping</code> table and can be edited
-                manually until the Phase 9 review UI ships.
+                Books that matched with confidence below 0.70 are listed in
+                the &ldquo;Low-confidence metadata mappings&rdquo; panel below
+                — paste the correct OpenLibrary work ID and save to lock them
+                as Manual overrides.
               </p>
               <Button onPress={this.onResetPress}>
                 Run again
