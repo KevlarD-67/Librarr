@@ -338,6 +338,12 @@ namespace NzbDrone.Core.Test.MediaFiles.AudioTagServiceFixture
         {
             var file = GivenPopulatedTrackfile(0);
             var tag = Subject.GetTrackMetadata(file);
+
+            // The default NBuilder path ("Path1") isn't a real audio file, so the
+            // TagLib wrapper logs an error and returns a default tag. The test is
+            // asserting "the call doesn't throw", which still holds. Acknowledge
+            // the expected error log so ExceptionVerification doesn't fail the run.
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
