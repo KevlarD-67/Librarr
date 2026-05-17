@@ -301,7 +301,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             // Exponential * (0.8–1.2) jitter. Random instance avoided to keep
             // the helper deterministic-ish in tests.
             var ms = (long)(current.TotalMilliseconds * 2);
-            var jittered = ms + (ms / 5) * (DateTime.UtcNow.Ticks % 3 - 1);
+            var jittered = ms + ((ms / 5) * ((DateTime.UtcNow.Ticks % 3) - 1));
             return TimeSpan.FromMilliseconds(Math.Max(jittered, 1));
         }
     }

@@ -21,7 +21,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             // returns a slim book with no edition data — Phase 4 hardening
             // will hydrate editions per work, ideally lazily.
             // TODO Phase 4: backfill editions from /works/{key}/editions.json.
-
             return author;
         }
 
@@ -50,7 +49,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             }
 
             // TODO Phase 4: photos[] → MediaCover images, links → Links list.
-
             return metadata;
         }
 

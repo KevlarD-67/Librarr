@@ -23,7 +23,12 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace NzbDrone.Core.MetadataSource.BookInfo
 {
-    public class BookInfoProxy : IProvideAuthorInfo, IProvideBookInfo, ISearchForNewBook, ISearchForNewAuthor, ISearchForNewEntity
+    // Phase 5: interface declarations removed — MetadataSourceFactory now
+    // owns IProvideAuthorInfo / IProvideBookInfo / ISearchForNew* and
+    // dispatches to this concrete based on IConfigService.MetadataSourceType.
+    // Direct DryIoc auto-registration of this concrete still works via
+    // WithAutoConcreteTypeResolution; the factory injects it by concrete type.
+    public class BookInfoProxy
     {
         private static readonly JsonSerializerOptions SerializerSettings = new JsonSerializerOptions
         {
