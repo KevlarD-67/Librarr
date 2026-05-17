@@ -51,9 +51,14 @@ priority; nothing here is a hard commitment.
   installs pay no cost. Augmenter failures swallow into Debug — the
   primary refresh path is never blocked.
 
-- [ ] **OpenLibraryAuthorImportList + OpenLibraryTrendingImportList**.
-  Phase 6 shipped only OpenLibrarySubjectImportList; the other two from
-  the master plan follow the same pattern.
+- [x] **OpenLibraryAuthorImportList + OpenLibraryTrendingImportList**.
+  Landed. Both follow OpenLibrarySubjectImportList's shape:
+  `IHttpClient + IOpenLibraryRequestBuilder` injection, `Fetch()` calls
+  one OL endpoint, validation probes with `limit=1`. Author list reads
+  `/authors/{key}/works.json`; trending reads `/trending/{period}.json`
+  with the period restricted to OL's documented set (now/daily/weekly/
+  monthly/yearly/forever). DryIoc auto-discovers both via reflection
+  on `ImportListBase` — no manual registration needed.
 
 - [x] **Narrator field on Edition**. Landed. Migration 042 adds
   `Editions.Narrators` (nullable text, comma-separated). Edition model
