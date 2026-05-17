@@ -36,9 +36,12 @@ env:
   # Keep in sync with azure-pipelines.yml:18 until that file is removed.
   DOTNET_VERSION: '6.0.x'
   NODE_VERSION: '20.x'
-  # majorVersion: still on the inherited 0.4.x line until Phase 9 resets
-  # to 1.0.0-beta.1. GITHUB_RUN_NUMBER acts as the minorVersion counter.
-  MAJOR_VERSION: '0.4.19'
+  # Phase 9 version reset. The fork starts its own 1.0.0-beta.x line
+  # rather than continuing the inherited Readarr 0.4.x numbering — the
+  # metadata-source overhaul + UI wizard + the fork's CI/branding/CLA
+  # changes are a different product even if the codebase is shared.
+  # GITHUB_RUN_NUMBER acts as the build counter (1.0.0-beta.N).
+  MAJOR_VERSION: '1.0.0-beta'
 
 jobs:
   variables:

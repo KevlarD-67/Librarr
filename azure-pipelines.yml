@@ -16,7 +16,10 @@ variables:
   testsFolder: './_tests'
   yarnCacheFolder: $(Pipeline.Workspace)/.yarn
   nugetCacheFolder: $(Pipeline.Workspace)/.nuget/packages
-  majorVersion: '0.4.19'
+  # Phase 9: version reset to the Librarr 1.0.0-beta.x line. Kept in sync
+  # with .github/workflows/build.yml — this Azure file is deprecated and
+  # will be removed once GHA is fully verified on a public CI runner.
+  majorVersion: '1.0.0-beta'
   minorVersion: $[counter('minorVersion', 1)]
   readarrVersion: '$(majorVersion).$(minorVersion)'
   buildName: '$(Build.SourceBranchName).$(readarrVersion)'
