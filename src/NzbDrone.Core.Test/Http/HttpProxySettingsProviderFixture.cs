@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Test.Http
         }
 
         [Test]
+        [Explicit("Uses .NET WebProxy.IsBypassed which performs real DNS resolution against google.com / eu.httpbin.org / etc. Fails under offline sandboxes. Run manually with network.")]
         public void should_bypass_proxy()
         {
             var settings = GetProxySettings();
@@ -27,6 +28,7 @@ namespace NzbDrone.Core.Test.Http
         }
 
         [Test]
+        [Explicit("Uses .NET WebProxy.IsBypassed which performs real DNS resolution against bing.com. Fails under offline sandboxes. Run manually with network.")]
         public void should_not_bypass_proxy()
         {
             var settings = GetProxySettings();
