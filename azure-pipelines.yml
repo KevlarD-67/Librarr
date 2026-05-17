@@ -1,7 +1,14 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+# =============================================================================
+# DEPRECATED — kept as a reference during the Librarr Phase 0 CI cutover.
+#
+# Canonical CI for Librarr is .github/workflows/. This Azure Pipelines file
+# is preserved unchanged so that the GitHub Actions migration can be cross-
+# checked stage-for-stage. It will be removed once GHA is verified green
+# on a full Linux + Mac + Windows matrix build.
+#
+# Do not add new stages or change `majorVersion` here; edit the GHA
+# workflow instead.
+# =============================================================================
 
 variables:
   outputFolder: './_output'

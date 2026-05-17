@@ -1,0 +1,189 @@
+# Librarr build pipeline — Phase 0 skeleton.
+#
+# Goal: prove that the inherited `./build.sh` and `./test.sh` scripts run
+# green on GitHub Actions runners. Multi-OS matrix, packaging, installer
+# signing, and release publishing are deliberately out of scope here and
+# will be added in Phase 9 alongside the version reset to 1.0.0-beta.1.
+#
+# Cross-reference: ../../azure-pipelines.yml is the upstream Azure
+# Pipelines definition, kept as a stage-for-stage reference during the
+# Phase 0 cutover.
+
+name: Build
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - 'librarr/**'
+    paths-ignore:
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - 'src/Readarr.Api.*/openapi.json'
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths-ignore:
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'src/Readarr.Api.*/openapi.json'
+  workflow_dispatch:
+
+env:
+  # Keep in sync with azure-pipelines.yml:18 until that file is removed.
+  DOTNET_VERSION: '6.0.x'
+  NODE_VERSION: '20.x'
+  # majorVersion: still on the inherited 0.4.x line until Phase 9 resets
+  # to 1.0.0-beta.1. GITHUB_RUN_NUMBER acts as the minorVersion counter.
+  MAJOR_VERSION: '0.4.19'
+
+jobs:
+  variables:
+    name: Set variables
+    runs-on: ubuntu-22.04
+    outputs:
+      readarrVersion: ${{ steps.set.outputs.readarrVersion }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          VERSION="${MAJOR_VERSION}.${GITHUB_RUN_NUMBER}"
+          echo "readarrVersion=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Build version: ${VERSION}"
+
+  build-backend:
+    name: Build backend (Linux)
+    needs: variables
+    runs-on: ubuntu-22.04
+    env:
+      READARRVERSION: ${{ needs.variables.outputs.readarrVersion }}
+      # StyleCop runs only on the Linux leg upstream — mirror that here.
+      EnableAnalyzers: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Enable extra platform support (freebsd-x64, linux-x86)
+        shell: bash
+        run: |
+          SDK_DIR=$(dirname "$(dirname "$(which dotnet)")")/sdk
+          BUNDLED=$(find "$SDK_DIR" -name "Microsoft.NETCoreSdk.BundledVersions.props" | head -1)
+          if [ -n "$BUNDLED" ] && ! grep -q freebsd-x64 "$BUNDLED"; then
+            sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' "$BUNDLED"
+            echo "Extra platforms enabled in $BUNDLED"
+          fi
+
+      - name: Build backend
+        shell: bash
+        run: ./build.sh --backend --enable-extra-platforms
+
+      - name: Upload backend output
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-linux
+          path: |
+            _output/
+            _tests/
+          retention-days: 7
+          if-no-files-found: error
+
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Build frontend
+        shell: bash
+        env:
+          FORCE_COLOR: '0'
+        run: ./build.sh --frontend
+
+      - name: Upload UI output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-ui
+          path: _output/UI/
+          retention-days: 7
+          if-no-files-found: error
+
+  unit-tests:
+    name: Unit tests (Linux)
+    needs: build-backend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download backend output
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-linux
+          path: .
+
+      - name: Run unit tests
+        shell: bash
+        run: ./test.sh Linux Unit
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux
+          path: |
+            TestResult.xml
+            TestLog.txt
+          retention-days: 7
+          if-no-files-found: ignore
+
+  lint-frontend:
+    name: Lint frontend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install dependencies
+        shell: bash
+        run: yarn install --frozen-lockfile
+
+      - name: ESLint
+        shell: bash
+        run: yarn lint
+
+      - name: Stylelint
+        shell: bash
+        run: yarn stylelint-linux
