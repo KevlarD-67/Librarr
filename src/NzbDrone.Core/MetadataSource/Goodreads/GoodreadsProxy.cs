@@ -18,7 +18,12 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
         Book GetBookInfo(string foreignEditionId, bool useCache = true);
     }
 
-    public class GoodreadsProxy : IGoodreadsProxy, IProvideSeriesInfo, IProvideListInfo
+    // Phase 6: IProvideSeriesInfo and IProvideListInfo declarations removed —
+    // MetadataSourceFactory owns dispatch for both interfaces and selects
+    // between this proxy (BookInfo mode) and OpenLibrarySeriesProxy
+    // (OpenLibrary mode). The methods themselves are preserved as concrete
+    // entry points.
+    public class GoodreadsProxy : IGoodreadsProxy
     {
         private readonly ICachedHttpResponseService _cachedHttpClient;
         private readonly Logger _logger;

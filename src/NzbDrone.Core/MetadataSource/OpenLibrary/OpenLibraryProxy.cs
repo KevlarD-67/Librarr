@@ -25,13 +25,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     // compose cleanly with HttpResponse<T> covariance — see commit msg).
     public class OpenLibraryProxy
     {
+        private const int MaxRetries = 3;
+        private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(2);
+
         private readonly IHttpClient _httpClient;
         private readonly IOpenLibraryRequestBuilder _requestBuilder;
         private readonly Logger _logger;
         private readonly CachingService _cache;
-
-        private const int MaxRetries = 3;
-        private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(2);
 
         public OpenLibraryProxy(IHttpClient httpClient,
                                 IOpenLibraryRequestBuilder requestBuilder,

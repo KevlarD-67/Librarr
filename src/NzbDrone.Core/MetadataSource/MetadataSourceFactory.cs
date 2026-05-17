@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Model;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource.BookInfo;
+using NzbDrone.Core.MetadataSource.Goodreads;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.MetadataSource
@@ -27,6 +29,8 @@ namespace NzbDrone.Core.MetadataSource
     public class MetadataSourceFactory
         : IProvideAuthorInfo,
           IProvideBookInfo,
+          IProvideSeriesInfo,
+          IProvideListInfo,
           ISearchForNewAuthor,
           ISearchForNewBook,
           ISearchForNewEntity
@@ -37,16 +41,22 @@ namespace NzbDrone.Core.MetadataSource
         private readonly IConfigService _configService;
         private readonly BookInfoProxy _bookInfo;
         private readonly OpenLibraryProxy _openLibrary;
+        private readonly GoodreadsProxy _goodreadsProxy;
+        private readonly OpenLibrarySeriesProxy _openLibrarySeries;
         private readonly Logger _logger;
 
         public MetadataSourceFactory(IConfigService configService,
                                      BookInfoProxy bookInfo,
                                      OpenLibraryProxy openLibrary,
+                                     GoodreadsProxy goodreadsProxy,
+                                     OpenLibrarySeriesProxy openLibrarySeries,
                                      Logger logger)
         {
             _configService = configService;
             _bookInfo = bookInfo;
             _openLibrary = openLibrary;
+            _goodreadsProxy = goodreadsProxy;
+            _openLibrarySeries = openLibrarySeries;
             _logger = logger;
         }
 
@@ -68,6 +78,18 @@ namespace NzbDrone.Core.MetadataSource
             => IsOpenLibrary
                 ? _openLibrary.GetBookInfo(id)
                 : _bookInfo.GetBookInfo(id);
+
+        // IProvideSeriesInfo
+        public SeriesInfo GetSeriesInfo(string foreignSeriesId, bool useCache = true)
+            => IsOpenLibrary
+                ? _openLibrarySeries.GetSeriesInfo(foreignSeriesId, useCache)
+                : _goodreadsProxy.GetSeriesInfo(foreignSeriesId, useCache);
+
+        // IProvideListInfo
+        public ListInfo GetListInfo(string foreignListId, int page, bool useCache = true)
+            => IsOpenLibrary
+                ? _openLibrarySeries.GetListInfo(foreignListId, page, useCache)
+                : _goodreadsProxy.GetListInfo(foreignListId, page, useCache);
 
         // ISearchForNewAuthor
         public List<Author> SearchForNewAuthor(string title)

@@ -18,7 +18,6 @@ using NzbDrone.Core.MediaFiles.BookImport.Aggregation.Aggregators;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.BookInfo;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Test.Framework;
@@ -57,8 +56,8 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             Mocker.SetConstant<IMediaFileService>(Mocker.Resolve<MediaFileService>());
 
             Mocker.SetConstant<IConfigService>(Mocker.Resolve<IConfigService>());
-            Mocker.SetConstant<IProvideAuthorInfo>(Mocker.Resolve<BookInfoProxy>());
-            Mocker.SetConstant<IProvideBookInfo>(Mocker.Resolve<BookInfoProxy>());
+            Mocker.SetConstant<IProvideAuthorInfo>(Mocker.Resolve<MetadataSourceFactory>());
+            Mocker.SetConstant<IProvideBookInfo>(Mocker.Resolve<MetadataSourceFactory>());
 
             _addAuthorService = Mocker.Resolve<AddAuthorService>();
 
