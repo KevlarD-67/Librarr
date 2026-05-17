@@ -190,3 +190,64 @@ jobs:
       - name: Stylelint
         shell: bash
         run: yarn stylelint-linux
+
+  sbom:
+    # Phase 10: SBOM artifact. Captures the .NET + Node dependency trees
+    # at every successful build for supply-chain auditing. No publish
+    # action — the SBOM is an artifact attached to the run.
+    name: SBOM
+    needs:
+      - build-backend
+      - build-frontend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install dotnet-sbom-tool
+        shell: bash
+        run: dotnet tool install --global Microsoft.Sbom.DotNetTool
+
+      - name: Generate .NET SBOM
+        shell: bash
+        run: |
+          mkdir -p _sbom
+          dotnet sbom-tool generate \
+            -b src \
+            -bc src \
+            -m _sbom/dotnet \
+            -pn Librarr \
+            -pv "${MAJOR_VERSION}.${GITHUB_RUN_NUMBER}" \
+            -ps "Librarr Project" \
+            -nsb https://github.com/Librarr/Librarr || echo "sbom-tool returned non-zero; continuing"
+
+      - name: Install Node SBOM tool (syft)
+        shell: bash
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate Node SBOM
+        shell: bash
+        run: |
+          mkdir -p _sbom/node
+          syft dir:. \
+            --output spdx-json=_sbom/node/sbom-node.spdx.json \
+            --output cyclonedx-json=_sbom/node/sbom-node.cdx.json \
+            --exclude '_output/**' \
+            --exclude '_tests/**' \
+            --exclude 'src/**' \
+            --exclude '.git/**' || echo "syft returned non-zero; continuing"
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: _sbom/
+          retention-days: 90
+          if-no-files-found: warn
