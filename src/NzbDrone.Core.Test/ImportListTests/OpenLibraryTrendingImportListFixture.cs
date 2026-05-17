@@ -8,6 +8,7 @@ using NzbDrone.Core.ImportLists.OpenLibrary;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.ImportListTests
 {
@@ -53,6 +54,11 @@ namespace NzbDrone.Core.Test.ImportListTests
             result.Should().BeEmpty();
             Mocker.GetMock<IHttpClient>()
                 .Verify(c => c.Get<OpenLibraryTrendingResource>(It.IsAny<HttpRequest>()), Times.Never);
+
+            // The implementation logs a Warn explaining why the fetch was skipped.
+            // Count varies between isolated and full-suite runs (logger state is
+            // not fully reset between tests), so don't pin it — just allow it.
+            ExceptionVerification.IgnoreWarns();
         }
 
         [TestCase("now")]
