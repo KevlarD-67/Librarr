@@ -60,6 +60,7 @@ class BookDetailsHeader extends Component {
       title,
       seriesTitle,
       pageCount,
+      narrators,
       overview,
       statistics = {},
       monitored,
@@ -142,6 +143,13 @@ class BookDetailsHeader extends Component {
                   !!pageCount &&
                     <span className={styles.duration}>
                       {`${pageCount} pages`}
+                    </span>
+                }
+
+                {
+                  !!narrators &&
+                    <span className={styles.duration}>
+                      {`Narrated by ${narrators}`}
                     </span>
                 }
 
@@ -252,6 +260,7 @@ BookDetailsHeader.propTypes = {
   title: PropTypes.string.isRequired,
   seriesTitle: PropTypes.string.isRequired,
   pageCount: PropTypes.number,
+  narrators: PropTypes.string,
   overview: PropTypes.string,
   statistics: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,

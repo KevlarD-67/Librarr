@@ -25,6 +25,7 @@ namespace Readarr.Api.V1.Books
         public string Publisher { get; set; }
         public int PageCount { get; set; }
         public DateTime? ReleaseDate { get; set; }
+        public string Narrators { get; set; }
         public List<MediaCover> Images { get; set; }
         public List<Links> Links { get; set; }
         public Ratings Ratings { get; set; }
@@ -64,6 +65,7 @@ namespace Readarr.Api.V1.Books
                 Publisher = model.Publisher,
                 PageCount = model.PageCount,
                 ReleaseDate = model.ReleaseDate,
+                Narrators = model.Narrators,
                 Images = model.Images,
                 Links = model.Links,
                 Ratings = model.Ratings,
@@ -96,6 +98,7 @@ namespace Readarr.Api.V1.Books
                 Publisher = resource.Publisher,
                 PageCount = resource.PageCount,
                 ReleaseDate = resource.ReleaseDate,
+                Narrators = resource.Narrators,
                 Images = resource.Images,
                 Links = resource.Links,
                 Ratings = resource.Ratings,

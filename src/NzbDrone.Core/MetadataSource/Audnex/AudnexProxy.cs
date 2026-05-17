@@ -115,9 +115,13 @@ namespace NzbDrone.Core.MetadataSource.Audnex
                 edition.ReleaseDate = resource.ReleaseDate;
             }
 
-            // TODO Phase 7b: surface narrators in the Book / Edition model.
-            // The domain doesn't currently have a Narrator concept; adding
-            // one needs an Authors-style join table + an API change.
+            if (edition.Narrators.IsNullOrWhiteSpace() && resource.Narrators?.Count > 0)
+            {
+                edition.Narrators = string.Join(", ", resource.Narrators
+                    .Where(n => n?.Name.IsNotNullOrWhiteSpace() == true)
+                    .Select(n => n.Name));
+            }
+
             return book;
         }
 

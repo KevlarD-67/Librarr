@@ -55,8 +55,12 @@ priority; nothing here is a hard commitment.
   Phase 6 shipped only OpenLibrarySubjectImportList; the other two from
   the master plan follow the same pattern.
 
-- [ ] **Narrator field on Edition**. Required to surface audnex narrator
-  data properly. Schema migration + API change + frontend display.
+- [x] **Narrator field on Edition**. Landed. Migration 042 adds
+  `Editions.Narrators` (nullable text, comma-separated). Edition model
+  + EditionResource carry it through. Audnex augmenter now writes
+  narrator names (joined on `, `). Book details header shows
+  "Narrated by …" alongside page count when present. A normalized
+  Narrators table is a future refactor — see the migration comment.
 
 - [ ] **Real-world OL JSON cassettes for the test suite**. Phase 8
   shipped hand-crafted Resource fixtures. The "golden corpus" the
