@@ -14,10 +14,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         public string Subtitle { get; set; }
 
         // OL's `description` is sometimes a plain string, sometimes the typed
-        // form {"type":"/type/text","value":"..."}. The OpenLibraryDescription
-        // wrapper handles both via the surrounding string-or-object handling
-        // in the mapper.
-        public OpenLibraryDescription Description { get; set; }
+        // form {"type":"/type/text","value":"..."}. The converter handles both.
+        [JsonConverter(typeof(OpenLibraryDescriptionConverter))]
+        public string Description { get; set; }
 
         [JsonProperty("first_publish_date")]
         public string FirstPublishDate { get; set; }
@@ -39,11 +38,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
     {
         // e.g., "/authors/OL12345A" or "/works/OL12345W"
         public string Key { get; set; }
-    }
-
-    public class OpenLibraryDescription
-    {
-        public string Value { get; set; }
     }
 
     public class OpenLibraryEditionListResource

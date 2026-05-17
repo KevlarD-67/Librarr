@@ -1,5 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Threading;
+using LazyCache;
+using LazyCache.Providers;
+using Microsoft.Extensions.Caching.Memory;
 using NLog;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -8,26 +13,25 @@ using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
 {
-    // Phase 3 MVP. Implements the same method shapes as the IProvide* /
-    // ISearchForNew* interfaces but DOES NOT declare them, deliberately —
-    // declaring them would cause DryIoc's RegisterMany auto-discovery
-    // (Composition/Extensions.cs:31) to bind a second implementation against
-    // each interface alongside BookInfoProxy, yielding nondeterministic
-    // last-registered-wins resolution.
+    // Phase 3 MVP + Phase 4 hardening. Implements the same method shapes as
+    // the IProvide* / ISearchForNew* interfaces but DOES NOT declare them
+    // (RegisterMany would bind a second impl per interface alongside
+    // BookInfoProxy — see Phase 5 MetadataSourceFactory).
     //
-    // The MetadataSourceFactory that swaps between proxies based on
-    // IConfigService.MetadataSourceType lands in Phase 5 alongside the
-    // reidentify wizard. Until then this class is only resolvable as the
-    // concrete type (WithAutoConcreteTypeResolution makes that work) and is
-    // exercised by tests and the standalone health-check path.
-    //
-    // See MASTER-PLAN.md Phase 3 for the full design and METADATA-MIGRATION.md
-    // §7 for the field-by-field OL→Readarr mapping table.
+    // Phase 4 added per-resource LazyCache wrapping with the TTLs from
+    // MASTER-PLAN.md §4 (authors 24h, works 7d, editions 30d, search 1h)
+    // and a Send<T> helper that retries 429 / 5xx with exponential
+    // back-off + jitter (no Polly: Polly 8's generic pipeline doesn't
+    // compose cleanly with HttpResponse<T> covariance — see commit msg).
     public class OpenLibraryProxy
     {
         private readonly IHttpClient _httpClient;
         private readonly IOpenLibraryRequestBuilder _requestBuilder;
         private readonly Logger _logger;
+        private readonly CachingService _cache;
+
+        private const int MaxRetries = 3;
+        private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(2);
 
         public OpenLibraryProxy(IHttpClient httpClient,
                                 IOpenLibraryRequestBuilder requestBuilder,
@@ -36,118 +40,125 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             _httpClient = httpClient;
             _requestBuilder = requestBuilder;
             _logger = logger;
+
+            _cache = new CachingService(new MemoryCacheProvider(new MemoryCache(new MemoryCacheOptions())));
+            _cache.DefaultCachePolicy = new CacheDefaults { DefaultCacheDurationSeconds = 3600 };
         }
 
-        // Matches IProvideAuthorInfo.GetAuthorInfo. Two HTTP calls: author
-        // detail + first page of works.
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
-            var authorReq = _requestBuilder.For($"authors/{foreignAuthorId}.json").Build();
-            var worksReq = _requestBuilder.For($"authors/{foreignAuthorId}/works.json?limit=200").Build();
-
-            var authorResp = _httpClient.Get<OpenLibraryAuthorResource>(authorReq);
-            var worksResp = _httpClient.Get<OpenLibraryAuthorWorksResource>(worksReq);
-
-            if (authorResp?.Resource == null)
+            return Cached(useCache, $"oa_{foreignAuthorId}", TimeSpan.FromHours(24), () =>
             {
-                throw new OpenLibraryException("OL author not found: {0}", foreignAuthorId);
-            }
+                var authorReq = _requestBuilder.For($"authors/{foreignAuthorId}.json").Build();
+                var worksReq = _requestBuilder.For($"authors/{foreignAuthorId}/works.json?limit=200").Build();
 
-            return OpenLibraryAuthorMapper.ToAuthor(authorResp.Resource, worksResp?.Resource);
+                var authorResp = Send<OpenLibraryAuthorResource>(authorReq);
+                var worksResp = Send<OpenLibraryAuthorWorksResource>(worksReq);
+
+                if (authorResp?.Resource == null)
+                {
+                    throw new OpenLibraryException("OL author not found: {0}", foreignAuthorId);
+                }
+
+                return OpenLibraryAuthorMapper.ToAuthor(authorResp.Resource, worksResp?.Resource);
+            });
         }
 
-        // Matches IProvideAuthorInfo.GetChangedAuthors. OL has no
-        // "changed-since" endpoint; the per-author refresh schedule already
-        // covers freshness. Return empty to suppress the delta-refresh path.
         public HashSet<string> GetChangedAuthors(DateTime startTime)
         {
+            // OL has no changed-since API. The per-author refresh schedule
+            // covers freshness. Suppress the delta-refresh path.
             return new HashSet<string>();
         }
 
-        // Matches IProvideBookInfo.GetBookInfo. `id` is an OL work key
-        // (e.g., "OL14931151W"). Returns (workId, book, authors).
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
         {
-            var workReq = _requestBuilder.For($"works/{id}.json").Build();
-            var work = _httpClient.Get<OpenLibraryWorkResource>(workReq)?.Resource;
-            if (work == null)
+            return Cached(true, $"ow_{id}", TimeSpan.FromDays(7), () =>
             {
-                throw new OpenLibraryException("OL work not found: {0}", id);
-            }
+                var workReq = _requestBuilder.For($"works/{id}.json").Build();
+                var work = Send<OpenLibraryWorkResource>(workReq)?.Resource;
+                if (work == null)
+                {
+                    throw new OpenLibraryException("OL work not found: {0}", id);
+                }
 
-            var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=50").Build();
-            var editions = _httpClient.Get<OpenLibraryEditionListResource>(editionsReq)?.Resource;
+                var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=50").Build();
+                var editions = Send<OpenLibraryEditionListResource>(editionsReq)?.Resource;
 
-            var (book, authors) = OpenLibraryWorkMapper.ToBook(work, editions);
+                var (book, authors) = OpenLibraryWorkMapper.ToBook(work, editions);
 
-            return Tuple.Create(id, book, authors);
+                return Tuple.Create(id, book, authors);
+            });
         }
 
-        // Matches ISearchForNewAuthor.SearchForNewAuthor.
         public List<Author> SearchForNewAuthor(string title)
         {
-            var req = _requestBuilder.For($"search/authors.json?q={Uri.EscapeDataString(title)}").Build();
-            var resp = _httpClient.Get<OpenLibraryAuthorSearchResource>(req);
-
-            var result = new List<Author>();
-            if (resp?.Resource?.Docs == null)
+            return Cached(true, $"osa_{title}", TimeSpan.FromHours(1), () =>
             {
+                var req = _requestBuilder.For($"search/authors.json?q={Uri.EscapeDataString(title)}").Build();
+                var resp = Send<OpenLibraryAuthorSearchResource>(req);
+
+                var result = new List<Author>();
+                if (resp?.Resource?.Docs == null)
+                {
+                    return result;
+                }
+
+                foreach (var doc in resp.Resource.Docs)
+                {
+                    result.Add(OpenLibrarySearchMapper.ToAuthorSummary(doc));
+                }
+
                 return result;
-            }
-
-            foreach (var doc in resp.Resource.Docs)
-            {
-                result.Add(OpenLibrarySearchMapper.ToAuthorSummary(doc));
-            }
-
-            return result;
+            });
         }
 
-        // Matches ISearchForNewBook.SearchForNewBook.
         public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
         {
-            var qs = $"?title={Uri.EscapeDataString(title)}";
-            if (!string.IsNullOrWhiteSpace(author))
+            var cacheKey = $"os_{title}|{author}|{getAllEditions}";
+
+            return Cached(true, cacheKey, TimeSpan.FromHours(1), () =>
             {
-                qs += $"&author={Uri.EscapeDataString(author)}";
-            }
+                var qs = $"?title={Uri.EscapeDataString(title)}";
+                if (!string.IsNullOrWhiteSpace(author))
+                {
+                    qs += $"&author={Uri.EscapeDataString(author)}";
+                }
 
-            qs += "&limit=20&fields=key,title,author_name,author_key,first_publish_year,isbn,cover_i,edition_count";
+                qs += "&limit=20&fields=key,title,author_name,author_key,first_publish_year,isbn,cover_i,edition_count";
 
-            var resp = _httpClient.Get<OpenLibrarySearchResource>(_requestBuilder.For($"search.json{qs}").Build());
-            return OpenLibrarySearchMapper.ReRankAndMap(resp?.Resource, title, author);
+                var resp = Send<OpenLibrarySearchResource>(_requestBuilder.For($"search.json{qs}").Build());
+                return OpenLibrarySearchMapper.ReRankAndMap(resp?.Resource, title, author);
+            });
         }
 
-        // Matches ISearchForNewBook.SearchByIsbn.
-        // /isbn/{isbn}.json redirects (302) to /books/OL...M.json — the http
-        // client follows that automatically when AllowAutoRedirect is true.
         public List<Book> SearchByIsbn(string isbn)
         {
-            var request = _requestBuilder.For($"isbn/{isbn}.json").Build();
-            request.AllowAutoRedirect = true;
-
-            var resp = _httpClient.Get<OpenLibraryEditionResource>(request);
-            if (resp?.Resource == null)
+            return Cached(true, $"oisbn_{isbn}", TimeSpan.FromDays(30), () =>
             {
-                return new List<Book>();
-            }
+                var request = _requestBuilder.For($"isbn/{isbn}.json").Build();
+                request.AllowAutoRedirect = true;
 
-            return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
+                var resp = Send<OpenLibraryEditionResource>(request);
+                if (resp?.Resource == null)
+                {
+                    return new List<Book>();
+                }
+
+                return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
+            });
         }
 
-        // Matches ISearchForNewBook.SearchByAsin.
-        // OL has no dedicated ASIN endpoint; use the search index via the
-        // identifier qualifier.
         public List<Book> SearchByAsin(string asin)
         {
-            var req = _requestBuilder.For($"search.json?q=identifier%3A{Uri.EscapeDataString(asin)}&limit=5").Build();
-            var resp = _httpClient.Get<OpenLibrarySearchResource>(req);
-            return OpenLibrarySearchMapper.ReRankAndMap(resp?.Resource, asin, null);
+            return Cached(true, $"oasin_{asin}", TimeSpan.FromDays(30), () =>
+            {
+                var req = _requestBuilder.For($"search.json?q=identifier%3A{Uri.EscapeDataString(asin)}&limit=5").Build();
+                var resp = Send<OpenLibrarySearchResource>(req);
+                return OpenLibrarySearchMapper.ReRankAndMap(resp?.Resource, asin, null);
+            });
         }
 
-        // Matches ISearchForNewBook.SearchByForeignBookId (post-Phase-2 rename).
-        // Caller may pass an OL work key or an OL edition key. Differentiate
-        // by the trailing letter: W = work, M = manifest (edition).
         public List<Book> SearchByForeignBookId(string foreignBookId, bool getAllEditions)
         {
             if (string.IsNullOrWhiteSpace(foreignBookId))
@@ -170,20 +181,21 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             if (foreignBookId.EndsWith("M", StringComparison.OrdinalIgnoreCase))
             {
-                var resp = _httpClient.Get<OpenLibraryEditionResource>(_requestBuilder.For($"books/{foreignBookId}.json").Build());
-                if (resp?.Resource == null)
+                return Cached(true, $"oe_{foreignBookId}", TimeSpan.FromDays(30), () =>
                 {
-                    return new List<Book>();
-                }
+                    var resp = Send<OpenLibraryEditionResource>(_requestBuilder.For($"books/{foreignBookId}.json").Build());
+                    if (resp?.Resource == null)
+                    {
+                        return new List<Book>();
+                    }
 
-                return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
+                    return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
+                });
             }
 
             return new List<Book>();
         }
 
-        // Matches ISearchForNewEntity.SearchForNewEntity.
-        // The SPA quick-search blends authors and books in the same drop-down.
         public List<object> SearchForNewEntity(string title)
         {
             var result = new List<object>();
@@ -207,6 +219,90 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return result;
+        }
+
+        private T Cached<T>(bool useCache, string cacheKey, TimeSpan ttl, Func<T> factory)
+        {
+            if (!useCache)
+            {
+                return factory();
+            }
+
+            return _cache.GetOrAdd(cacheKey, () => factory(), DateTimeOffset.UtcNow.Add(ttl));
+        }
+
+        // Inline retry loop for OL transient failures. 429 + 5xx → wait
+        // (2s, 4s, 8s) + jitter, max 3 retries. Honors the Retry-After
+        // header when OL provides one (common on 429).
+        //
+        // Not using Polly: Polly 8's ResiliencePipeline<HttpResponse> doesn't
+        // compose cleanly with the generic HttpResponse<T> here (covariance
+        // round-trip via cast works at runtime but is ugly and brittle when
+        // the upstream IHttpClient signature evolves). Worth a re-look once
+        // more OL endpoints land — until then, the inline loop is plenty.
+        private HttpResponse<T> Send<T>(HttpRequest request)
+            where T : new()
+        {
+            var delay = InitialRetryDelay;
+            HttpResponse<T> response = null;
+
+            for (var attempt = 0; attempt <= MaxRetries; attempt++)
+            {
+                try
+                {
+                    response = _httpClient.Get<T>(request);
+                }
+                catch (HttpException ex) when (ex.Response != null && IsRetryable(ex.Response) && attempt < MaxRetries)
+                {
+                    _logger.Warn(ex, "OL request {0} threw on attempt {1}; retrying after {2}s", request.Url, attempt + 1, delay.TotalSeconds);
+                    Wait(ex.Response, delay);
+                    delay = NextDelay(delay);
+                    continue;
+                }
+
+                if (response != null && IsRetryable(response) && attempt < MaxRetries)
+                {
+                    _logger.Warn("OL request {0} returned {1} on attempt {2}; retrying after {3}s", request.Url, response.StatusCode, attempt + 1, delay.TotalSeconds);
+                    Wait(response, delay);
+                    delay = NextDelay(delay);
+                    continue;
+                }
+
+                return response;
+            }
+
+            return response;
+        }
+
+        private static bool IsRetryable(HttpResponse response)
+        {
+            if (response == null)
+            {
+                return false;
+            }
+
+            return response.StatusCode == HttpStatusCode.TooManyRequests || response.HasHttpServerError;
+        }
+
+        private static void Wait(HttpResponse response, TimeSpan fallback)
+        {
+            var retryAfter = response?.Headers?.GetSingleValue("Retry-After");
+            if (!string.IsNullOrEmpty(retryAfter) && int.TryParse(retryAfter, out var seconds))
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(seconds));
+                return;
+            }
+
+            Thread.Sleep(fallback);
+        }
+
+        private static TimeSpan NextDelay(TimeSpan current)
+        {
+            // Exponential * (0.8–1.2) jitter. Random instance avoided to keep
+            // the helper deterministic-ish in tests.
+            var ms = (long)(current.TotalMilliseconds * 2);
+            var jittered = ms + (ms / 5) * (DateTime.UtcNow.Ticks % 3 - 1);
+            return TimeSpan.FromMilliseconds(Math.Max(jittered, 1));
         }
     }
 }

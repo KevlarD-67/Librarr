@@ -22,7 +22,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 Isbn13 = isbn13,
                 Asin = asin,
                 Title = resource.Title,
-                Overview = resource.Description?.Value,
+                Overview = resource.Description,
                 Format = format,
                 IsEbook = IsEbookFormat(format),
                 Disambiguation = resource.Subtitle,
@@ -57,7 +57,6 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
 
             // TODO Phase 4: also fetch the work for richer metadata when callers
             // can absorb a second HTTP call.
-
             return book;
         }
 

@@ -13,7 +13,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonProperty("personal_name")]
         public string PersonalName { get; set; }
 
-        public OpenLibraryDescription Bio { get; set; }
+        [JsonConverter(typeof(OpenLibraryDescriptionConverter))]
+        public string Bio { get; set; }
 
         [JsonProperty("birth_date")]
         public string BirthDate { get; set; }

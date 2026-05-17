@@ -38,7 +38,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
 
         public OpenLibraryIdentifiers Identifiers { get; set; }
 
-        public OpenLibraryDescription Description { get; set; }
+        [JsonConverter(typeof(OpenLibraryDescriptionConverter))]
+        public string Description { get; set; }
 
         public string Pagination { get; set; }
     }

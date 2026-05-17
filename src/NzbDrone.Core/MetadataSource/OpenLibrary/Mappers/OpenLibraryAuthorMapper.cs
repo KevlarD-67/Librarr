@@ -34,7 +34,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 ForeignAuthorId = olKey,
                 TitleSlug = olKey,
                 Name = (resource.PersonalName ?? resource.Name).CleanSpaces(),
-                Overview = resource.Bio?.Value,
+                Overview = resource.Bio,
                 Born = OpenLibraryDateParser.Parse(resource.BirthDate),
                 Died = OpenLibraryDateParser.Parse(resource.DeathDate),
                 Status = resource.DeathDate.IsNotNullOrWhiteSpace() ? AuthorStatusType.Ended : AuthorStatusType.Continuing
