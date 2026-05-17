@@ -205,7 +205,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
                         if (prefix == "edition")
                         {
-                            return SearchByGoodreadsBookId(searchId, getAllEditions);
+                            return SearchByGoodreadsBookIdInternal(searchId, getAllEditions);
                         }
                     }
 
@@ -288,7 +288,7 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
 
                 if (ids.Count == 1)
                 {
-                    return SearchByGoodreadsBookId(ids[0], false);
+                    return SearchByGoodreadsBookIdInternal(ids[0], false);
                 }
 
                 try
@@ -355,7 +355,17 @@ namespace NzbDrone.Core.MetadataSource.BookInfo
             }
         }
 
-        public List<Book> SearchByGoodreadsBookId(int id, bool getAllEditions)
+        public List<Book> SearchByForeignBookId(string foreignBookId, bool getAllEditions)
+        {
+            if (!int.TryParse(foreignBookId, out var id))
+            {
+                return new List<Book>();
+            }
+
+            return SearchByGoodreadsBookIdInternal(id, getAllEditions);
+        }
+
+        private List<Book> SearchByGoodreadsBookIdInternal(int id, bool getAllEditions)
         {
             try
             {

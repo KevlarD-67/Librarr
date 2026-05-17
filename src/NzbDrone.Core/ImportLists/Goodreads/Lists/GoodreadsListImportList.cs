@@ -70,20 +70,18 @@ namespace NzbDrone.Core.ImportLists.Goodreads
 
         private List<ImportListItemInfo> FetchPage(int page)
         {
-            var list = _listInfo.GetListInfo(Settings.ListId, page);
+            var list = _listInfo.GetListInfo(Settings.ListId.ToString(), page);
             var result = new List<ImportListItemInfo>();
 
             foreach (var book in list.Books)
             {
-                var author = book.Authors.FirstOrDefault();
-
                 result.Add(new ImportListItemInfo
                 {
-                    BookGoodreadsId = book.Work.Id.ToString(),
-                    Book = book.Work.OriginalTitle,
-                    EditionGoodreadsId = book.Id.ToString(),
-                    Author = author?.Name,
-                    AuthorGoodreadsId = author?.Id.ToString()
+                    BookGoodreadsId = book.ForeignBookId,
+                    Book = book.Title,
+                    EditionGoodreadsId = book.ForeignEditionId,
+                    Author = book.AuthorName,
+                    AuthorGoodreadsId = book.ForeignAuthorId
                 });
             }
 
@@ -99,7 +97,7 @@ namespace NzbDrone.Core.ImportLists.Goodreads
         {
             try
             {
-                _listInfo.GetListInfo(Settings.ListId, 1);
+                _listInfo.GetListInfo(Settings.ListId.ToString(), 1);
                 return null;
             }
             catch (HttpException e)

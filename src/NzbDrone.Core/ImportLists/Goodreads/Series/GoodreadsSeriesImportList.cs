@@ -36,17 +36,17 @@ namespace NzbDrone.Core.ImportLists.Goodreads
 
             try
             {
-                var series = _seriesInfo.GetSeriesInfo(Settings.SeriesId);
+                var series = _seriesInfo.GetSeriesInfo(Settings.SeriesId.ToString());
 
-                foreach (var work in series.Works)
+                foreach (var book in series.Books)
                 {
                     result.Add(new ImportListItemInfo
                     {
-                        BookGoodreadsId = work.Id.ToString(),
-                        Book = work.OriginalTitle,
-                        EditionGoodreadsId = work.BestBook.Id.ToString(),
-                        Author = work.BestBook.AuthorName,
-                        AuthorGoodreadsId = work.BestBook.AuthorId.ToString()
+                        BookGoodreadsId = book.ForeignBookId,
+                        Book = book.Title,
+                        EditionGoodreadsId = book.ForeignEditionId,
+                        Author = book.AuthorName,
+                        AuthorGoodreadsId = book.ForeignAuthorId
                     });
                 }
 
@@ -69,7 +69,7 @@ namespace NzbDrone.Core.ImportLists.Goodreads
         {
             try
             {
-                _seriesInfo.GetSeriesInfo(Settings.SeriesId);
+                _seriesInfo.GetSeriesInfo(Settings.SeriesId.ToString());
                 return null;
             }
             catch (HttpException e)

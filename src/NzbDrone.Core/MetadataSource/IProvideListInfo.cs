@@ -1,9 +1,9 @@
-using NzbDrone.Core.MetadataSource.Goodreads;
+using NzbDrone.Core.Books.Model;
 
 namespace NzbDrone.Core.MetadataSource
 {
     public interface IProvideListInfo
     {
-        ListResource GetListInfo(int id, int page, bool useCache = true);
+        ListInfo GetListInfo(string foreignListId, int page, bool useCache = true);
     }
 }

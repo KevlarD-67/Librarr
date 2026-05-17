@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Model;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Http;
 
@@ -37,7 +38,7 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                 .CreateFactory();
         }
 
-        public SeriesResource GetSeriesInfo(int foreignSeriesId, bool useCache = true)
+        public SeriesInfo GetSeriesInfo(string foreignSeriesId, bool useCache = true)
         {
             _logger.Debug("Getting Series with GoodreadsId of {0}", foreignSeriesId);
 
@@ -55,7 +56,7 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
             {
                 if (httpResponse.StatusCode == HttpStatusCode.BadRequest)
                 {
-                    throw new BadRequestException(foreignSeriesId.ToString());
+                    throw new BadRequestException(foreignSeriesId);
                 }
                 else
                 {
@@ -65,10 +66,10 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
 
             var resource = httpResponse.Deserialize<ShowSeriesResource>();
 
-            return resource.Series;
+            return MapSeries(resource.Series);
         }
 
-        public ListResource GetListInfo(int foreignListId, int page, bool useCache = true)
+        public ListInfo GetListInfo(string foreignListId, int page, bool useCache = true)
         {
             _logger.Debug("Getting List with GoodreadsId of {0}", foreignListId);
 
@@ -99,7 +100,7 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
             {
                 if (httpResponse.StatusCode == HttpStatusCode.BadRequest)
                 {
-                    throw new BadRequestException(foreignListId.ToString());
+                    throw new BadRequestException(foreignListId);
                 }
                 else
                 {
@@ -107,7 +108,68 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                 }
             }
 
-            return httpResponse.Deserialize<ListResource>();
+            var resource = httpResponse.Deserialize<ListResource>();
+
+            return MapList(foreignListId, resource);
+        }
+
+        private static SeriesInfo MapSeries(SeriesResource resource)
+        {
+            var info = new SeriesInfo
+            {
+                ForeignSeriesId = resource.Id.ToString(),
+                Title = resource.Title,
+                Description = resource.Description
+            };
+
+            if (resource.Works != null)
+            {
+                foreach (var work in resource.Works)
+                {
+                    var bestBook = work.BestBook;
+                    info.Books.Add(new BookListItem
+                    {
+                        ForeignBookId = work.Id.ToString(),
+                        Title = work.OriginalTitle,
+                        ForeignEditionId = bestBook?.Id.ToString(),
+                        AuthorName = bestBook?.AuthorName,
+                        ForeignAuthorId = bestBook?.AuthorId.ToString(),
+                        Position = null
+                    });
+                }
+            }
+
+            return info;
+        }
+
+        private static ListInfo MapList(string foreignListId, ListResource resource)
+        {
+            var info = new ListInfo
+            {
+                ForeignListId = foreignListId,
+                Page = resource.Page,
+                PerPage = resource.PerPage,
+                TotalBooks = resource.ListBooksCount
+            };
+
+            if (resource.Books != null)
+            {
+                foreach (var book in resource.Books)
+                {
+                    var author = book.Authors?.FirstOrDefault();
+                    info.Books.Add(new BookListItem
+                    {
+                        ForeignBookId = book.Work?.Id.ToString(),
+                        Title = book.Work?.OriginalTitle,
+                        ForeignEditionId = book.Id.ToString(),
+                        AuthorName = author?.Name,
+                        ForeignAuthorId = author?.Id.ToString(),
+                        Position = null
+                    });
+                }
+            }
+
+            return info;
         }
 
         public Book GetBookInfo(string foreignEditionId, bool useCache = true)
