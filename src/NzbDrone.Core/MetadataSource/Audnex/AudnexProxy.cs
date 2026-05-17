@@ -17,8 +17,9 @@ namespace NzbDrone.Core.MetadataSource.Audnex
     //
     // Not registered against IProvideBookInfo on purpose: this is an
     // *augmenter*, layered on top of the primary metadata source's Book.
-    // Wiring into RefreshBookService is a Phase 7b task (see TODO at the
-    // bottom for the merge sketch).
+    // RefreshBookService.GetSkyhookData calls Augment() after the primary
+    // refresh; failures are swallowed there so the main path is never
+    // blocked by a transient audnex outage.
     public class AudnexProxy : IAugmentAudiobookInfo
     {
         private const string BaseUrl = "https://api.audnex.us";

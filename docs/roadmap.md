@@ -44,8 +44,12 @@ priority; nothing here is a hard commitment.
 
 ## Soon (1.0.0 stable)
 
-- [ ] **Audnex augmenter wired into RefreshBookService**. The proxy
-  exists; the IExecute<RefreshBookCommand> handler doesn't yet call it.
+- [x] **Audnex augmenter wired into RefreshBookService**. Landed.
+  `RefreshBookService.GetSkyhookData` calls
+  `IAugmentAudiobookInfo.Augment` after the primary metadata source
+  returns. CanAugment gates on the opt-in config flag, so disabled
+  installs pay no cost. Augmenter failures swallow into Debug — the
+  primary refresh path is never blocked.
 
 - [ ] **OpenLibraryAuthorImportList + OpenLibraryTrendingImportList**.
   Phase 6 shipped only OpenLibrarySubjectImportList; the other two from

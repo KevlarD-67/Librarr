@@ -35,6 +35,7 @@ namespace NzbDrone.Core.Books
         private readonly IEditionService _editionService;
         private readonly IProvideAuthorInfo _authorInfo;
         private readonly IProvideBookInfo _bookInfo;
+        private readonly IAugmentAudiobookInfo _audiobookAugmenter;
         private readonly IRefreshEditionService _refreshEditionService;
         private readonly IMediaFileService _mediaFileService;
         private readonly IHistoryService _historyService;
@@ -51,6 +52,7 @@ namespace NzbDrone.Core.Books
                                   IAuthorMetadataService authorMetadataService,
                                   IProvideAuthorInfo authorInfo,
                                   IProvideBookInfo bookInfo,
+                                  IAugmentAudiobookInfo audiobookAugmenter,
                                   IRefreshEditionService refreshEditionService,
                                   IMediaFileService mediaFileService,
                                   IHistoryService historyService,
@@ -67,6 +69,7 @@ namespace NzbDrone.Core.Books
             _editionService = editionService;
             _authorInfo = authorInfo;
             _bookInfo = bookInfo;
+            _audiobookAugmenter = audiobookAugmenter;
             _refreshEditionService = refreshEditionService;
             _mediaFileService = mediaFileService;
             _historyService = historyService;
@@ -88,6 +91,13 @@ namespace NzbDrone.Core.Books
                 newbook.AuthorMetadata = author.Metadata.Value;
                 newbook.AuthorMetadataId = book.AuthorMetadataId;
                 newbook.AuthorMetadata.Value.Id = book.AuthorMetadataId;
+
+                // Audnex audiobook augmenter (Phase 7b wire-up). CanAugment
+                // gates the whole thing on the opt-in config flag + the
+                // book having at least one ASIN'd audiobook edition, so a
+                // no-op call is cheap. Failures are swallowed inside
+                // Augment — the primary refresh path is never blocked.
+                newbook = _audiobookAugmenter.Augment(newbook);
 
                 author.Books = new List<Book> { newbook };
                 return author;
