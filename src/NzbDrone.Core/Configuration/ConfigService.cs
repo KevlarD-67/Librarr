@@ -280,6 +280,16 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("MetadataSourceType", value); }
         }
 
+        public bool AugmentAudiobookMetadata
+        {
+            // Phase 7 toggle. When true, AudnexProxy merges narrator and
+            // ASIN-keyed cover data on top of the primary metadata. Off by
+            // default — audnex.us is a community service that may go away.
+            get { return GetValueBoolean("AugmentAudiobookMetadata", false); }
+
+            set { SetValue("AugmentAudiobookMetadata", value); }
+        }
+
         public WriteAudioTagsType WriteAudioTags
         {
             get { return GetValueEnum("WriteAudioTags", WriteAudioTagsType.No); }
