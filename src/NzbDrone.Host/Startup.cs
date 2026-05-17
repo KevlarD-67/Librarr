@@ -100,8 +100,8 @@ namespace NzbDrone.Host
                 c.SwaggerDoc("v1", new OpenApiInfo
                 {
                     Version = "1.0.0",
-                    Title = "Readarr",
-                    Description = "Readarr API docs",
+                    Title = "Librarr",
+                    Description = "Librarr API docs",
                     License = new OpenApiLicense
                     {
                         Name = "GPL-3.0",
