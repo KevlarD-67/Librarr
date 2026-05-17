@@ -15,7 +15,7 @@ using NzbDrone.Test.Common;
 namespace NzbDrone.Core.Test.MetadataSource.Goodreads
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
+    [Ignore("BookInfo search API (api.bookinfo.club) was retired with upstream Readarr on 2025-06-27 and is not coming back. This fork sources metadata from OpenLibrary; see OpenLibrarySearchFixture for the live coverage. Kept as documentation of the legacy contract — remove once the BookInfoProxy code path is deleted.")]
     public class BookInfoProxySearchFixture : CoreTest<BookInfoProxy>
     {
         [SetUp]
