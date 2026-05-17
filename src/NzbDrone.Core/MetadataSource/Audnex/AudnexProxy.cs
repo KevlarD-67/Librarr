@@ -132,7 +132,12 @@ namespace NzbDrone.Core.MetadataSource.Audnex
 
         private static bool IsAudiobookFormat(Edition edition)
         {
-            return edition?.Format == "AudioBook" || edition?.IsEbook == true;
+            // Strictly Format == AudioBook. The IsEbook flag is true for
+            // *both* ebook and audiobook formats (see
+            // OpenLibraryEditionMapper.IsEbookFormat), so checking it
+            // here would fire audnex lookups against Kindle ebooks too,
+            // and audnex only carries Audible audiobook data.
+            return edition?.Format == "AudioBook";
         }
     }
 }
