@@ -25,10 +25,11 @@ priority; nothing here is a hard commitment.
   `MediaCoverTypes.Poster`, work mapper backfills editions that lack
   their own cover. Sentinel negative IDs are filtered out.
 
-- [ ] **OpenLibraryDescriptionConverter coverage of edge JSON shapes**.
-  The converter handles `string` and `{type, value}`. A handful of
-  works return arrays-of-strings or nested objects — log a warning
-  + return null for those.
+- [x] **OpenLibraryDescriptionConverter coverage of edge JSON shapes**.
+  Landed. Converter now handles array-of-strings (joined with newlines),
+  `{text: ...}` legacy form, and nested-object `value`. Unexpected
+  scalars / non-string array contents return null with a debug-level
+  log. Nine-row regression fixture covers each shape.
 
 - [ ] **Self-contained Dockerfile** (Phase 9b). The Phase 9 Dockerfile
   copies `_output/`; a multi-stage version that builds inside the
