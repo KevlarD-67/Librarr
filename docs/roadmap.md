@@ -5,11 +5,12 @@ priority; nothing here is a hard commitment.
 
 ## Now (1.0.0-beta cycle)
 
-- [ ] **Field-tag reidentify pass** (Phase 5b). `ReidentifyService`
-  currently maps Authors + Books by name / ISBN / ASIN. The TODO in
-  `Books/Services/ReidentifyService.cs:81` is the missing piece:
-  re-running the existing identification pipeline against parsed
-  `BookFile` tags. File tags trump server lookups when both disagree.
+- [x] **Field-tag reidentify pass** (Phase 5b). Landed in commit
+  `a4acdc9`. `ReidentifyService.FileTagPass` walks every Book with files,
+  reads `IMetadataTagService` tags, looks up OL by ISBN → ASIN →
+  Title+Author, and overwrites any non-Manual existing mapping with a
+  `BookIdMappingSource.FileTag` row at 0.97 / 0.92 / 0.78 confidence
+  respectively. `ResolveOverride` pure helper extracted for testing.
 
 - [ ] **Dedicated low-confidence review UI** (Phase 9 polish). The
   current MetadataSwitchWizard surfaces low-confidence rows to the log
@@ -17,10 +18,12 @@ priority; nothing here is a hard commitment.
   `BookIdMappingRepository.GetLowConfidence(0.7)` and lets the user
   override the OL ID manually.
 
-- [ ] **Cover URL wiring for OpenLibrary** (Phase 4b). The OL DTOs
-  capture `covers[]` but the mappers don't yet construct the
-  `covers.openlibrary.org/b/id/{id}-L.jpg` URLs. Plumb through
-  `MediaCoverService`.
+- [x] **Cover URL wiring for OpenLibrary** (Phase 4b). Landed. New
+  helper `OpenLibraryCoverUrls` constructs `covers.openlibrary.org/b/id/…`
+  and `…/a/id/…` URLs from the integer IDs in OL JSON. Edition mapper
+  now emits `MediaCoverTypes.Cover`, author mapper emits
+  `MediaCoverTypes.Poster`, work mapper backfills editions that lack
+  their own cover. Sentinel negative IDs are filtered out.
 
 - [ ] **OpenLibraryDescriptionConverter coverage of edge JSON shapes**.
   The converter handles `string` and `{type, value}`. A handful of

@@ -29,6 +29,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 Publisher = resource.Publishers?.FirstOrDefault(),
                 PageCount = resource.NumberOfPages ?? 0,
                 ReleaseDate = OpenLibraryDateParser.Parse(resource.PublishDate),
+                Images = OpenLibraryCoverUrls.ForBook(resource.Covers),
                 Monitored = true
             };
         }

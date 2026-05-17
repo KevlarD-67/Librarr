@@ -48,7 +48,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 metadata.Aliases.AddRange(resource.AlternateNames);
             }
 
-            // TODO Phase 4: photos[] → MediaCover images, links → Links list.
+            metadata.Images = OpenLibraryCoverUrls.ForAuthor(resource.Photos);
+
+            // TODO Phase 4: links → Links list (homepage, wikipedia).
             return metadata;
         }
 

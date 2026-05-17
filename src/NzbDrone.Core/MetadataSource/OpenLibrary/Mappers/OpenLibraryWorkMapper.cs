@@ -30,6 +30,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 {
                     e.Monitored = e.ForeignEditionId == primaryKey;
                 }
+
+                // Work-level covers backfill any edition lacking its own.
+                // Most editions have their own cover ID — this only fires
+                // when OL returns sparse edition records (e.g. older
+                // imports that were never updated with an edition cover).
+                var workCovers = OpenLibraryCoverUrls.ForBook(work.Covers);
+                if (workCovers.Count > 0)
+                {
+                    foreach (var e in editionList)
+                    {
+                        if (e.Images.Count == 0)
+                        {
+                            e.Images = workCovers;
+                        }
+                    }
+                }
             }
 
             var book = new Book
