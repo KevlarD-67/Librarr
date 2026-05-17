@@ -67,15 +67,18 @@ priority; nothing here is a hard commitment.
   "Narrated by …" alongside page count when present. A normalized
   Narrators table is a future refactor — see the migration comment.
 
-- [ ] **Real-world OL JSON cassettes for the test suite**. Phase 8
-  shipped hand-crafted Resource fixtures. The "golden corpus" the
-  master plan calls for needs a 100+ work sampling across fiction,
-  non-fiction, audiobook, foreign-language, pseudonymous, prolific
-  cases.
+- [~] **Real-world OL JSON cassettes for the test suite**. Harness
+  in place — `OpenLibraryFixtureLoader` + `Files/OpenLibrary/README.md`
+  documents the capture recipe + corpus categories. The actual JSON
+  cassettes still need to be captured live from openlibrary.org and
+  committed (offline LLM session can't run those curls).
 
-- [ ] **Reidentify regression test**. Snapshot a 500-book
-  Goodreads-ID-shaped library; run the wizard; assert match rate
-  stays >= 85%.
+- [~] **Reidentify regression test**. Skeleton fixture
+  `ReidentifyRegressionFixture` is in place, marked `[Explicit]` so
+  it doesn't run in the default suite. The 6-step harness comment
+  lists what's needed to make it real: a serialized 500-book library
+  snapshot + OL cassettes + a cassette-backed proxy stub. Blocked
+  on the cassette work above and on capturing a real seed library.
 
 ## Later (1.1+)
 
