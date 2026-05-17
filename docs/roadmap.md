@@ -82,20 +82,28 @@ priority; nothing here is a hard commitment.
 
 ## Later (1.1+)
 
-- [ ] **.NET 8 LTS upgrade**. Plan in `docs/deferred-modernization.md`.
-  Blocked on Servarr-forked NuGet packages.
+All five items here are documented in `docs/deferred-modernization.md`
+with the specific reason each is deferred. All five remain deferred
+after this session — none are safely-completable in an offline LLM
+session. See that doc for the assessment per item.
 
-- [ ] **Nullable enable**. Incremental rollout, one project at a time.
+- [ ] **.NET 8 LTS upgrade**. Blocked on Servarr-forked NuGet packages
+  (no `net8.0` builds exist for them yet).
 
-- [ ] **React 17 → 18 + frontend dep refresh**. Plan in
-  `docs/deferred-modernization.md`. Blocks on react-dnd / react-popper
-  / react-virtualized replacements.
+- [ ] **Nullable enable**. Several-thousand-error build without
+  per-file human triage; not a single-session task.
 
-- [ ] **Selenium → Playwright**. Quarantined since Phase 1.
+- [ ] **React 17 → 18 + frontend dep refresh**. Mechanical bumps are
+  cheap but `react-dnd` / `react-virtualized` / `react-popper` need
+  replacements with breaking API changes — needs visual regression
+  testing this session can't do.
 
-- [ ] **OL bulk-data dump fallback**. archive.org publishes full OL
-  dumps. For users that want fully offline metadata, surface a job
-  that ingests the latest dump into a local mirror.
+- [ ] **Selenium → Playwright**. Quarantined since Phase 1; port
+  after the cassette work below so a regression suite exists at all.
+
+- [ ] **OL bulk-data dump fallback**. New deferred-modernization
+  section sketches the storage/streaming requirements. Phase 12+
+  candidate.
 
 ## Won't (until persuaded otherwise)
 

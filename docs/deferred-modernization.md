@@ -125,3 +125,70 @@ deserves its own session — Playwright .NET has a different API surface
 
 **Status:** ✅ done in Phase 10. See `.github/workflows/build.yml` `sbom`
 job. Artifacts attached to each successful build (90-day retention).
+
+## OL bulk-data dump fallback (Later bucket item)
+
+**Status:** deferred to 1.1+.
+
+**Why not now:**
+
+* archive.org publishes OL data dumps (works/editions/authors as
+  newline-delimited JSON, ~50 GB compressed). Ingesting them needs:
+  - A new `IngestOpenLibraryDumpCommand` background job (one-shot,
+    not periodic).
+  - Schema for a local mirror table (denormalized works+editions
+    plus an FTS index, since OL's own search depends on Solr).
+  - A streaming JSON reader that handles 50 GB without holding the
+    whole file in memory.
+  - Disk-space gating + opt-in config flag (most users won't want
+    a 100+ GB local index).
+* The corpus shape changes once per month (new dumps published).
+  Without a real installation watching for drift, the ingest path
+  rots quickly.
+
+**What's needed when revisiting:**
+
+1. Decide whether the dump is a fallback (network unavailable) or
+   a primary path (offline-only deployment).
+2. Pick a storage strategy — SQLite FTS5 vs. Postgres tsvector vs.
+   a sidecar service.
+3. Stub `IBookInfoDumpReader` interface; implement against a
+   downloaded dump in a Phase 12+ session.
+
+## Reidentify regression test (Soon → blocked on cassettes)
+
+**Status:** harness scaffolded in `ReidentifyRegressionFixture`
+(`[Explicit]`); needs cassettes + a real 500-book library snapshot.
+
+**Why not now in this session:** capturing the snapshot requires a
+running Readarr install with a real library and live OL HTTP. An
+offline session can scaffold the test shape (done) but can't
+populate the seed data.
+
+## React 17 → 18 (Later bucket item, reaffirmed)
+
+**Status:** still deferred. Same reasoning as above — `react-dnd@14`,
+`react-virtualized@9`, and `react-popper@1` all need replacements
+before the React bump is safe, and each of those replacements is a
+non-trivial diff. An LLM session can do the mechanical part (bump
+versions, run the codemods) but the visual regression check needs a
+human at a browser, which this session cannot provide.
+
+## .NET 8 LTS + Nullable enable (Later bucket items, reaffirmed)
+
+**Status:** still deferred. The Servarr-forked NuGet packages
+(`System.Data.SQLite.Core.Servarr`, `TagLibSharp-Lidarr`,
+`Mono.Posix.NETStandard...-servarr22`, `Servarr.FluentMigrator.*`)
+are pinned to `net6.0`-specific builds; bumping the TFM fails at
+restore. Without a co-bump of those forks (or successor packages),
+the .NET 8 work cannot start. Same blocker for Nullable: the
+codebase has zero annotations, so flipping the switch produces a
+several-thousand-error build that needs human triage.
+
+## Selenium → Playwright (Later bucket item, reaffirmed)
+
+**Status:** still deferred. The Selenium suite is already
+quarantined (`[Explicit]` per Phase 1), so this is a port rather
+than a critical-path item. A future session can port it without
+blocking anything else — recommended priority: after the cassette
+work above so a real regression suite exists at all.
