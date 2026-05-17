@@ -17,6 +17,7 @@ namespace NzbDrone.Automation.Test
 {
     [TestFixture]
     [AutomationTest]
+    [Explicit("Quarantined: Selenium 3.141 + ChromeDriver 91 incompatible with modern browsers. See MASTER-PLAN.md Phase 10 for the Playwright port.")]
     public abstract class AutomationTest
     {
         private NzbDroneRunner _runner;

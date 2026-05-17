@@ -6,6 +6,21 @@
         <Configuration>
           <Format>opencover</Format>
           <Exclude>[Readarr.*.Test]*,[Readarr.Test.*]*,[Readarr.Api.V1]*</Exclude>
+          <!--
+            Coverage baseline gate (Librarr Phase 1).
+
+            Threshold is intentionally 0 right now: the inherited test
+            suite has never had a measured coverage baseline, so any
+            non-zero starting value would be a guess and risk breaking
+            the build on legitimate refactors.
+
+            Once Phase 8 lands, recompute current line coverage and bump
+            this to (measured - 1%) to lock in "do not regress" behavior.
+            See MASTER-PLAN.md Phase 1 / Phase 8 for the full rationale.
+          -->
+          <Threshold>0</Threshold>
+          <ThresholdType>line</ThresholdType>
+          <ThresholdStat>total</ThresholdStat>
         </Configuration>
       </DataCollector>
     </DataCollectors>
