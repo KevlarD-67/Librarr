@@ -31,9 +31,12 @@ priority; nothing here is a hard commitment.
   scalars / non-string array contents return null with a debug-level
   log. Nine-row regression fixture covers each shape.
 
-- [ ] **Self-contained Dockerfile** (Phase 9b). The Phase 9 Dockerfile
-  copies `_output/`; a multi-stage version that builds inside the
-  image is more reproducible.
+- [x] **Self-contained Dockerfile** (Phase 9b skeleton). Landed. The
+  original `Dockerfile` was renamed to `Dockerfile.prebuilt`; the new
+  default `Dockerfile` is a 3-stage build (`sdk:6.0-alpine` →
+  `node:20-alpine` → `aspnet:6.0-alpine` runtime). Compiles inside
+  the image — no local toolchain needed. Runtime smoke (`docker build
+  && docker run`) still pending and called out in the file header.
 
 ## Soon (1.0.0 stable)
 
