@@ -5,6 +5,7 @@ import SettingsToolbarConnector from 'Settings/SettingsToolbarConnector';
 import translate from 'Utilities/String/translate';
 // import MetadatasConnector from './Metadata/MetadatasConnector';
 import MetadataProviderConnector from './MetadataProvider/MetadataProviderConnector';
+import MetadataSwitchWizardConnector from './MetadataSwitchWizard/MetadataSwitchWizardConnector';
 
 class MetadataSettings extends Component {
 
@@ -60,6 +61,7 @@ class MetadataSettings extends Component {
             onChildMounted={this.onChildMounted}
             onChildStateChange={this.onChildStateChange}
           />
+          <MetadataSwitchWizardConnector />
           {/* <MetadatasConnector /> */}
         </PageContentBody>
       </PageContent>
