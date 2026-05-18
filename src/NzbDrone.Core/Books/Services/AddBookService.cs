@@ -125,7 +125,23 @@ namespace NzbDrone.Core.Books
 
             newBook.Editions = tuple.Item2.Editions.Value;
             newBook.Editions.Value.ForEach(x => x.Monitored = false);
-            newBook.Editions.Value.Single(x => x.ForeignEditionId == editionId).Monitored = true;
+
+            // Pick the previously-monitored edition by foreign id when
+            // the slim search result actually carried a real edition
+            // key. The OL search path uses the work key as a placeholder
+            // ForeignEditionId (no edition keys are exposed in the
+            // search response), so the slim id never matches any of the
+            // real M-keyed editions returned by GetBookInfo. Fall back
+            // to the first edition in that case — selecting a specific
+            // edition at search time isn't actually meaningful, the
+            // user is adding the work and at least one edition must be
+            // monitored to satisfy the data model.
+            var monitoredEdition = newBook.Editions.Value.FirstOrDefault(x => x.ForeignEditionId == editionId)
+                ?? newBook.Editions.Value.FirstOrDefault();
+            if (monitoredEdition != null)
+            {
+                monitoredEdition.Monitored = true;
+            }
 
             var metadata = tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1);
             newBook.AuthorMetadata = metadata;

@@ -89,7 +89,18 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 var (book, authors) = OpenLibraryWorkMapper.ToBook(work, editions);
 
-                return Tuple.Create(id, book, authors);
+                // AddBookService.AddSkyhookData:130 expects Item1 to be
+                // the **author** foreign id so it can locate the matching
+                // AuthorMetadata in Item3 via
+                //   tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1)
+                // The BookInfoProxy returned `authorId` here; this mapper
+                // was incorrectly returning the work id, which never
+                // matched anything in `authors` (those carry author OLIDs
+                // ending in A, work id ends in W). Result: AuthorMetadata
+                // null, then NRE on `.Value.ForeignAuthorId` access in
+                // AddBookService:58.
+                var primaryAuthorId = authors.FirstOrDefault()?.ForeignAuthorId ?? id;
+                return Tuple.Create(primaryAuthorId, book, authors);
             });
         }
 
