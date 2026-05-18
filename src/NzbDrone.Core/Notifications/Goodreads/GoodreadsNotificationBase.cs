@@ -14,7 +14,6 @@ using NzbDrone.Common.Http;
 using NzbDrone.Common.OAuth;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Exceptions;
-using NzbDrone.Core.ImportLists.Goodreads;
 using NzbDrone.Core.MetadataSource.Goodreads;
 
 namespace NzbDrone.Core.Notifications.Goodreads
@@ -195,5 +194,10 @@ namespace NzbDrone.Core.Notifications.Goodreads
 
             return HttpUtility.ParseQueryString(response.Content);
         }
+    }
+
+    public class AuthorizationHeader
+    {
+        public string Authorization { get; set; }
     }
 }
