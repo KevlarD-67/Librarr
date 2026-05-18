@@ -4,6 +4,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Configuration.Events;
+using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Localization;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 
@@ -13,6 +14,7 @@ namespace NzbDrone.Core.HealthCheck.Checks
     // the OpenLibraryProxy hardening. Will start gating when Phase 5's
     // MetadataSourceFactory makes MetadataSourceType = "OpenLibrary"
     // an active runtime setting.
+    [CheckOn(typeof(ApplicationStartedEvent))]
     [CheckOn(typeof(ConfigSavedEvent))]
     public class MetadataSourceConnectivityCheck : HealthCheckBase
     {

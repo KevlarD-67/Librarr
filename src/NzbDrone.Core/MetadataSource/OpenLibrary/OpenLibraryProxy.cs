@@ -68,6 +68,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             // OL has no changed-since API. The per-author refresh schedule
             // covers freshness. Suppress the delta-refresh path.
+            _logger.Debug("OL GetChangedAuthors called (startTime={0}); OL has no delta API, returning empty.", startTime);
             return new HashSet<string>();
         }
 
