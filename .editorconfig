@@ -57,6 +57,14 @@ dotnet_diagnostic.SA1101.severity = none
 dotnet_diagnostic.SA1116.severity = none
 dotnet_diagnostic.SA1118.severity = none
 dotnet_diagnostic.SA1122.severity = none
+# Repo convention: `using` directives sit outside the namespace. The
+# IDE-default (and most files) follow this style. Without an explicit
+# suppression, `dotnet publish -c Release` fails on every file in
+# NzbDrone.Common/TPL/ and similar — Debug build skips the analyzer
+# pass but Release activates EnforceCodeStyleInBuild. The Phase 9
+# release.yml + Phase 9b Dockerfile both did Release publishes that
+# were silently broken until this was caught.
+dotnet_diagnostic.SA1200.severity = none
 dotnet_diagnostic.SA1201.severity = suggestion
 dotnet_diagnostic.SA1202.severity = suggestion
 dotnet_diagnostic.SA1204.severity = suggestion

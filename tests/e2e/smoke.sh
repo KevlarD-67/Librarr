@@ -98,7 +98,7 @@ echo "Checking core API endpoints..."
 assert_endpoint "/api/v1/system/status" "version"
 assert_endpoint "/api/v1/health" ""
 assert_endpoint "/api/v1/config/host" "bindAddress"
-assert_endpoint "/api/v1/config/metadataSource" ""
+assert_endpoint "/api/v1/config/metadataprovider" "writeAudioTags"
 
 # Phase 5 reidentify command path — schedule it but don't wait for
 # completion (it runs the OL traversal which is unbounded on a fresh

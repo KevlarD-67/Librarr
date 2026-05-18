@@ -8,7 +8,7 @@
 # package _output/, use distribution/docker/Dockerfile.prebuilt.
 #
 # Stages:
-#   1. backend-build  → dotnet publish for linux-musl-x64
+#   1. backend-build  → dotnet publish for ${DOTNET_RID}
 #   2. frontend-build → yarn install + yarn build → _output/UI
 #   3. runtime        → aspnet:6.0-alpine, copies from 1 + 2
 #
@@ -30,23 +30,46 @@ FROM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS backend-build
 ARG LIBRARR_VERSION=1.0.0-beta.0
 ENV READARRVERSION=${LIBRARR_VERSION}
 
+# Override at build time for non-x64 hosts. Apple Silicon devs should
+# pass `--build-arg DOTNET_RID=linux-musl-arm64` (and drop the
+# `--platform linux/amd64` flag) — Roslyn segfaults under x86_64-on-arm64
+# emulation. CI keeps the x64 default.
+ARG DOTNET_RID=${DOTNET_RID}
+
 WORKDIR /src
 
-# Restore in a separate layer so dependency changes invalidate the
-# cache, but iterating on source code reuses the restored packages.
-COPY src/*.sln ./src/
-COPY src/Directory.Build.props src/Directory.Build.targets src/Directory.Packages.props src/.editorconfig src/stylecop.json src/Stylecop.ruleset ./src/
-COPY src/*/*.csproj ./
-RUN for csproj in *.csproj; do \
-        mkdir -p "src/${csproj%.csproj}" && mv "$csproj" "src/${csproj%.csproj}/"; \
-    done
-RUN dotnet restore src/Readarr.sln -p:Configuration=Release -p:Platform=Posix -r linux-musl-x64
-
-# Copy the rest of the source and publish for alpine RID.
+# The Phase 9b skeleton tried to flatten csprojs into a separate
+# restore layer for cache locality. That optimization assumed the
+# project-folder name matched the csproj basename, which isn't true
+# in this repo (folders are `NzbDrone.X`, csprojs are `Readarr.X`).
+# Until someone wires up an explicit name-mapping, do a single
+# COPY src/ + restore + publish. Slower on iterative builds; correct.
+COPY .editorconfig ./
+# NzbDrone.Core.csproj embeds ../../Logo/64.png — i.e., expects the
+# Logo/ tree at the WORKDIR root, sibling to src/. Without this the
+# Release publish dies with CS1566 on the embedded resource.
+COPY Logo/ ./Logo/
 COPY src/ ./src/
+RUN dotnet restore src/Readarr.sln -p:Configuration=Release -p:Platform=Posix -r ${DOTNET_RID}
 RUN dotnet publish src/NzbDrone.Console/Readarr.Console.csproj \
         -c Release \
-        -r linux-musl-x64 \
+        -f net6.0 \
+        -r ${DOTNET_RID} \
+        --no-restore \
+        --self-contained false \
+        -p:Platform=Posix \
+        -o /publish
+
+# The platform shim (Readarr.Mono on Linux/macOS; Readarr.Windows on
+# Windows) is loaded by name at runtime via AssemblyLoader, not as a
+# static ProjectReference of Console. dotnet publish on Console alone
+# therefore doesn't drop it into /publish — we have to publish it
+# separately and let its output overlay. Mirrors the per-project
+# publish loop in build.sh's PublishAllRids target.
+RUN dotnet publish src/NzbDrone.Mono/Readarr.Mono.csproj \
+        -c Release \
+        -f net6.0 \
+        -r ${DOTNET_RID} \
         --no-restore \
         --self-contained false \
         -p:Platform=Posix \
