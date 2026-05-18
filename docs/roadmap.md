@@ -67,25 +67,32 @@ priority; nothing here is a hard commitment.
   "Narrated by …" alongside page count when present. A normalized
   Narrators table is a future refactor — see the migration comment.
 
-- [~] **Real-world OL JSON cassettes for the test suite**. Harness
-  in place — `OpenLibraryFixtureLoader` + `Files/OpenLibrary/README.md`
-  documents the capture recipe + corpus categories. The actual JSON
-  cassettes still need to be captured live from openlibrary.org and
-  committed (offline LLM session can't run those curls).
+- [x] **Real-world OL JSON cassettes for the test suite**. 117 real
+  OL captures are committed under
+  `src/NzbDrone.Core.Test/Files/OpenLibrary/`; the capture recipe
+  itself is automated by `scripts/capture-ol-cassettes.sh`.
+  `OpenLibraryFixtureLoader` + the README in that directory document
+  the corpus categories and re-capture procedure. (Earlier `[~]`
+  marker was stale; finalization-pass audit confirmed the corpus
+  is in tree.)
 
-- [~] **Reidentify regression test**. Skeleton fixture
-  `ReidentifyRegressionFixture` is in place, marked `[Explicit]` so
-  it doesn't run in the default suite. The 6-step harness comment
-  lists what's needed to make it real: a serialized 500-book library
-  snapshot + OL cassettes + a cassette-backed proxy stub. Blocked
-  on the cassette work above and on capturing a real seed library.
+- [x] **Reidentify regression test**. `ReidentifyRegressionFixture`
+  runs in the default suite (`[TestFixture]`, not `[Explicit]`). It
+  seeds 10 books programmatically — 5 ISBN-13s + 5 title+author
+  shapes — and drives the real `OpenLibraryProxy` against a
+  cassette-backed `IHttpClient` stub, asserting the recorded
+  mappings clear the 0.85 threshold. The earlier `[~]` was based on
+  an outdated reading of the harness comment; a 500-book snapshot
+  is documented as a future "stable gate" enhancement (see
+  `docs/release-checklist.md`) but is not blocking.
 
 ## Later (1.1+)
 
-All five items here are documented in `docs/deferred-modernization.md`
-with the specific reason each is deferred. All five remain deferred
-after this session — none are safely-completable in an offline LLM
-session. See that doc for the assessment per item.
+The items below are documented in `docs/deferred-modernization.md`
+with the specific reason each is deferred. They remain explicitly
+deferred per the v1.0.0 release checklist (`docs/release-checklist.md`),
+and none are safely-completable in an offline LLM session. See the
+deferred-modernization doc for the assessment per item.
 
 - [ ] **.NET 8 LTS upgrade**. Blocked on Servarr-forked NuGet packages
   (no `net8.0` builds exist for them yet).
@@ -93,10 +100,16 @@ session. See that doc for the assessment per item.
 - [ ] **Nullable enable**. Several-thousand-error build without
   per-file human triage; not a single-session task.
 
-- [ ] **React 17 → 18 + frontend dep refresh**. Mechanical bumps are
-  cheap but `react-dnd` / `react-virtualized` / `react-popper` need
-  replacements with breaking API changes — needs visual regression
-  testing this session can't do.
+- [x] **React core 17 → 18**. Landed in `ae4261b` (Phase 10
+  closeout). `react` + `react-dom` at 18.3.1, bootstrap rewritten to
+  use `createRoot`. Build clean, full unit suite passes on React 18.
+
+- [ ] **React 18 ecosystem dep refresh**. `react-dnd@14`,
+  `react-virtualized@9`, and `react-popper@1` still pinned. They
+  work on React 18 as-is (verified by the Phase 10 swap not
+  breaking the build), but each replacement is a non-trivial diff
+  with breaking API changes. Not blocking; surface for a future
+  visual-regression pass once Playwright has interaction coverage.
 
 - [ ] **Selenium → Playwright**. Quarantined since Phase 1; port
   after the cassette work below so a regression suite exists at all.
