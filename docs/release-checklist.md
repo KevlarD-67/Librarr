@@ -72,7 +72,7 @@ human maintainer must pass through before tagging the beta.
   ```bash
   git remote rename origin upstream
   git remote add origin git@github.com:<user>/Readarr.git
-  git push -u origin librarr/phase-0
+  git push -u origin main
   ```
 - [ ] Release secrets configured for `release.yml`. The workflow
   fires on `v*` tag push; inspect `secrets:` references inline.
