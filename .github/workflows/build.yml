@@ -150,9 +150,24 @@ jobs:
           name: backend-linux
           path: .
 
-      - name: Run unit tests
+      - name: Restore exec bits on published test artifacts
+        # actions/upload-artifact strips POSIX exec bits on non-Windows.
+        # test.sh + Readarr.Test.Dummy need them back before invocation.
         shell: bash
-        run: ./test.sh Linux Unit
+        run: |
+          chmod +x test.sh
+          chmod +x _tests/net6.0/linux-x64/publish/Readarr.Test.Dummy 2>/dev/null || true
+
+      - name: Run unit tests with coverage
+        shell: bash
+        env:
+          # Per azure-pipelines.yml:1219 — test.sh's assembly-discovery loop
+          # expects the test DLLs at $TEST_DIR/<DLL>.dll, which after build
+          # live under _tests/net6.0/<rid>/publish/. Without this, vstest
+          # is handed nonexistent file paths and reports "Failed tests: 1"
+          # while exiting 0 — i.e., the suite never actually runs.
+          TEST_DIR: _tests/net6.0/linux-x64/publish
+        run: ./test.sh Linux Unit Coverage
 
       - name: Upload test results
         if: always()
@@ -190,6 +205,41 @@ jobs:
       - name: Stylelint
         shell: bash
         run: yarn stylelint-linux
+
+  e2e-smoke:
+    # Phase 8 exit criterion: one e2e smoke run per CI build. Boots the
+    # published linux-x64 backend artifact, asserts the API surface
+    # responds, and fires the ReidentifyLibrary command (fire-and-forget).
+    # Failures here are distinct from unit-test failures — they catch
+    # "the artifact CI built doesn't actually run" regressions that the
+    # unit suite can't see.
+    name: E2E smoke
+    needs: build-backend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download backend output
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-linux
+          path: .
+
+      - name: Restore exec bit on Readarr binary
+        # actions/upload-artifact strips POSIX exec bits on non-Windows.
+        shell: bash
+        run: chmod +x _output/net6.0/linux-x64/publish/Readarr
+
+      - name: Run smoke script
+        shell: bash
+        run: bash tests/e2e/smoke.sh
 
   sbom:
     # Phase 10: SBOM artifact. Captures the .NET + Node dependency trees

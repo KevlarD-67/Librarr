@@ -10,7 +10,7 @@
 #   ./tests/e2e/smoke.sh                    # uses ./_output/net6.0/<rid>/Readarr
 #   READARR_BIN=/path/to/Readarr ./smoke.sh # explicit binary
 #
-# Requires: curl, jq.
+# Requires: curl.
 #
 # Exits 0 on success, non-zero on first failed assertion.
 

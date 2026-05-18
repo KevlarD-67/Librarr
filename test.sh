@@ -57,7 +57,15 @@ else
 fi
 
 for i in "${FILES[@]}";
-  do ASSEMBLIES="$ASSEMBLIES $TEST_DIR/$i"
+do
+  # Skip DLLs the build didn't produce in this TEST_DIR. Readarr.Update.Test
+  # is the standing example: its csproj sets ReadarrOutputType=Update so it
+  # lands under _output/Readarr.Update/, not _tests/. Without this guard,
+  # vstest is handed a nonexistent file path and dies before running any
+  # of the present assemblies.
+  if [ -f "$TEST_DIR/$i" ]; then
+    ASSEMBLIES="$ASSEMBLIES $TEST_DIR/$i"
+  fi
 done
 
 DOTNET_PARAMS="$ASSEMBLIES --filter:$WHERE $VSTEST_PARAMS"
@@ -73,9 +81,12 @@ else
   exit 3
 fi
 
-if [ "$EXIT_CODE" -ge 0 ]; then
+# Inherited script had `[ -ge 0 ]` here, which is true for every non-negative
+# exit code — i.e., success was reported regardless of vstest's verdict. That
+# masked the Phase 8 CI breakage (missing TEST_DIR + missing Update.Test.dll
+# both reported "Failed tests: 1" but the job stayed green). Propagate the
+# real exit code so a failing test fails the CI step.
+if [ "$EXIT_CODE" -ne 0 ]; then
   echo "Failed tests: $EXIT_CODE"
-  exit 0
-else
-  exit $EXIT_CODE
 fi
+exit $EXIT_CODE
