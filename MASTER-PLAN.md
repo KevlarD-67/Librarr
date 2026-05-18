@@ -2286,6 +2286,78 @@ behaviour change.
 
 ---
 
+## Phase 12 — Post-1.0 backlog (catch-all)
+
+Concrete follow-ups that are *known* and *scoped* but deliberately
+deferred past the 1.0 cut. Items here have a clear shape — they're
+small enough to be one or two commits, but each one is unblocked work
+not blocking work, so they don't need to gate the release. Add new
+entries as they come up; promote an item to the active roadmap when
+it stops being optional.
+
+### 12.1 Narrator API surface
+
+The migration-043 + 044 work landed the `Narrators` /
+`EditionNarrators` schema and wired the audnex augmenter → join
+pipeline end-to-end. What it did *not* ship is a public read surface
+for narrators as first-class entities. Right now the only way the
+join is queried is via the lazy-loaded `Edition.NarratorList`, which
+the frontend consumes as a comma-joined string in
+`BookDetailsHeader.js`.
+
+To unblock per-narrator UX (e.g. "show me every audiobook narrated
+by George Guidall"):
+
+* Add `src/Readarr.Api.V1/Narrator/NarratorController.cs` with
+  `GET /api/v1/narrator/{id}` and `GET /api/v1/narrator?editionId=X`.
+* Add `NarratorResource` DTO + mapper. Keep the shape minimal
+  (`Id`, `Name`, `ForeignNarratorId`) until there's a UI need for
+  more.
+* Service backing is already in place — `INarratorService` exposes
+  `GetNarratorsForEdition` and the underlying repos cover the
+  lookups needed.
+
+Acceptance: an integration test asserts `GET /narrator/{id}` returns
+the expected `NarratorResource` JSON for a seeded narrator row.
+
+### 12.2 Frontend narrator chips
+
+Depends on 12.1. Today `BookDetailsHeader.js` renders narrators as
+`{`Narrated by ${narrators}`}` against a string prop. Once the API
+surface above is in place, the same component can fetch the
+structured list and render each narrator as a clickable chip
+(`<Link to={/narrator/${id}}>{name}</Link>`).
+
+* Update `BookDetailsHeaderConnector.js` to pass the structured
+  list rather than the joined string.
+* Add a `<NarratorChip />` component under
+  `frontend/src/Book/Details/`.
+* PropTypes + i18n key: `Narrated by <chips>` rather than
+  `Narrated by <string>`.
+
+A narrator detail page (browsable per-narrator works list) is a
+separate item — call it 12.4 if/when it gets scoped.
+
+### 12.3 Down-migration policy decision (not a feature)
+
+Recorded as a deliberate non-feature so future contributors don't
+write a down-migration for `044_drop_editions_narrators.cs` and
+think they're being helpful.
+
+* Re-creating the dropped `Editions.Narrators` column is trivial.
+* Re-derivation from the join is a single `SELECT ... GROUP_CONCAT`
+  query.
+* But: the audnex augmenter no longer writes the column, so a
+  downgraded binary running against a re-created column would never
+  refill it. The column would go immediately stale.
+
+The migration's own header comment makes this argument; documenting
+the decision here too so it survives unrelated refactors. Rollback
+recipe (restore a pre-044 SQLite backup) lives in
+`docs/migrating-from-readarr.md`.
+
+---
+
 ## Critical files & references summary
 
 | Layer | Key files |
