@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using LazyCache;
@@ -213,6 +214,23 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<object> SearchForNewEntity(string title)
         {
+            // Typed-prefix search shortcuts mirroring the BookInfoProxy
+            // syntax (`isbn:` / `asin:` / `author:` / `work:` /
+            // `edition:`), updated for OL's identifier shape:
+            //   author:OL1394865A  → /authors/{key}.json single result
+            //   work:OL26421189W   → /works/{key}.json   single result
+            //   edition:OL49282196M → /books/{key}.json  single result
+            //   isbn:067003469X    → /isbn/{value}.json  ISBN lookup
+            //   asin:B00JCDK5ME    → search.json?q=identifier:{asin}
+            //
+            // Unknown prefixes (and prefix-less queries) fall through to
+            // the existing author + book merged search.
+            var prefixed = TryPrefixedSearch(title);
+            if (prefixed != null)
+            {
+                return prefixed;
+            }
+
             var result = new List<object>();
 
             foreach (var author in SearchForNewAuthor(title))
@@ -234,6 +252,59 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return result;
+        }
+
+        private List<object> TryPrefixedSearch(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title) || !title.Contains(':'))
+            {
+                return null;
+            }
+
+            // Lower-case the prefix only — OL identifiers (OL...W, OL...M,
+            // OL...A) preserve their original casing on the right-hand
+            // side. ISBNs / ASINs are case-insensitive in practice, but
+            // we pass them through unchanged so the proxy methods see
+            // exactly what the user typed.
+            var split = title.Split(new[] { ':' }, 2);
+            if (split.Length != 2)
+            {
+                return null;
+            }
+
+            var prefix = split[0].Trim().ToLowerInvariant();
+            var slug = split[1].Trim();
+
+            if (string.IsNullOrWhiteSpace(slug) || slug.Any(char.IsWhiteSpace))
+            {
+                return null;
+            }
+
+            switch (prefix)
+            {
+                case "isbn":
+                    return SearchByIsbn(slug).Cast<object>().ToList();
+                case "asin":
+                    return SearchByAsin(slug).Cast<object>().ToList();
+                case "work":
+                case "edition":
+                    // SearchByForeignBookId routes by the suffix letter
+                    // (W → work, M → edition), so both prefixes share it.
+                    return SearchByForeignBookId(slug, true).Cast<object>().ToList();
+                case "author":
+                    try
+                    {
+                        var author = GetAuthorInfo(slug);
+                        return author != null ? new List<object> { author } : new List<object>();
+                    }
+                    catch (OpenLibraryException)
+                    {
+                        return new List<object>();
+                    }
+
+                default:
+                    return null;
+            }
         }
 
         private T Cached<T>(bool useCache, string cacheKey, TimeSpan ttl, Func<T> factory)
