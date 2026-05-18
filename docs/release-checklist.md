@@ -38,17 +38,32 @@ that Phases 2–5 wired up.
   Phase 10 port plus 1 narrator-detail-page smoke from the
   finalization pass. Gated by `READARR_RUN_PLAYWRIGHT=1`; opt-in
   per the suite's README.
+- [x] `docker build -f distribution/docker/Dockerfile -t librarr/librarr:test .`
+  builds clean (~180 MB alpine 6.0 runtime). `docker run` boots,
+  serves `/ping`, passes `tests/e2e/smoke.sh`. Eight Phase 9b
+  skeleton bugs were caught and fixed in the realisation pass —
+  see commit history for the per-bug breakdown.
+- [x] Fresh-install metadata source defaults to OpenLibrary. The
+  legacy `BookInfo` default pointed at `api.bookinfo.club` (retired
+  upstream 2025-06-27); flipped in `ConfigService.cs:278` so fresh
+  installs don't land on a non-functional search. Existing installs
+  that explicitly set `MetadataSourceType=BookInfo` migrate via the
+  Phase 5 reidentify wizard.
 - [ ] **Manual operator walkthrough** (no automated coverage —
-  needs a seeded library):
-  1. Add an author (`/add/new`), refresh metadata.
-  2. Open a book detail page; confirm "Narrated by …" chips
+  needs a seeded library; partially verified in the realisation
+  pass via the smoke container):
+  1. [x] Navigate to `/narrator/999999`, confirm "Narrator not
+     found." error state. (Verified live against
+     `librarr/librarr:test` container.)
+  2. [x] Author lookup hits OpenLibrary (Phase 3 proxy), returns
+     `foreignAuthorId` like `OL1394865A`. (Verified via
+     `/api/v1/author/lookup?term=Brandon%20Sanderson`.)
+  3. [ ] Add an author end-to-end (`/add/new`), refresh metadata,
+     confirm books + editions + covers populate within 60 s.
+  4. [ ] Open a book detail page; confirm "Narrated by …" chips
      render when audiobook editions exist.
-  3. Click a narrator chip; land on `/narrator/:id`; confirm
+  5. [ ] Click a narrator chip; land on `/narrator/:id`; confirm
      book list renders with author links back to `/author/:slug`.
-  4. Test the bogus-id path: navigate manually to
-     `/narrator/999999`, confirm "Narrator not found." error
-     state (Playwright covers this automated; manual run is the
-     human sanity check).
 
 ### Docs
 

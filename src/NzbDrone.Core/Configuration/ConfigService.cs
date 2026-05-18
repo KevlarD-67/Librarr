@@ -272,10 +272,17 @@ namespace NzbDrone.Core.Configuration
         public string MetadataSourceType
         {
             // Selector for the active metadata proxy: "BookInfo" (legacy
-            // Goodreads-derived API, default for back-compat) or "OpenLibrary"
-            // (Phase 3+ native OL proxy). Wired by the MetadataSourceFactory
-            // that lands in Phase 5 alongside the reidentify wizard.
-            get { return GetValue("MetadataSourceType", "BookInfo"); }
+            // Goodreads-derived API, retired upstream 2025-06-27) or
+            // "OpenLibrary" (Phase 3+ native OL proxy). Wired by the
+            // MetadataSourceFactory that lands in Phase 5 alongside the
+            // reidentify wizard. Default is OpenLibrary — the BookInfo
+            // upstream is gone, so a fresh install hitting the legacy
+            // default produces hard DNS failures on every search.
+            // Existing installs that have explicitly set the value to
+            // "BookInfo" still see their old preference (GetValue returns
+            // the stored value, not the default) and migrate via the
+            // wizard.
+            get { return GetValue("MetadataSourceType", "OpenLibrary"); }
 
             set { SetValue("MetadataSourceType", value); }
         }
