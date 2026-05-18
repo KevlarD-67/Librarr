@@ -1,0 +1,264 @@
+# Librarr release pipeline — Phase 9 closeout.
+#
+# Fires on `v*` tag push (or manual workflow_dispatch). Produces:
+#   * Per-RID tarballs / zips for all 12 platforms the project targets
+#     (mirrors azure-pipelines.yml:266-373).
+#   * SHA256SUMS file aggregating the archive checksums.
+#   * A draft GitHub release with the tarballs + zips + SHA256SUMS
+#     attached. Draft so the user reviews release notes before publish.
+#   * Multi-arch Docker image (linux/amd64, linux/arm64, linux/arm/v7)
+#     built from distribution/docker/Dockerfile — `push: false` for now.
+#
+# Explicitly out of scope (TODO with required secrets noted inline):
+#   * Windows installer (.exe) via Inno Setup
+#   * Authenticode signing of the Windows binaries
+#   * macOS .app notarization via notarytool
+#   * Sentry source-map upload (azure-pipelines.yml:377-393)
+#   * Docker registry push — needs a registry decision (ghcr.io vs
+#     hub.docker.com) plus the matching token secret.
+#
+# Stay-local: this file lives dormant until `git push --tags` happens.
+# `gh release create --draft` and `docker build-push-action push:false`
+# keep side-effects bounded even on accidental fires.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without leading v — e.g. 1.0.0-beta.1)'
+        required: true
+
+env:
+  DOTNET_VERSION: '6.0.x'
+  NODE_VERSION: '20.x'
+
+permissions:
+  contents: write    # gh release create
+  packages: write    # future ghcr.io push
+
+jobs:
+  variables:
+    name: Compute release version
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    steps:
+      - id: compute
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Strip the leading "v" from refs/tags/vX.Y.Z
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Release version: ${VERSION}"
+
+  build-backend:
+    name: Build backend (all RIDs)
+    needs: variables
+    runs-on: ubuntu-22.04
+    env:
+      READARRVERSION: ${{ needs.variables.outputs.version }}
+      EnableAnalyzers: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Enable extra platform support (freebsd-x64, linux-x86)
+        shell: bash
+        run: |
+          SDK_DIR=$(dirname "$(dirname "$(which dotnet)")")/sdk
+          BUNDLED=$(find "$SDK_DIR" -name "Microsoft.NETCoreSdk.BundledVersions.props" | head -1)
+          if [ -n "$BUNDLED" ] && ! grep -q freebsd-x64 "$BUNDLED"; then
+            sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' "$BUNDLED"
+            echo "Extra platforms enabled in $BUNDLED"
+          fi
+
+      - name: Build + package backend
+        shell: bash
+        run: ./build.sh --backend --packages --enable-extra-platforms
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-artifacts
+          path: _artifacts/
+          retention-days: 7
+          if-no-files-found: error
+
+  build-frontend:
+    name: Build frontend
+    needs: variables
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Build frontend
+        shell: bash
+        env:
+          FORCE_COLOR: '0'
+        run: ./build.sh --frontend
+
+      - name: Upload UI output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-artifacts
+          path: _output/UI/
+          retention-days: 7
+          if-no-files-found: error
+
+  package:
+    name: Tarball + draft release
+    needs: [variables, build-backend, build-frontend]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-artifacts
+          path: _artifacts/
+
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-artifacts
+          path: _output/UI/
+
+      - name: Stage UI into each per-RID package
+        # build.sh PackageFiles() copies _output/UI into each
+        # _artifacts/<rid>/<framework>/Readarr/ during a packages build.
+        # We split backend/frontend across separate jobs, so re-stage
+        # the UI before tarballing.
+        shell: bash
+        run: |
+          for rid_dir in _artifacts/*/net6.0/Readarr; do
+            [ -d "$rid_dir" ] || continue
+            mkdir -p "$rid_dir/UI"
+            cp -r _output/UI/* "$rid_dir/UI/"
+          done
+
+      - name: Create per-RID archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.variables.outputs.version }}"
+          mkdir -p _release
+
+          # tar.gz targets — POSIX RIDs.
+          for rid in linux-x64 linux-musl-x64 linux-arm linux-musl-arm \
+                     linux-arm64 linux-musl-arm64 linux-x86 \
+                     osx-x64 osx-arm64 freebsd-x64; do
+            src="_artifacts/${rid}/net6.0/Readarr"
+            if [ -d "$src" ]; then
+              tar -C "_artifacts/${rid}/net6.0" -czf "_release/Librarr.${VERSION}.${rid}.tar.gz" Readarr
+              echo "  packaged ${rid}"
+            else
+              echo "  WARN: missing ${src}, skipping ${rid}"
+            fi
+          done
+
+          # zip targets — Windows.
+          for rid in win-x64 win-x86; do
+            src="_artifacts/${rid}/net6.0/Readarr"
+            if [ -d "$src" ]; then
+              (cd "_artifacts/${rid}/net6.0" && zip -qr "$GITHUB_WORKSPACE/_release/Librarr.${VERSION}.${rid}.zip" Readarr)
+              echo "  packaged ${rid}"
+            else
+              echo "  WARN: missing ${src}, skipping ${rid}"
+            fi
+          done
+
+          # macOS .app bundle variants (zip — preserves the bundle dir).
+          for rid in osx-x64-app osx-arm64-app; do
+            src="_artifacts/${rid}/net6.0"
+            if [ -d "$src" ]; then
+              (cd "$src" && zip -qr "$GITHUB_WORKSPACE/_release/Librarr.${VERSION}.${rid}.zip" Readarr.app)
+              echo "  packaged ${rid}"
+            fi
+          done
+
+      - name: Compute SHA256SUMS
+        shell: bash
+        run: |
+          cd _release
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create draft GitHub release
+        # TODO Phase 9b:
+        #   * Authenticode-sign the .exe assemblies before zipping
+        #     (needs WINDOWS_CERT_PFX + WINDOWS_CERT_PASSWORD secrets).
+        #   * Notarize the .app bundles via `notarytool`
+        #     (needs APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID secrets).
+        #   * Generate Windows installer .exe via Inno Setup on a
+        #     windows-2022 runner (azure-pipelines.yml:208-234).
+        #   * Sentry source-map upload (needs SENTRY_AUTH_TOKEN).
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="${{ needs.variables.outputs.version }}"
+          gh release create "v${VERSION}" \
+            --title "Librarr ${VERSION}" \
+            --notes "Auto-generated release. See docs/migrating-from-readarr.md for the upgrade walkthrough. Verify checksums against SHA256SUMS before installing." \
+            --draft \
+            _release/*.tar.gz _release/*.zip _release/SHA256SUMS
+
+  docker-multiarch:
+    name: Docker multi-arch
+    needs: [variables, build-backend, build-frontend]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      # TODO Phase 9b: registry login + `push: true` once a registry
+      # decision lands. Candidates:
+      #   * ghcr.io  — uses GITHUB_TOKEN, no extra secret needed
+      #   * Docker Hub — needs DOCKERHUB_USERNAME + DOCKERHUB_TOKEN
+      - name: Build multi-arch image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: distribution/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: false
+          tags: librarr/librarr:${{ needs.variables.outputs.version }}
+          build-args: |
+            LIBRARR_VERSION=${{ needs.variables.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
