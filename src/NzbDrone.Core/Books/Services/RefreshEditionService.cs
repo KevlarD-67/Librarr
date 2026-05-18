@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
-using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MediaFiles;
 
 namespace NzbDrone.Core.Books
@@ -48,17 +47,20 @@ namespace NzbDrone.Core.Books
             _editionService.DeleteMany(delete.Concat(merge.Select(x => x.Item1)).ToList());
             _editionService.UpdateMany(updateList);
 
-            // Materialize narrator strings into the normalized Narrators /
-            // EditionNarrators join (migration 043). Skip editions whose
-            // string is blank — they don't have audiobook narrator data
-            // and the join may already be empty. Both add and updateList
-            // have valid edition Ids at this point (add via InsertMany
-            // upstream, updateList via UpdateMany on the line above).
+            // Materialize the augmenter's in-memory NarratorList into the
+            // normalized Narrators / EditionNarrators schema (migration 043).
+            // Only editions whose NarratorList is IsLoaded sync — that's the
+            // signal that AudnexProxy.Augment (or another future augmenter)
+            // produced fresh data this round. Editions whose NarratorList
+            // would lazy-load from DB are left alone to preserve their
+            // existing join rows. Both `add` and `updateList` carry valid
+            // edition Ids by the time this loop runs.
             foreach (var edition in add.Concat(updateList))
             {
-                if (edition.Narrators.IsNotNullOrWhiteSpace())
+                if (edition.NarratorList?.IsLoaded == true)
                 {
-                    var names = edition.Narrators.Split(',').Select(n => n.Trim());
+                    var names = (edition.NarratorList.Value ?? new List<Narrator>())
+                        .Select(n => n.Name);
                     _narratorService.SetNarratorsForEdition(edition.Id, names);
                 }
             }

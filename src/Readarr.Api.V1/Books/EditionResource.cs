@@ -74,21 +74,20 @@ namespace Readarr.Api.V1.Books
             };
         }
 
-        // Source narrators from the normalized Narrators/EditionNarrators
-        // tables when the lazy-load resolves with data; fall back to the
-        // legacy comma-separated column for editions where the join hasn't
-        // been populated yet (e.g. records from before migration 043
-        // synced for the first time). Frontend continues to receive a
-        // comma-separated string — see BookDetailsHeader.js.
+        // Project narrators from the normalized Narrators/EditionNarrators
+        // tables (migration 043 + 044). Frontend continues to receive a
+        // comma-separated string — see BookDetailsHeader.js. Returns null
+        // when the lazy-load resolves to nothing so the property serializes
+        // omitted rather than as an empty string.
         private static string ProjectNarrators(Edition model)
         {
             var fromJoin = model.NarratorList?.Value;
-            if (fromJoin != null && fromJoin.Count > 0)
+            if (fromJoin == null || fromJoin.Count == 0)
             {
-                return string.Join(", ", fromJoin.Select(n => n.Name));
+                return null;
             }
 
-            return model.Narrators;
+            return string.Join(", ", fromJoin.Select(n => n.Name));
         }
 
         public static Edition ToModel(this EditionResource resource)
@@ -115,7 +114,6 @@ namespace Readarr.Api.V1.Books
                 Publisher = resource.Publisher,
                 PageCount = resource.PageCount,
                 ReleaseDate = resource.ReleaseDate,
-                Narrators = resource.Narrators,
                 Images = resource.Images,
                 Links = resource.Links,
                 Ratings = resource.Ratings,

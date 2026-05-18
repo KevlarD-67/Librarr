@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Moq;
 using Newtonsoft.Json;
@@ -115,14 +116,19 @@ namespace NzbDrone.Core.Test.MetadataSource.Audnex
 
             var result = Subject.Augment(book);
 
-            result.Editions.Value[0].Narrators.Should().Be("George Guidall, Frank Muller");
+            var names = result.Editions.Value[0].NarratorList.Value.Select(n => n.Name).ToList();
+            names.Should().Equal("George Guidall", "Frank Muller");
         }
 
         [Test]
         public void Augment_should_not_overwrite_existing_narrators()
         {
             var edition = AudiobookEdition();
-            edition.Narrators = "Pre-existing";
+            edition.NarratorList = new LazyLoaded<List<NzbDrone.Core.Books.Narrator>>(
+                new List<NzbDrone.Core.Books.Narrator>
+                {
+                    new NzbDrone.Core.Books.Narrator { Name = "Pre-existing" }
+                });
             var book = BookWith(edition);
             GivenAudnexResponse(new AudnexBookResource
             {
@@ -131,7 +137,8 @@ namespace NzbDrone.Core.Test.MetadataSource.Audnex
 
             var result = Subject.Augment(book);
 
-            result.Editions.Value[0].Narrators.Should().Be("Pre-existing");
+            var names = result.Editions.Value[0].NarratorList.Value.Select(n => n.Name).ToList();
+            names.Should().Equal("Pre-existing");
         }
 
         [Test]
@@ -182,7 +189,8 @@ namespace NzbDrone.Core.Test.MetadataSource.Audnex
 
             var result = Subject.Augment(book);
 
-            result.Editions.Value[0].Narrators.Should().Be("Real Person");
+            var names = result.Editions.Value[0].NarratorList.Value.Select(n => n.Name).ToList();
+            names.Should().Equal("Real Person");
         }
 
         [Test]

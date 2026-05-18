@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
@@ -6,6 +7,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MetadataSource.Audnex.Resources;
 
 namespace NzbDrone.Core.MetadataSource.Audnex
@@ -115,11 +117,23 @@ namespace NzbDrone.Core.MetadataSource.Audnex
                 edition.ReleaseDate = resource.ReleaseDate;
             }
 
-            if (edition.Narrators.IsNullOrWhiteSpace() && resource.Narrators?.Count > 0)
+            // Narrators land in the in-memory NarratorList. RefreshEditionService
+            // syncs the list into the Narrators / EditionNarrators schema
+            // (migration 043) after the edition is persisted. The legacy
+            // Editions.Narrators string column was dropped in migration 044 —
+            // the lazy-loaded list is now the only narrator field on Edition.
+            var hasExistingNarrators = edition.NarratorList?.IsLoaded == true
+                && edition.NarratorList.Value?.Count > 0;
+            if (!hasExistingNarrators && resource.Narrators?.Count > 0)
             {
-                edition.Narrators = string.Join(", ", resource.Narrators
+                var names = resource.Narrators
                     .Where(n => n?.Name.IsNotNullOrWhiteSpace() == true)
-                    .Select(n => n.Name));
+                    .Select(n => new Narrator { Name = n.Name })
+                    .ToList();
+                if (names.Count > 0)
+                {
+                    edition.NarratorList = new LazyLoaded<List<Narrator>>(names);
+                }
             }
 
             return book;

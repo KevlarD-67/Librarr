@@ -4,12 +4,14 @@ using System.Linq;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.MusicTests
 {
-    // Coverage for the narrator-string → Narrators/EditionNarrators
-    // materialization that landed alongside migration 043. The rest of
+    // Coverage for the NarratorList → Narrators/EditionNarrators
+    // materialization that landed alongside migration 043 (sync) and
+    // migration 044 (legacy column drop). The rest of
     // RefreshEditionService (edition merging, delete, tag sync) was
     // upstream-untested and is out of scope here.
     [TestFixture]
@@ -18,6 +20,12 @@ namespace NzbDrone.Core.Test.MusicTests
         private static List<Tuple<Edition, Edition>> EmptyMerge => new List<Tuple<Edition, Edition>>();
         private static List<Edition> EmptyEditions => new List<Edition>();
 
+        private static LazyLoaded<List<Narrator>> NarratorsFromNames(params string[] names)
+        {
+            return new LazyLoaded<List<Narrator>>(
+                names.Select(n => new Narrator { Name = n }).ToList());
+        }
+
         [Test]
         public void should_sync_narrators_for_added_edition_with_single_name()
         {
@@ -25,7 +33,7 @@ namespace NzbDrone.Core.Test.MusicTests
             {
                 Id = 11,
                 ForeignEditionId = "OL-E-1",
-                Narrators = "George Guidall"
+                NarratorList = NarratorsFromNames("George Guidall")
             };
 
             Subject.RefreshEditionInfo(
@@ -43,13 +51,17 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_skip_narrator_sync_when_string_is_blank()
+        public void should_skip_narrator_sync_when_lazy_load_is_not_loaded()
         {
+            // No augmenter fired — NarratorList is unset entirely. The sync
+            // must not run; otherwise we'd wipe existing join rows just
+            // because the lazy load would resolve to whatever the DB
+            // currently has.
             var added = new Edition
             {
                 Id = 12,
                 ForeignEditionId = "OL-E-2",
-                Narrators = "  "
+                NarratorList = null
             };
 
             Subject.RefreshEditionInfo(
@@ -67,10 +79,10 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
-        public void should_split_comma_separated_narrators_and_preserve_order()
+        public void should_preserve_order_for_multi_cast_narrator_list()
         {
             // An updated edition's metadata comes from the matching remote
-            // edition (UseMetadataFrom), so the remote needs the Narrators
+            // edition (UseMetadataFrom), so the remote needs the NarratorList
             // value the test wants to assert on.
             var local = new Edition
             {
@@ -81,7 +93,7 @@ namespace NzbDrone.Core.Test.MusicTests
             var remote = new Edition
             {
                 ForeignEditionId = "OL-E-3",
-                Narrators = "Frank Muller, George Guidall, Stefan Rudnicki"
+                NarratorList = NarratorsFromNames("Frank Muller", "George Guidall", "Stefan Rudnicki")
             };
 
             Subject.RefreshEditionInfo(

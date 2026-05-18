@@ -34,7 +34,6 @@ namespace NzbDrone.Core.Books
         public string Publisher { get; set; }
         public int PageCount { get; set; }
         public DateTime? ReleaseDate { get; set; }
-        public string Narrators { get; set; }
         public List<MediaCover.MediaCover> Images { get; set; }
         public List<Links> Links { get; set; }
         public Ratings Ratings { get; set; }
@@ -71,7 +70,17 @@ namespace NzbDrone.Core.Books
             Publisher = other.Publisher;
             PageCount = other.PageCount;
             ReleaseDate = other.ReleaseDate;
-            Narrators = other.Narrators.IsNullOrWhiteSpace() ? Narrators : other.Narrators;
+
+            // Carry the augmenter's fresh narrator list across the
+            // local/remote merge. When the remote (post-Augment) hasn't
+            // produced narrator data, keep whatever local had — preserves
+            // already-persisted narrators on editions where the audnex
+            // augmenter didn't fire this round.
+            if (other.NarratorList?.IsLoaded == true && other.NarratorList.Value?.Count > 0)
+            {
+                NarratorList = other.NarratorList;
+            }
+
             Images = other.Images.Any() ? other.Images : Images;
             Links = other.Links;
             Ratings = other.Ratings;
