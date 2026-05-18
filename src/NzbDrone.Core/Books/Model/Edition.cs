@@ -48,6 +48,8 @@ namespace NzbDrone.Core.Books
         public LazyLoaded<Book> Book { get; set; }
         [MemberwiseEqualityIgnore]
         public LazyLoaded<List<BookFile>> BookFiles { get; set; }
+        [MemberwiseEqualityIgnore]
+        public LazyLoaded<List<Narrator>> NarratorList { get; set; }
 
         public override string ToString()
         {

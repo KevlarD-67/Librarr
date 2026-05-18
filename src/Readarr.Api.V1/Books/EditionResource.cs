@@ -65,13 +65,30 @@ namespace Readarr.Api.V1.Books
                 Publisher = model.Publisher,
                 PageCount = model.PageCount,
                 ReleaseDate = model.ReleaseDate,
-                Narrators = model.Narrators,
+                Narrators = ProjectNarrators(model),
                 Images = model.Images,
                 Links = model.Links,
                 Ratings = model.Ratings,
                 Monitored = model.Monitored,
                 ManualAdd = model.ManualAdd
             };
+        }
+
+        // Source narrators from the normalized Narrators/EditionNarrators
+        // tables when the lazy-load resolves with data; fall back to the
+        // legacy comma-separated column for editions where the join hasn't
+        // been populated yet (e.g. records from before migration 043
+        // synced for the first time). Frontend continues to receive a
+        // comma-separated string — see BookDetailsHeader.js.
+        private static string ProjectNarrators(Edition model)
+        {
+            var fromJoin = model.NarratorList?.Value;
+            if (fromJoin != null && fromJoin.Count > 0)
+            {
+                return string.Join(", ", fromJoin.Select(n => n.Name));
+            }
+
+            return model.Narrators;
         }
 
         public static Edition ToModel(this EditionResource resource)

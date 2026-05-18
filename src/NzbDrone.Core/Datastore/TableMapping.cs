@@ -159,7 +159,15 @@ namespace NzbDrone.Core.Datastore
                 .HasOne(r => r.Book, r => r.BookId)
                 .LazyLoad(x => x.BookFiles,
                           (db, edition) => db.Query<BookFile>(new SqlBuilder(db.DatabaseType).Where<BookFile>(f => f.EditionId == edition.Id)).ToList(),
+                          b => b.Id > 0)
+                .LazyLoad(x => x.NarratorList,
+                          (db, edition) => db.Query<Narrator>(new SqlBuilder(db.DatabaseType)
+                              .Join<Narrator, EditionNarrator>((n, en) => n.Id == en.NarratorId)
+                              .Where<EditionNarrator>(en => en.EditionId == edition.Id)).ToList(),
                           b => b.Id > 0);
+
+            Mapper.Entity<Narrator>("Narrators").RegisterModel();
+            Mapper.Entity<EditionNarrator>("EditionNarrators").RegisterModel();
 
             Mapper.Entity<BookFile>("BookFiles").RegisterModel()
                 .Ignore(x => x.PartCount)
