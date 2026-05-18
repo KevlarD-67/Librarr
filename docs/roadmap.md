@@ -101,9 +101,9 @@ session. See that doc for the assessment per item.
 - [ ] **Selenium → Playwright**. Quarantined since Phase 1; port
   after the cassette work below so a regression suite exists at all.
 
-- [ ] **OL bulk-data dump fallback**. New deferred-modernization
-  section sketches the storage/streaming requirements. Phase 12+
-  candidate.
+- [ ] **OL bulk-data dump fallback**. Fork position + trigger
+  conditions to revisit are in [`docs/ol-bulk-data.md`](ol-bulk-data.md).
+  Phase 12+ candidate.
 
 ## Won't (until persuaded otherwise)
 

@@ -126,34 +126,12 @@ deserves its own session — Playwright .NET has a different API surface
 **Status:** ✅ done in Phase 10. See `.github/workflows/build.yml` `sbom`
 job. Artifacts attached to each successful build (90-day retention).
 
-## OL bulk-data dump fallback (Later bucket item)
+## OL bulk-data dump fallback
 
-**Status:** deferred to 1.1+.
-
-**Why not now:**
-
-* archive.org publishes OL data dumps (works/editions/authors as
-  newline-delimited JSON, ~50 GB compressed). Ingesting them needs:
-  - A new `IngestOpenLibraryDumpCommand` background job (one-shot,
-    not periodic).
-  - Schema for a local mirror table (denormalized works+editions
-    plus an FTS index, since OL's own search depends on Solr).
-  - A streaming JSON reader that handles 50 GB without holding the
-    whole file in memory.
-  - Disk-space gating + opt-in config flag (most users won't want
-    a 100+ GB local index).
-* The corpus shape changes once per month (new dumps published).
-  Without a real installation watching for drift, the ingest path
-  rots quickly.
-
-**What's needed when revisiting:**
-
-1. Decide whether the dump is a fallback (network unavailable) or
-   a primary path (offline-only deployment).
-2. Pick a storage strategy — SQLite FTS5 vs. Postgres tsvector vs.
-   a sidecar service.
-3. Stub `IBookInfoDumpReader` interface; implement against a
-   downloaded dump in a Phase 12+ session.
+**Status:** deferred to 1.1+. The standalone Phase 11 writeup at
+[`docs/ol-bulk-data.md`](ol-bulk-data.md) is now the authoritative source —
+it covers the technical sketch that used to live here plus the trigger
+conditions that would flip the decision.
 
 ## Reidentify regression test (Soon → blocked on cassettes)
 
