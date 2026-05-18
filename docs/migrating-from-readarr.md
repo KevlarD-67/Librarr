@@ -231,3 +231,24 @@ metadata routing without losing post-migration changes:
 Librarr 1.0.0-beta.1 keeps `BookInfoProxy` compiled in alongside
 `OpenLibraryProxy`. The rollback path remains supported until
 Phase 10 deletes the legacy proxy.
+
+### Migration 044 (narrator-column drop) rollback
+
+Migration 044 deletes the legacy `Editions.Narrators` comma-joined
+column — by 044 the data has been normalized into the `Narrators` +
+`EditionNarrators` tables (migration 043 + the audnex augmenter sync
+in commit `19e5092`), so no data is lost on the upgrade.
+
+**There is intentionally no down-migration.** Re-creating the column
+SQL-wise is trivial; re-populating it with a `GROUP_CONCAT` over the
+join is also trivial. But a downgraded Readarr/Librarr binary running
+against the re-created column would never refill it — the audnex
+augmenter stopped writing to `Editions.Narrators` in commit
+`19e5092`. The column would go stale on the first refresh.
+
+If you must revert past migration 044, restore a pre-044 SQLite
+backup (`readarr.db` snapshot taken before the upgrade) rather than
+relying on a down-migration. The migration's own header comment in
+`src/NzbDrone.Core/Datastore/Migration/044_drop_editions_narrators.cs`
+re-states this policy in case a future contributor is tempted to
+write the down-step.

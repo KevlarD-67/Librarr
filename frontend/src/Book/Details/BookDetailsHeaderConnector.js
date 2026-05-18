@@ -14,7 +14,8 @@ const selectMonitoredEditionFields = createSelector(
     const monitored = editions.items.find((e) => e.monitored === true);
     return {
       overview: monitored?.overview,
-      narrators: monitored?.narrators
+      narrators: monitored?.narrators,
+      narratorList: monitored?.narratorList
     };
   }
 );
@@ -31,6 +32,7 @@ function createMapStateToProps() {
         ...book,
         overview: editionFields.overview,
         narrators: editionFields.narrators,
+        narratorList: editionFields.narratorList,
         shortDateFormat: uiSettings.shortDateFormat,
         isSmallScreen: dimensions.isSmallScreen
       };

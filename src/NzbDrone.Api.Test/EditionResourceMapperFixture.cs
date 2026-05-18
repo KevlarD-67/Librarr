@@ -61,5 +61,44 @@ namespace NzbDrone.Api.Test
 
             resource.Narrators.Should().BeNull();
         }
+
+        // Phase 12.1 — structured narrator surface alongside the legacy
+        // comma-joined string. Frontend chip rendering reads NarratorList.
+        [Test]
+        public void Should_project_structured_narrator_list_when_populated()
+        {
+            var edition = new Edition
+            {
+                Id = 10,
+                NarratorList = new LazyLoaded<List<Narrator>>(new List<Narrator>
+                {
+                    new Narrator { Id = 1, Name = "George Guidall", ForeignNarratorId = "ol-g1" },
+                    new Narrator { Id = 2, Name = "Frank Muller", ForeignNarratorId = "ol-m1" }
+                })
+            };
+
+            var resource = edition.ToResource();
+
+            resource.NarratorList.Should().HaveCount(2);
+            resource.NarratorList[0].Id.Should().Be(1);
+            resource.NarratorList[0].Name.Should().Be("George Guidall");
+            resource.NarratorList[0].ForeignNarratorId.Should().Be("ol-g1");
+            resource.NarratorList[1].Id.Should().Be(2);
+            resource.NarratorList[1].Name.Should().Be("Frank Muller");
+        }
+
+        [Test]
+        public void Should_omit_narrator_list_when_join_is_empty()
+        {
+            var edition = new Edition
+            {
+                Id = 11,
+                NarratorList = new LazyLoaded<List<Narrator>>(new List<Narrator>())
+            };
+
+            var resource = edition.ToResource();
+
+            resource.NarratorList.Should().BeNull();
+        }
     }
 }

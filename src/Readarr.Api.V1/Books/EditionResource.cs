@@ -4,6 +4,7 @@ using System.Linq;
 using Newtonsoft.Json;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaCover;
+using Readarr.Api.V1.Narrator;
 using Readarr.Http.REST;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -26,6 +27,7 @@ namespace Readarr.Api.V1.Books
         public int PageCount { get; set; }
         public DateTime? ReleaseDate { get; set; }
         public string Narrators { get; set; }
+        public List<NarratorResource> NarratorList { get; set; }
         public List<MediaCover> Images { get; set; }
         public List<Links> Links { get; set; }
         public Ratings Ratings { get; set; }
@@ -66,6 +68,7 @@ namespace Readarr.Api.V1.Books
                 PageCount = model.PageCount,
                 ReleaseDate = model.ReleaseDate,
                 Narrators = ProjectNarrators(model),
+                NarratorList = ProjectNarratorList(model),
                 Images = model.Images,
                 Links = model.Links,
                 Ratings = model.Ratings,
@@ -75,9 +78,9 @@ namespace Readarr.Api.V1.Books
         }
 
         // Project narrators from the normalized Narrators/EditionNarrators
-        // tables (migration 043 + 044). Frontend continues to receive a
-        // comma-separated string — see BookDetailsHeader.js. Returns null
-        // when the lazy-load resolves to nothing so the property serializes
+        // tables (migration 043 + 044) as a comma-separated string. Older
+        // frontend code paths (BookDetailsHeader.js fallback) still read
+        // this field. Returns null on empty so the property serializes
         // omitted rather than as an empty string.
         private static string ProjectNarrators(Edition model)
         {
@@ -88,6 +91,20 @@ namespace Readarr.Api.V1.Books
             }
 
             return string.Join(", ", fromJoin.Select(n => n.Name));
+        }
+
+        // Structured projection of the same join — surfaced under the new
+        // `narratorList` field so the frontend can render per-narrator
+        // chips (see frontend/src/Book/Details/NarratorChip.js).
+        private static List<NarratorResource> ProjectNarratorList(Edition model)
+        {
+            var fromJoin = model.NarratorList?.Value;
+            if (fromJoin == null || fromJoin.Count == 0)
+            {
+                return null;
+            }
+
+            return fromJoin.ToResource();
         }
 
         public static Edition ToModel(this EditionResource resource)

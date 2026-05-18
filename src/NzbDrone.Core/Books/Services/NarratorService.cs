@@ -17,6 +17,10 @@ namespace NzbDrone.Core.Books
         // Reads the Narrator set for an edition in credited-billing
         // order (the EditionNarrators.Order column).
         List<Narrator> GetNarratorsForEdition(int editionId);
+
+        // Single-row lookup, used by the V1 narrator endpoint.
+        // Returns null when no narrator with that id exists.
+        Narrator GetById(int narratorId);
     }
 
     public class NarratorService : INarratorService
@@ -88,6 +92,16 @@ namespace NzbDrone.Core.Books
             _editionNarratorRepo.InsertMany(joinRows);
 
             _logger.Trace("Set {0} narrator(s) for edition {1}", normalized.Count, editionId);
+        }
+
+        public Narrator GetById(int narratorId)
+        {
+            if (narratorId <= 0)
+            {
+                return null;
+            }
+
+            return _narratorRepo.Find(narratorId);
         }
 
         public List<Narrator> GetNarratorsForEdition(int editionId)

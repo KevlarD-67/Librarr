@@ -31,7 +31,10 @@ Four reasons, each independent:
 1. **Request volume hasn't justified it.** A typical single-instance
    Librarr install issues hundreds of OL requests per day, well inside
    OL's published rate limits and already absorbed by the in-process
-   cache layer described in `docs/architecture.md`. Bulk ingest is a
+   `LazyCache` layer in
+   `src/NzbDrone.Core/MetadataSource/BookInfo/BookInfoProxy.cs` and
+   its OpenLibrary sibling under
+   `src/NzbDrone.Core/MetadataSource/OpenLibrary/`. Bulk ingest is a
    scaling story, and the fork hasn't hit the scale.
 
 2. **Ingest is a real engineering sprint, not a doc deliverable.**
@@ -117,7 +120,8 @@ modernized before we add a second large subsystem.
 * OpenLibrary dump downloads: <https://openlibrary.org/developers/dumps>
 * OpenLibrary API rate-limit policy: <https://openlibrary.org/developers/api>
 * `MASTER-PLAN.md` Phase 11 (the line item this writeup satisfies)
-* `docs/architecture.md` — current OL proxy + cache architecture
+* `src/NzbDrone.Core/MetadataSource/OpenLibrary/` — current OL proxy
+  + cache layer (the architecture this decision keeps in place)
 * `docs/roadmap.md` — "Later" bucket entry, points to this file
 * `docs/deferred-modernization.md` — historical Phase 10 framing of
   the same question, superseded by this doc

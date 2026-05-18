@@ -16,6 +16,7 @@ import fonts from 'Styles/Variables/fonts';
 import formatBytes from 'Utilities/Number/formatBytes';
 import stripHtml from 'Utilities/String/stripHtml';
 import BookDetailsLinks from './BookDetailsLinks';
+import NarratorChip from './NarratorChip';
 import styles from './BookDetailsHeader.css';
 
 const defaultFontSize = parseInt(fonts.defaultFontSize);
@@ -61,6 +62,7 @@ class BookDetailsHeader extends Component {
       seriesTitle,
       pageCount,
       narrators,
+      narratorList,
       overview,
       statistics = {},
       monitored,
@@ -147,10 +149,26 @@ class BookDetailsHeader extends Component {
                 }
 
                 {
-                  !!narrators &&
+                  // Phase 12.2: structured chips when the API exposes
+                  // narratorList; fall back to the legacy comma-joined
+                  // string for older payloads or test stubs.
+                  narratorList && narratorList.length > 0 ?
                     <span className={styles.duration}>
-                      {`Narrated by ${narrators}`}
-                    </span>
+                      {'Narrated by '}
+                      {
+                        narratorList.map((n) => (
+                          <NarratorChip
+                            key={n.id}
+                            id={n.id}
+                            name={n.name}
+                          />
+                        ))
+                      }
+                    </span> :
+                    !!narrators &&
+                      <span className={styles.duration}>
+                        {`Narrated by ${narrators}`}
+                      </span>
                 }
 
                 <HeartRating
@@ -261,6 +279,10 @@ BookDetailsHeader.propTypes = {
   seriesTitle: PropTypes.string.isRequired,
   pageCount: PropTypes.number,
   narrators: PropTypes.string,
+  narratorList: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.number.isRequired,
+    name: PropTypes.string.isRequired
+  })),
   overview: PropTypes.string,
   statistics: PropTypes.object.isRequired,
   releaseDate: PropTypes.string.isRequired,

@@ -45,6 +45,7 @@ namespace NzbDrone.Integration.Test
         public IndexerClient Indexers;
         public LogsClient Logs;
         public ClientBase<NamingConfigResource> NamingConfig;
+        public NarratorClient Narrators;
         public NotificationClient Notifications;
         public ClientBase<QualityProfileResource> Profiles;
         public ReleaseClient Releases;
@@ -110,6 +111,7 @@ namespace NzbDrone.Integration.Test
             Indexers = new IndexerClient(RestClient, ApiKey);
             Logs = new LogsClient(RestClient, ApiKey);
             NamingConfig = new ClientBase<NamingConfigResource>(RestClient, ApiKey, "config/naming");
+            Narrators = new NarratorClient(RestClient, ApiKey);
             Notifications = new NotificationClient(RestClient, ApiKey);
             Profiles = new ClientBase<QualityProfileResource>(RestClient, ApiKey);
             Releases = new ReleaseClient(RestClient, ApiKey);
