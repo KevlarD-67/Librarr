@@ -44,6 +44,15 @@ namespace Readarr.Http.Frontend.Mappers
 
             var imageData = _mediaCoverProxy.GetImage(hash);
 
+            // Upstream returned 404 (or otherwise had no bytes). Surface
+            // that as a clean 404 to the browser so the React error
+            // handler swaps to its placeholder — avoids the FileContentResult
+            // serving a zero-byte JPEG and confusing the <img> element.
+            if (imageData == null || imageData.Length == 0)
+            {
+                return new StatusCodeResult((int)HttpStatusCode.NotFound);
+            }
+
             if (!_mimeTypeProvider.TryGetContentType(filename, out var contentType))
             {
                 contentType = "application/octet-stream";

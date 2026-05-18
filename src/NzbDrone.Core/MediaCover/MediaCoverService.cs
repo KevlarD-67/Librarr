@@ -90,6 +90,19 @@ namespace NzbDrone.Core.MediaCover
                 // Author isn't in Readarr yet, map via a proxy to circument referrer issues
                 foreach (var mediaCover in covers)
                 {
+                    // Idempotency guard. OL search results are cached in-process
+                    // (LazyCache, 1h TTL) and the same MediaCover instances
+                    // are returned on repeat searches. Re-running this mutation
+                    // would wrap the proxy URL itself — the new hash points at
+                    // a path-only `/MediaCoverProxy/<oldhash>/...`, and .NET
+                    // HttpClient throws "file scheme not supported" when it
+                    // tries to fetch that path-only URL on cache hit. Skip if
+                    // we already wrapped this MediaCover.
+                    if (mediaCover.Url != null && mediaCover.Url.StartsWith("/MediaCoverProxy/", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
                     mediaCover.RemoteUrl = mediaCover.Url;
                     mediaCover.Url = _mediaCoverProxy.RegisterUrl(mediaCover.RemoteUrl);
                 }

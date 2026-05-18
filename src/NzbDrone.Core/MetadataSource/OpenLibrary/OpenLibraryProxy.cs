@@ -120,10 +120,24 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             return Cached(true, cacheKey, TimeSpan.FromHours(1), () =>
             {
-                var qs = $"?title={Uri.EscapeDataString(title)}";
-                if (!string.IsNullOrWhiteSpace(author))
+                string qs;
+                if (string.IsNullOrWhiteSpace(author))
                 {
-                    qs += $"&author={Uri.EscapeDataString(author)}";
+                    // Global search-bar path: the user typed something that
+                    // might be a title, an author, or a series. OL's `q=`
+                    // does proper relevance scoring across all indexed
+                    // fields and ranks canonical works first. `?title=`
+                    // over-matches on compilation/omnibus works whose
+                    // titles contain the author name (e.g. "Brandon
+                    // Sanderson Sampler"), which mostly lack covers.
+                    qs = $"?q={Uri.EscapeDataString(title)}";
+                }
+                else
+                {
+                    // Targeted add-book / reidentify path: caller has
+                    // disambiguated by author already, exact title+author
+                    // is the right shape.
+                    qs = $"?title={Uri.EscapeDataString(title)}&author={Uri.EscapeDataString(author)}";
                 }
 
                 qs += "&limit=20&fields=key,title,author_name,author_key,first_publish_year,isbn,cover_i,edition_count";

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
@@ -62,9 +63,34 @@ namespace NzbDrone.Core.MediaCover
         {
             var url = GetUrl(hash);
 
-            var request = new HttpRequest(url);
+            // Force auto-redirect on. The HttpRequest constructor flips this
+            // to false in dev mode (RuntimeInfo.IsProduction == false, which
+            // happens any time the assembly version is the 10.0.0.X local
+            // placeholder rather than an official build), but cover URLs
+            // routinely 302 from covers.openlibrary.org to archive.org —
+            // without following we get an empty 302 body and the browser
+            // shows a broken image.
+            //
+            // Suppress 404 logging. We attempt olid-keyed fallback URLs for
+            // works without cover_i; OL returns 404 for the (common) case
+            // where the work has no canonical cover. Treating each miss as
+            // a Fatal stack trace is log spam — return null instead and
+            // let the mapper convert to a clean 404 response so React falls
+            // back to its placeholder.
+            var request = new HttpRequest(url)
+            {
+                AllowAutoRedirect = true,
+                SuppressHttpErrorStatusCodes = new[] { HttpStatusCode.NotFound },
+                LogHttpError = false
+            };
 
-            return _httpClient.Get(request).ResponseData;
+            var response = _httpClient.Get(request);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            return response.ResponseData;
         }
     }
 }

@@ -396,7 +396,15 @@ namespace NzbDrone.Core.Organizer
 
             var tokenHandler = tokenHandlers.GetValueOrDefault(tokenMatch.Token, m => string.Empty);
 
-            var replacementText = tokenHandler(tokenMatch).Trim();
+            // Token handlers are typed `Func<TokenMatch, string>` and any
+            // of them can legitimately return null (e.g. when a search-
+            // result Author hasn't had its Metadata fully hydrated yet —
+            // the SearchController calls GetAuthorFolder before the
+            // record is persisted, so optional fields aren't guaranteed
+            // populated). Treat null as empty rather than NREing on
+            // `.Trim()`, which surfaces to the UI as the unhelpful
+            // "Object reference not set to an instance of an object."
+            var replacementText = (tokenHandler(tokenMatch) ?? string.Empty).Trim();
 
             if (tokenMatch.Token.All(t => !char.IsLetter(t) || char.IsLower(t)))
             {

@@ -70,8 +70,16 @@ namespace NzbDrone.Core.Validation
 
         public static IRuleBuilderOptions<T, string> ContainsReadarr<T>(this IRuleBuilder<T, string> ruleBuilder)
         {
+            // Phase 0 rebranded the default InstanceName to "Librarr".
+            // The legacy validator required the literal string "readarr",
+            // which silently 400'd the first-run Save in the auth wizard
+            // (the dialog re-rendered with no visible error). Accept
+            // either heritage spelling so both fresh installs and
+            // upgraded installs keep saving cleanly. Method name stays
+            // ContainsReadarr to avoid a cascading rename across the
+            // validator callsite + tests.
             ruleBuilder.SetValidator(new NotEmptyValidator(null));
-            return ruleBuilder.SetValidator(new RegularExpressionValidator("readarr", RegexOptions.IgnoreCase)).WithMessage("Must contain readarr");
+            return ruleBuilder.SetValidator(new RegularExpressionValidator("readarr|librarr", RegexOptions.IgnoreCase)).WithMessage("Must contain readarr or librarr");
         }
     }
 }

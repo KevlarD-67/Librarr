@@ -14,17 +14,47 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
     // cover" — they must be filtered out before constructing URLs.
     internal static class OpenLibraryCoverUrls
     {
-        private const string BookCoverFormat = "https://covers.openlibrary.org/b/id/{0}-L.jpg";
-        private const string AuthorPhotoFormat = "https://covers.openlibrary.org/a/id/{0}-L.jpg";
+        private const string BookCoverByIdFormat = "https://covers.openlibrary.org/b/id/{0}-L.jpg";
+        private const string AuthorPhotoByIdFormat = "https://covers.openlibrary.org/a/id/{0}-L.jpg";
+
+        // OL also serves covers/photos keyed by the work/author OLID
+        // ("olid" path) without needing a specific cover_i / photo id.
+        // Useful for search responses where only the OLID is in scope.
+        // Append `?default=false` so OL returns 404 instead of a 1px
+        // transparent placeholder; the frontend's own placeholder is
+        // nicer than a blank cell.
+        private const string BookCoverByOlidFormat = "https://covers.openlibrary.org/b/olid/{0}-L.jpg?default=false";
+        private const string AuthorPhotoByOlidFormat = "https://covers.openlibrary.org/a/olid/{0}-L.jpg?default=false";
+
+        // OL serves edition-keyed covers at /b/isbn/<isbn>-L.jpg. Useful
+        // when search results include an ISBN but the work has no
+        // canonical work-level cover (Library Phase-3 fallback chain:
+        // cover_i → ISBN → olid).
+        private const string BookCoverByIsbnFormat = "https://covers.openlibrary.org/b/isbn/{0}-L.jpg?default=false";
 
         public static List<MediaCover.MediaCover> ForBook(List<int> coverIds)
         {
-            return BuildCovers(coverIds, BookCoverFormat, MediaCoverTypes.Cover);
+            return BuildCovers(coverIds, BookCoverByIdFormat, MediaCoverTypes.Cover);
         }
 
         public static List<MediaCover.MediaCover> ForAuthor(List<int> photoIds)
         {
-            return BuildCovers(photoIds, AuthorPhotoFormat, MediaCoverTypes.Poster);
+            return BuildCovers(photoIds, AuthorPhotoByIdFormat, MediaCoverTypes.Poster);
+        }
+
+        public static List<MediaCover.MediaCover> ForBookByOlid(string workOlid)
+        {
+            return BuildOlidCover(workOlid, BookCoverByOlidFormat, MediaCoverTypes.Cover);
+        }
+
+        public static List<MediaCover.MediaCover> ForAuthorByOlid(string authorOlid)
+        {
+            return BuildOlidCover(authorOlid, AuthorPhotoByOlidFormat, MediaCoverTypes.Poster);
+        }
+
+        public static List<MediaCover.MediaCover> ForBookByIsbn(string isbn)
+        {
+            return BuildOlidCover(isbn, BookCoverByIsbnFormat, MediaCoverTypes.Cover);
         }
 
         private static List<MediaCover.MediaCover> BuildCovers(List<int> ids, string urlFormat, MediaCoverTypes type)
@@ -43,6 +73,23 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                     CoverType = type
                 })
                 .ToList();
+        }
+
+        private static List<MediaCover.MediaCover> BuildOlidCover(string olid, string urlFormat, MediaCoverTypes type)
+        {
+            if (string.IsNullOrWhiteSpace(olid))
+            {
+                return new List<MediaCover.MediaCover>();
+            }
+
+            return new List<MediaCover.MediaCover>
+            {
+                new MediaCover.MediaCover
+                {
+                    Url = string.Format(urlFormat, olid),
+                    CoverType = type
+                }
+            };
         }
     }
 }

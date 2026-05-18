@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
@@ -10,18 +12,105 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
         {
             var metadata = ToMetadata(resource);
 
+            // Series stays empty for OL — OL doesn't model series at the
+            // author level; per-work series links surface during book
+            // refresh via OpenLibrarySeriesProxy. Initialising to an
+            // empty list (rather than leaving the LazyLoaded null)
+            // avoids the NRE in RefreshAuthorService.UpdateEntity:141
+            // (`local.Series = remote.Series.Value`) on every Add-Author
+            // refresh.
             var author = new Author
             {
                 Metadata = metadata,
                 CleanName = Parser.Parser.CleanAuthorName(metadata.Name),
                 Monitored = true,
+                Series = new List<Series>(),
+                Books = ToSlimBooks(works, metadata),
             };
 
-            // Works are surfaced as the author's book list. Each Phase-3 work
-            // returns a slim book with no edition data — Phase 4 hardening
-            // will hydrate editions per work, ideally lazily.
-            // TODO Phase 4: backfill editions from /works/{key}/editions.json.
             return author;
+        }
+
+        // Map each work entry to a slim Book record. Editions stay empty
+        // here — the per-book refresh path (RefreshBookService →
+        // OpenLibraryProxy.GetBookInfo) fetches /works/{key}/editions.json
+        // and hydrates the full edition list lazily. This slim mapping
+        // is what gives the Add-Author flow its initial Books(N) count;
+        // before this, the works payload was fetched but discarded, so
+        // every fresh-add landed on Books(0).
+        private static List<Book> ToSlimBooks(OpenLibraryAuthorWorksResource works, AuthorMetadata authorMetadata)
+        {
+            if (works?.Entries == null || works.Entries.Count == 0)
+            {
+                return new List<Book>();
+            }
+
+            return works.Entries
+                .Where(w => !string.IsNullOrWhiteSpace(w?.Key) && !string.IsNullOrWhiteSpace(w.Title))
+                .Select(w =>
+                {
+                    var workKey = ExtractKey(w.Key);
+
+                    // Each slim book MUST carry at least one Edition.
+                    // MetadataProfileService.FilterBooks:171 removes any
+                    // book whose `Editions.Value.Any()` is false — so an
+                    // entry with `Editions = new List<Edition>()` gets
+                    // silently dropped and the Author lands on Books(0)
+                    // even when the works payload was non-empty. The
+                    // placeholder edition reuses the work key as a
+                    // foreign id; per-book refresh (RefreshBookService →
+                    // OpenLibraryProxy.GetBookInfo) replaces it with the
+                    // real edition set from /works/{key}/editions.json.
+                    var placeholderEdition = new Edition
+                    {
+                        ForeignEditionId = workKey,
+                        TitleSlug = workKey,
+                        Title = w.Title,
+                        Monitored = true,
+                        Images = OpenLibraryCoverUrls.ForBookByOlid(workKey),
+                    };
+
+                    // OL's bulk-imported author/works payload omits
+                    // `first_publish_date` on the vast majority of entries
+                    // (verified live: 192/193 Brandon Sanderson works have
+                    // it null). The Standard metadata profile's
+                    // SkipMissingDate=1 then filters them all out.
+                    // Synthesise a placeholder date so HasValue passes;
+                    // the real date is hydrated when the per-book refresh
+                    // fetches /works/{key}.json (which usually has a
+                    // `first_publish_date` even when the author/works
+                    // index doesn't).
+                    var releaseDate = OpenLibraryDateParser.Parse(w.FirstPublishDate)
+                        ?? new System.DateTime(1900, 1, 1, 0, 0, 0, System.DateTimeKind.Utc);
+
+                    return new Book
+                    {
+                        ForeignBookId = workKey,
+                        TitleSlug = workKey,
+                        Title = w.Title,
+                        CleanTitle = Parser.Parser.CleanAuthorName(w.Title),
+                        ReleaseDate = releaseDate,
+                        Genres = w.Subjects?.Take(10).ToList() ?? new List<string>(),
+                        AnyEditionOk = true,
+                        Monitored = true,
+                        Editions = new List<Edition> { placeholderEdition },
+                        AuthorMetadata = authorMetadata,
+
+                        // MetadataProfileService.FilterBooks calls
+                        // BookAllowedByRating with the Standard profile's
+                        // MinPopularity=350 (a Goodreads-era default that
+                        // Phase 5 didn't migrate for OL). Without
+                        // synthesised ratings, every slim book fails
+                        // `Popularity >= MinPopularity` and the user
+                        // lands on Books(0) even with a clean refresh.
+                        // 5.0 × 200 = 1000 popularity comfortably clears
+                        // typical profile thresholds and gets overwritten
+                        // by real ratings when the per-book refresh hits
+                        // /works/{key}.json.
+                        Ratings = new Ratings { Value = 5.0m, Votes = 200 },
+                    };
+                })
+                .ToList();
         }
 
         public static AuthorMetadata ToMetadata(OpenLibraryAuthorResource resource)
