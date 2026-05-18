@@ -63,6 +63,27 @@ cp -a ~/.config/Readarr ~/.config/Librarr
 Copy-Item -Recurse 'C:\ProgramData\Readarr' 'C:\ProgramData\Librarr'
 ```
 
+Or use the helper scripts shipped in this repo — they do the same
+copy, but also pre-flight the source/destination paths, refuse to
+overwrite an existing `Librarr` folder, and pause if a Readarr or
+Librarr process is still running:
+
+```bash
+# Linux / macOS — dry run first if you want to see what would happen
+./scripts/migrate-readarr-folder.sh --dry-run
+./scripts/migrate-readarr-folder.sh
+```
+
+```powershell
+# Windows — dry run first if you want to see what would happen
+.\scripts\migrate-readarr-folder.ps1 -DryRun
+.\scripts\migrate-readarr-folder.ps1
+```
+
+Both scripts accept `--src=…` / `-Src` and `--dst=…` / `-Dst` if
+your folders live somewhere non-default. `--force` / `-Force` skips
+the running-process check + interactive prompt for scripted runs.
+
 Start Librarr. It picks up the copied folder on first launch — same
 DB, same library, same indexers, same download clients. Readarr's
 folder is left untouched so you can roll back to it if needed.
