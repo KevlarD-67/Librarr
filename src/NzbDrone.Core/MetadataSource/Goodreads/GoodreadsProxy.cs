@@ -118,7 +118,7 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
             return MapList(foreignListId, resource);
         }
 
-        private static SeriesInfo MapSeries(SeriesResource resource)
+        internal static SeriesInfo MapSeries(SeriesResource resource)
         {
             var info = new SeriesInfo
             {
@@ -147,7 +147,7 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
             return info;
         }
 
-        private static ListInfo MapList(string foreignListId, ListResource resource)
+        internal static ListInfo MapList(string foreignListId, ListResource resource)
         {
             var info = new ListInfo
             {
