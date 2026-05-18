@@ -95,10 +95,32 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<Author> SearchForNewAuthor(string title)
         {
+            // OL's `/search/*.json` returns 422 UnprocessableEntity for
+            // single-char queries (e.g. when the user is mid-typing and
+            // the frontend's onChange fires a search on each keystroke).
+            // Short-circuit before the HTTP call to avoid both the
+            // wasted round-trip and the [Fatal] error pipeline log.
+            if (string.IsNullOrWhiteSpace(title) || title.Trim().Length < 2)
+            {
+                return new List<Author>();
+            }
+
             return Cached(true, $"osa_{title}", TimeSpan.FromHours(1), () =>
             {
                 var req = _requestBuilder.For($"search/authors.json?q={Uri.EscapeDataString(title)}").Build();
-                var resp = Send<OpenLibraryAuthorSearchResource>(req);
+                req.SuppressHttpError = false;
+                req.SuppressHttpErrorStatusCodes = new[] { HttpStatusCode.UnprocessableEntity };
+                req.LogHttpError = false;
+
+                HttpResponse<OpenLibraryAuthorSearchResource> resp;
+                try
+                {
+                    resp = Send<OpenLibraryAuthorSearchResource>(req);
+                }
+                catch (HttpException ex) when (ex.Response?.StatusCode == HttpStatusCode.UnprocessableEntity)
+                {
+                    return new List<Author>();
+                }
 
                 var result = new List<Author>();
                 if (resp?.Resource?.Docs == null)
@@ -117,6 +139,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
         {
+            // OL's /search.json 422s on single-char queries — short-circuit
+            // before the HTTP call to avoid both the wasted round-trip and
+            // the [Fatal] error pipeline log when the frontend fires search
+            // on every keystroke.
+            if (string.IsNullOrWhiteSpace(title) || title.Trim().Length < 2)
+            {
+                return new List<Book>();
+            }
+
             var cacheKey = $"os_{title}|{author}|{getAllEditions}";
 
             return Cached(true, cacheKey, TimeSpan.FromHours(1), () =>
@@ -143,7 +174,20 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 qs += "&limit=20&fields=key,title,author_name,author_key,first_publish_year,isbn,cover_i,edition_count";
 
-                var resp = Send<OpenLibrarySearchResource>(_requestBuilder.For($"search.json{qs}").Build());
+                var req = _requestBuilder.For($"search.json{qs}").Build();
+                req.SuppressHttpErrorStatusCodes = new[] { HttpStatusCode.UnprocessableEntity };
+                req.LogHttpError = false;
+
+                HttpResponse<OpenLibrarySearchResource> resp;
+                try
+                {
+                    resp = Send<OpenLibrarySearchResource>(req);
+                }
+                catch (HttpException ex) when (ex.Response?.StatusCode == HttpStatusCode.UnprocessableEntity)
+                {
+                    return new List<Book>();
+                }
+
                 return OpenLibrarySearchMapper.ReRankAndMap(resp?.Resource, title, author);
             });
         }
