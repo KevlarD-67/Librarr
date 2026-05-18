@@ -12,6 +12,7 @@ import BookshelfConnector from 'Bookshelf/BookshelfConnector';
 import CalendarPageConnector from 'Calendar/CalendarPageConnector';
 import NotFound from 'Components/NotFound';
 import Switch from 'Components/Router/Switch';
+import NarratorDetailsPage from 'Narrator/NarratorDetailsPage';
 import AddNewItemConnector from 'Search/AddNewItemConnector';
 import CustomFormatSettingsConnector from 'Settings/CustomFormats/CustomFormatSettingsConnector';
 import DevelopmentSettingsConnector from 'Settings/Development/DevelopmentSettingsConnector';
@@ -107,6 +108,11 @@ function AppRoutes(props) {
       <Route
         path="/book/:titleSlug"
         component={BookDetailsPageConnector}
+      />
+
+      <Route
+        path="/narrator/:id"
+        component={NarratorDetailsPage}
       />
 
       {/*

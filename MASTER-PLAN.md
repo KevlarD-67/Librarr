@@ -2338,6 +2338,47 @@ structured list and render each narrator as a clickable chip
 A narrator detail page (browsable per-narrator works list) is a
 separate item — call it 12.4 if/when it gets scoped.
 
+### 12.4 Per-narrator detail page
+
+Landed alongside 12.1–12.3 to give the chips an actual route target.
+Scope is intentionally narrow — this is the minimum thing that turns
+the chip from a static label into a working hyperlink.
+
+Backend:
+
+* `EditionNarratorRepository.FindByNarratorId(int)` — new repo
+  method, mirror of `FindByEditionId`.
+* `INarratorService.GetBooksForNarrator(int narratorId)` — walks
+  EditionNarrators → Editions → Books, deduped by BookId so a
+  narrator on the abridged + unabridged editions of the same work
+  surfaces once. Depends on `IEditionService` + `IBookService`,
+  injected via constructor.
+* `NarratorBookResource` (`src/Readarr.Api.V1/Narrator/`) — six
+  fields: `Id`, `Title`, `TitleSlug`, `ForeignBookId`, `AuthorId`,
+  `AuthorName`, `AuthorTitleSlug`. Deliberately *not* the full
+  `BookResource` shape — the page only needs enough to render
+  clickable rows; the existing `/api/v1/book/{slug}` endpoint covers
+  the detail click-through.
+* `GET /api/v1/narrator/{id}/book` — new route on `NarratorController`.
+  Returns `200 OK` + `[]` for unknown ids (not `404`) so the page
+  can render an empty state without special-casing the error path.
+
+Frontend:
+
+* `frontend/src/Narrator/NarratorDetailsPage.js` — class component
+  using `createAjaxRequest` directly (no Redux store; ephemeral data,
+  no shared state to coordinate). Mirrors the pattern in
+  `Settings/Metadata/LowConfidenceMappings.js`.
+* `/narrator/:id` route registered in `AppRoutes.js`.
+* `NarratorChip.js` now wraps the chip in `<Link to={`/narrator/${id}`}>`
+  when `id` is present, falling back to a plain chip otherwise so
+  stale payloads or test stubs don't render a dead link.
+
+Acceptance: integration fixture `NarratorFixture` asserts the new
+endpoint returns `200 OK` + empty list for an unknown narrator id.
+Unit tests in `NarratorServiceFixture` cover the dedup-across-editions
+and missing-edition cases.
+
 ### 12.3 Down-migration policy decision (not a feature)
 
 Recorded as a deliberate non-feature so future contributors don't

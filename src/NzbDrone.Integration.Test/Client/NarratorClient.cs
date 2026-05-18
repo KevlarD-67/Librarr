@@ -16,5 +16,11 @@ namespace NzbDrone.Integration.Test.Client
             var request = BuildRequest("?editionId=" + editionId.ToString());
             return Get<List<NarratorResource>>(request);
         }
+
+        public List<NarratorBookResource> GetBooks(int narratorId)
+        {
+            var request = BuildRequest(narratorId.ToString() + "/book");
+            return Get<List<NarratorBookResource>>(request);
+        }
     }
 }

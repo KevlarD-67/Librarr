@@ -27,5 +27,18 @@ namespace NzbDrone.Integration.Test.ApiTests
             result.Should().NotBeNull();
             result.Should().BeEmpty();
         }
+
+        [Test]
+        public void narrator_books_for_unknown_id_returns_empty_list()
+        {
+            // Phase 12.4 — backing endpoint for the per-narrator detail
+            // page. A bogus id should round-trip as 200 OK + [] rather
+            // than 404, so the page can render an empty state instead
+            // of an error.
+            var result = Narrators.GetBooks(9999);
+
+            result.Should().NotBeNull();
+            result.Should().BeEmpty();
+        }
     }
 }

@@ -7,6 +7,7 @@ namespace NzbDrone.Core.Books
     public interface IEditionNarratorRepository : IBasicRepository<EditionNarrator>
     {
         List<EditionNarrator> FindByEditionId(int editionId);
+        List<EditionNarrator> FindByNarratorId(int narratorId);
         void DeleteByEditionId(int editionId);
     }
 
@@ -20,6 +21,11 @@ namespace NzbDrone.Core.Books
         public List<EditionNarrator> FindByEditionId(int editionId)
         {
             return Query(x => x.EditionId == editionId);
+        }
+
+        public List<EditionNarrator> FindByNarratorId(int narratorId)
+        {
+            return Query(x => x.NarratorId == narratorId);
         }
 
         public void DeleteByEditionId(int editionId)

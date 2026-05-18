@@ -21,21 +21,32 @@ namespace NzbDrone.Core.Books
         // Single-row lookup, used by the V1 narrator endpoint.
         // Returns null when no narrator with that id exists.
         Narrator GetById(int narratorId);
+
+        // Phase 12.4: distinct books this narrator has narrated, derived
+        // by walking EditionNarrators → Editions → Books. Returns empty
+        // when the narrator has no edition links.
+        List<Book> GetBooksForNarrator(int narratorId);
     }
 
     public class NarratorService : INarratorService
     {
         private readonly INarratorRepository _narratorRepo;
         private readonly IEditionNarratorRepository _editionNarratorRepo;
+        private readonly IEditionService _editionService;
+        private readonly IBookService _bookService;
         private readonly Logger _logger;
 
         public NarratorService(
             INarratorRepository narratorRepo,
             IEditionNarratorRepository editionNarratorRepo,
+            IEditionService editionService,
+            IBookService bookService,
             Logger logger)
         {
             _narratorRepo = narratorRepo;
             _editionNarratorRepo = editionNarratorRepo;
+            _editionService = editionService;
+            _bookService = bookService;
             _logger = logger;
         }
 
@@ -102,6 +113,38 @@ namespace NzbDrone.Core.Books
             }
 
             return _narratorRepo.Find(narratorId);
+        }
+
+        public List<Book> GetBooksForNarrator(int narratorId)
+        {
+            if (narratorId <= 0)
+            {
+                return new List<Book>();
+            }
+
+            var joinRows = _editionNarratorRepo.FindByNarratorId(narratorId);
+            if (joinRows.Count == 0)
+            {
+                return new List<Book>();
+            }
+
+            // Walk EditionNarrator → Edition → Book. One narrator can
+            // appear on multiple editions of the same book (e.g. an
+            // abridged + unabridged audiobook), so dedup by BookId.
+            var editionIds = joinRows.Select(r => r.EditionId).Distinct().ToList();
+            var bookIds = editionIds
+                .Select(id => _editionService.GetEdition(id))
+                .Where(e => e != null)
+                .Select(e => e.BookId)
+                .Distinct()
+                .ToList();
+
+            if (bookIds.Count == 0)
+            {
+                return new List<Book>();
+            }
+
+            return _bookService.GetBooks(bookIds);
         }
 
         public List<Narrator> GetNarratorsForEdition(int editionId)

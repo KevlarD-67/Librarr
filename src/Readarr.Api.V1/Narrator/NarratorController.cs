@@ -32,5 +32,11 @@ namespace Readarr.Api.V1.Narrator
         {
             return _narratorService.GetNarratorsForEdition(editionId).ToResource();
         }
+
+        [HttpGet("{id:int}/book")]
+        public List<NarratorBookResource> GetBooks(int id)
+        {
+            return _narratorService.GetBooksForNarrator(id).ToNarratorBookResource();
+        }
     }
 }
