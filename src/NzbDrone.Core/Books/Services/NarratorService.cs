@@ -1,0 +1,113 @@
+using System.Collections.Generic;
+using System.Linq;
+using NLog;
+using NzbDrone.Common.Extensions;
+
+namespace NzbDrone.Core.Books
+{
+    public interface INarratorService
+    {
+        // Replaces the full Narrator/EditionNarrator set for an edition.
+        // Names are dedup'd by case-insensitive CleanName; existing
+        // Narrator rows are reused, new ones are inserted. Idempotent —
+        // calling twice with the same names is a no-op after the first
+        // write.
+        void SetNarratorsForEdition(int editionId, IEnumerable<string> orderedNames);
+
+        // Reads the Narrator set for an edition in credited-billing
+        // order (the EditionNarrators.Order column).
+        List<Narrator> GetNarratorsForEdition(int editionId);
+    }
+
+    public class NarratorService : INarratorService
+    {
+        private readonly INarratorRepository _narratorRepo;
+        private readonly IEditionNarratorRepository _editionNarratorRepo;
+        private readonly Logger _logger;
+
+        public NarratorService(
+            INarratorRepository narratorRepo,
+            IEditionNarratorRepository editionNarratorRepo,
+            Logger logger)
+        {
+            _narratorRepo = narratorRepo;
+            _editionNarratorRepo = editionNarratorRepo;
+            _logger = logger;
+        }
+
+        public void SetNarratorsForEdition(int editionId, IEnumerable<string> orderedNames)
+        {
+            if (editionId <= 0)
+            {
+                return;
+            }
+
+            // Filter + normalize the incoming list. The dedup is by CleanName
+            // so "George Guidall" and "george guidall" collapse to one row.
+            var normalized = (orderedNames ?? Enumerable.Empty<string>())
+                .Where(n => n.IsNotNullOrWhiteSpace())
+                .Select(n => new
+                {
+                    Name = n.Trim(),
+                    CleanName = Parser.Parser.CleanAuthorName(n.Trim())
+                })
+                .GroupBy(n => n.CleanName)
+                .Select(g => g.First())
+                .ToList();
+
+            _editionNarratorRepo.DeleteByEditionId(editionId);
+
+            if (normalized.Count == 0)
+            {
+                return;
+            }
+
+            var joinRows = new List<EditionNarrator>(normalized.Count);
+            var order = 0;
+
+            foreach (var entry in normalized)
+            {
+                var narrator = _narratorRepo.FindByCleanName(entry.CleanName);
+                if (narrator == null)
+                {
+                    narrator = _narratorRepo.Insert(new Narrator
+                    {
+                        Name = entry.Name,
+                        CleanName = entry.CleanName
+                    });
+                }
+
+                joinRows.Add(new EditionNarrator
+                {
+                    EditionId = editionId,
+                    NarratorId = narrator.Id,
+                    Order = order++
+                });
+            }
+
+            _editionNarratorRepo.InsertMany(joinRows);
+
+            _logger.Trace("Set {0} narrator(s) for edition {1}", normalized.Count, editionId);
+        }
+
+        public List<Narrator> GetNarratorsForEdition(int editionId)
+        {
+            var joinRows = _editionNarratorRepo.FindByEditionId(editionId)
+                .OrderBy(r => r.Order)
+                .ToList();
+
+            if (joinRows.Count == 0)
+            {
+                return new List<Narrator>();
+            }
+
+            // Re-sort the unordered repo result back into credited-billing
+            // order using the join rows as the canonical sequence.
+            var byId = _narratorRepo.FindForEdition(editionId).ToDictionary(n => n.Id);
+            return joinRows
+                .Select(r => byId.TryGetValue(r.NarratorId, out var n) ? n : null)
+                .Where(n => n != null)
+                .ToList();
+        }
+    }
+}
