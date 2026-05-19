@@ -17,6 +17,11 @@ namespace NzbDrone.Core.MediaFiles
                 { ".epub", Quality.EPUB },
                 { ".kepub", Quality.EPUB },
                 { ".mobi", Quality.MOBI },
+
+                // .azw (no digit) is older Kindle KF7 — same Mobipocket-based
+                // container as .mobi. Treat as MOBI for quality scoring; the
+                // file's audio/text extraction path is identical.
+                { ".azw", Quality.MOBI },
                 { ".azw3", Quality.AZW3 },
                 { ".pdf", Quality.PDF },
             };
