@@ -104,8 +104,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
         private static bool IsEnglishWithIsbn13(OpenLibraryEditionResource e) =>
             IsEnglish(e) && e.Isbn13?.Any() == true;
 
+        // Strictly: only true when OL's JSON says the edition has a real
+        // cover_i image. The ISBN fallback path (b/isbn/<n>-L.jpg) is
+        // surprisingly often 404 — OL only resolves that endpoint when
+        // someone has uploaded the ISBN→cover mapping — so trusting
+        // "has ISBN-13" as a cover proxy meant SelectPrimaryEdition kept
+        // picking coverless editions over siblings that had real cover_i
+        // entries. Concrete repro: work OL16796166W (Casual Vacancy)
+        // → mapper picked OL34507766M (Covers=null, isbn 9781306761017
+        // → 404) instead of OL28783445M (cover_i=10716309).
         private static bool HasCover(OpenLibraryEditionResource e) =>
-            (e.Covers?.Any(c => c > 0) == true) || (e.Isbn13?.Any() == true);
+            e.Covers?.Any(c => c > 0) == true;
 
         private static string ExtractKey(string olKey)
         {

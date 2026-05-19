@@ -57,7 +57,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var resources = Cached(useCache, $"oa_{foreignAuthorId}", TimeSpan.FromHours(24), () =>
             {
                 var authorReq = _requestBuilder.For($"authors/{foreignAuthorId}.json").Build();
-                var worksReq = _requestBuilder.For($"authors/{foreignAuthorId}/works.json?limit=200").Build();
+
+                // OL accepts limit=1000 in a single response (verified:
+                // Le Guin's 252 works returned 251 entries at limit=1000
+                // vs 200 at limit=200, clipping The Dispossessed off
+                // the end and out of the author's discography in the
+                // UI entirely). All prolific authors known today stay
+                // well under 1000 (Asimov ~500, King ~600, Le Guin 252).
+                // When a future author exceeds this, the symptom is a
+                // clipped list (size > entries.Count) and the fix is
+                // to escalate to a paginated loop here — easy migration.
+                var worksReq = _requestBuilder.For($"authors/{foreignAuthorId}/works.json?limit=1000").Build();
 
                 var authorResp = Send<OpenLibraryAuthorResource>(authorReq);
                 var worksResp = Send<OpenLibraryAuthorWorksResource>(worksReq);
@@ -102,7 +112,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     throw new OpenLibraryException("OL work not found: {0}", id);
                 }
 
-                var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=50").Build();
+                // 50 → 200 so works with long edition lists carry more
+                // cover-bearing candidates into SelectPrimaryEdition's
+                // tiered preference (English+ISBN13+cover →
+                // English+cover → any cover → ...). Latent before now —
+                // Rowling's books all had covers in the first 50 — but
+                // surfaced by the Le Guin investigation (LHoD has 91
+                // editions; cover candidates can plausibly cluster in
+                // the tail of works with audiobook/foreign reprints).
+                var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=200").Build();
                 var editionsRes = Send<OpenLibraryEditionListResource>(editionsReq)?.Resource;
 
                 return (Work: work, Editions: editionsRes);
@@ -517,6 +535,20 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     delay = NextDelay(delay);
                     continue;
                 }
+                catch (Exception ex) when (IsTransientNetworkError(ex) && attempt < MaxRetries)
+                {
+                    // HTTP/2 stream resets, mid-response IOException, request
+                    // timeouts. The original HttpException catch above only
+                    // covers status-coded failures (429/5xx) — torn streams
+                    // never reach the response phase, so they escape as raw
+                    // HttpRequestException/IOException and previously
+                    // aborted entire author refreshes mid-flight. Retry with
+                    // the same backoff schedule as the status-coded path.
+                    _logger.Warn(ex, "OL request {0} hit transient network error on attempt {1}; retrying after {2}s", request.Url, attempt + 1, delay.TotalSeconds);
+                    Thread.Sleep(delay);
+                    delay = NextDelay(delay);
+                    continue;
+                }
 
                 if (response != null && IsRetryable(response) && attempt < MaxRetries)
                 {
@@ -540,6 +572,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return response.StatusCode == HttpStatusCode.TooManyRequests || response.HasHttpServerError;
+        }
+
+        private static bool IsTransientNetworkError(Exception ex)
+        {
+            return ex is System.Net.Http.HttpRequestException
+                || ex is System.IO.IOException
+                || ex is System.Threading.Tasks.TaskCanceledException;
         }
 
         private static void Wait(HttpResponse response, TimeSpan fallback)

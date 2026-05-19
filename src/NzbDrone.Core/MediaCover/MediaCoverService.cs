@@ -208,7 +208,20 @@ namespace NzbDrone.Core.MediaCover
 
         public void EnsureBookCovers(Book book)
         {
-            foreach (var cover in book.Editions.Value.Single(x => x.Monitored).Images.Where(e => e.CoverType == MediaCoverTypes.Cover))
+            // Some OL works return zero editions (e.g. "Hainish"
+            // OL29311776W is a stub work with no edition records). The
+            // mapper leaves Monitored unset across the empty list, so
+            // book.Editions.Value.Single(Monitored) throws "Sequence
+            // contains no matching element" and aborts the per-author
+            // cover-download loop in HandleAsync. Skip these defensively
+            // — there's no cover to download when there's no edition.
+            var monitoredEdition = book.Editions.Value.FirstOrDefault(x => x.Monitored);
+            if (monitoredEdition == null)
+            {
+                return;
+            }
+
+            foreach (var cover in monitoredEdition.Images.Where(e => e.CoverType == MediaCoverTypes.Cover))
             {
                 if (cover.CoverType == MediaCoverTypes.Unknown)
                 {
@@ -415,7 +428,20 @@ namespace NzbDrone.Core.MediaCover
             var books = _bookService.GetBooksByAuthor(message.Author.Id);
             foreach (var book in books)
             {
-                EnsureBookCovers(book);
+                try
+                {
+                    EnsureBookCovers(book);
+                }
+                catch (Exception ex)
+                {
+                    // Defense in depth — a single book that surprises
+                    // EnsureBookCovers must not abort the rest of the
+                    // author's cover-download pass. Without this, an
+                    // exception 30 books into a 250-book Le Guin refresh
+                    // leaves the remaining 220 books permanently
+                    // coverless until another refresh fires.
+                    _logger.Warn(ex, "Couldn't ensure covers for {0}", book);
+                }
             }
 
             _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Author));

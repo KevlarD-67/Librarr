@@ -322,6 +322,18 @@ namespace NzbDrone.Core.Books
             local.BookId = entity.Id;
             local.Book = entity;
 
+            // Re-apply the mapper's current monitored pick onto the local
+            // edition (which is what flows into MonitorSingleEdition and is
+            // saved to the DB), unless the user has manually pinned this
+            // edition via ManualAdd. Without this, the first auto-pick is
+            // permanent because remote.UseDbFieldsFrom(local) below would
+            // then copy local.Monitored back onto remote — meaning
+            // improvements to SelectPrimaryEdition never reach existing rows.
+            if (!local.ManualAdd)
+            {
+                local.Monitored = remote.Monitored;
+            }
+
             remote.UseDbFieldsFrom(local);
         }
 
