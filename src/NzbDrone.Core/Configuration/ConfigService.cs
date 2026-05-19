@@ -287,6 +287,28 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("MetadataSourceType", value); }
         }
 
+        public bool LegacyMigrationCompleted
+        {
+            // Set to true once LegacyMigrationService has finished a first-boot
+            // pass against a Goodreads-shaped imported DB (or detected it
+            // wasn't legacy in the first place). Prevents the migration loop
+            // from re-running on every startup.
+            get { return GetValueBoolean("LegacyMigrationCompleted", false); }
+
+            set { SetValue("LegacyMigrationCompleted", value); }
+        }
+
+        public int LegacyMigrationVersion
+        {
+            // Bumped to LegacyMigrationService.CurrentVersion on each
+            // successful completion. Future schema-breaking work that needs
+            // a re-run can advance the expected constant — the marker is
+            // re-checked even when LegacyMigrationCompleted is true.
+            get { return GetValueInt("LegacyMigrationVersion", 0); }
+
+            set { SetValue("LegacyMigrationVersion", value); }
+        }
+
         public bool AugmentAudiobookMetadata
         {
             // Phase 7 toggle. When true, AudnexProxy merges narrator and

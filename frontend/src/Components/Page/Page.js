@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import AppUpdatedModalConnector from 'App/AppUpdatedModalConnector';
 import ColorImpairedContext from 'App/ColorImpairedContext';
 import ConnectionLostModalConnector from 'App/ConnectionLostModalConnector';
+import LegacyMigrationBannerConnector from 'App/LegacyMigrationBannerConnector';
 import SignalRConnector from 'Components/SignalRConnector';
 import AuthenticationRequiredModal from 'FirstRun/AuthenticationRequiredModal';
 import locationShape from 'Helpers/Props/Shapes/locationShape';
@@ -89,6 +90,8 @@ class Page extends Component {
           <PageHeader
             onSidebarToggle={onSidebarToggle}
           />
+
+          <LegacyMigrationBannerConnector />
 
           <div className={styles.main}>
             <PageSidebar

@@ -128,14 +128,14 @@ namespace NzbDrone.Core.MetadataSource
                 return null;
             }
 
-            if (LooksLikeOpenLibraryAuthorId(foreignAuthorId))
+            if (OpenLibraryIdHelper.IsAuthorId(foreignAuthorId))
             {
                 return null;
             }
 
             var mapping = _mappingRepo.FindByGoodreadsId(foreignAuthorId);
             var olKey = mapping?.OpenLibraryEditionId;
-            if (olKey.IsNullOrWhiteSpace() || !LooksLikeOpenLibraryAuthorId(olKey))
+            if (olKey.IsNullOrWhiteSpace() || !OpenLibraryIdHelper.IsAuthorId(olKey))
             {
                 return null;
             }
@@ -151,14 +151,14 @@ namespace NzbDrone.Core.MetadataSource
                 return null;
             }
 
-            if (LooksLikeOpenLibraryWorkId(foreignBookId))
+            if (OpenLibraryIdHelper.IsWorkId(foreignBookId))
             {
                 return null;
             }
 
             var mapping = _mappingRepo.FindByGoodreadsId(foreignBookId);
             var olKey = mapping?.OpenLibraryWorkId;
-            if (olKey.IsNullOrWhiteSpace() || !LooksLikeOpenLibraryWorkId(olKey))
+            if (olKey.IsNullOrWhiteSpace() || !OpenLibraryIdHelper.IsWorkId(olKey))
             {
                 return null;
             }
@@ -211,7 +211,7 @@ namespace NzbDrone.Core.MetadataSource
             var authors = result.Item3;
             var primaryAuthorMeta = authors != null && authors.Count > 0 ? authors[0] : null;
             var restoredPrimaryAuthorId = primaryAuthorMeta?.ForeignAuthorId;
-            if (primaryAuthorMeta != null && LooksLikeOpenLibraryAuthorId(primaryAuthorMeta.ForeignAuthorId))
+            if (primaryAuthorMeta != null && OpenLibraryIdHelper.IsAuthorId(primaryAuthorMeta.ForeignAuthorId))
             {
                 var revAuthor = _mappingRepo.FindByOpenLibraryAuthorId(primaryAuthorMeta.ForeignAuthorId);
                 if (revAuthor?.GoodreadsId.IsNotNullOrWhiteSpace() == true)
@@ -227,7 +227,7 @@ namespace NzbDrone.Core.MetadataSource
 
         private string ReverseBookId(string foreignBookId)
         {
-            if (foreignBookId.IsNullOrWhiteSpace() || !LooksLikeOpenLibraryWorkId(foreignBookId))
+            if (foreignBookId.IsNullOrWhiteSpace() || !OpenLibraryIdHelper.IsWorkId(foreignBookId))
             {
                 return null;
             }
@@ -235,12 +235,6 @@ namespace NzbDrone.Core.MetadataSource
             var mapping = _mappingRepo.FindByOpenLibraryWorkId(foreignBookId);
             return mapping?.GoodreadsId;
         }
-
-        private static bool LooksLikeOpenLibraryAuthorId(string id)
-            => id != null && id.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && id.EndsWith("A", StringComparison.OrdinalIgnoreCase);
-
-        private static bool LooksLikeOpenLibraryWorkId(string id)
-            => id != null && id.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && id.EndsWith("W", StringComparison.OrdinalIgnoreCase);
 
         // IProvideSeriesInfo
         public SeriesInfo GetSeriesInfo(string foreignSeriesId, bool useCache = true)
