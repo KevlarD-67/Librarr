@@ -47,6 +47,17 @@ namespace NzbDrone.Core.Download
                 var request = indexer?.GetDownloadRequest(url) ?? new HttpRequest(url);
                 request.RateLimitKey = remoteBook?.Release?.IndexerId.ToString();
 
+                // NZB indexers (NZBgeek and most newznab impls) respond to
+                // /api?t=get&id=... with a 302 to the actual NZB URL on a
+                // CDN. HttpClient.cs's RuntimeInfo.IsProduction guardrail
+                // (line 101) rejects non-followed redirects as errors —
+                // and locally-built docker images aren't officialBuild=true,
+                // so the guardrail fires in prod. The HttpClient already
+                // has a perfectly capable auto-follow loop (line 72); we
+                // just need to opt in. Same pattern used by
+                // OpenLibraryProxy.cs:231 and 6 other call sites.
+                request.AllowAutoRedirect = true;
+
                 var response = await RetryStrategy
                     .ExecuteAsync(static async (state, _) => await state._httpClient.GetAsync(state.request), (_httpClient, request))
                     .ConfigureAwait(false);
