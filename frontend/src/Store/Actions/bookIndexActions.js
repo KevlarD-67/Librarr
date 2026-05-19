@@ -168,7 +168,12 @@ export const defaultState = {
     }
   },
 
-  selectedFilterKey: 'all',
+  // The Books library grid defaults to monitored-only so the page
+  // shows just the books the user clicked Add on. The full
+  // discography (Monitored + Unmonitored) is browsable from the
+  // author detail page; flipping this dropdown to "All" brings the
+  // unmonitored rows back into the library grid.
+  selectedFilterKey: 'monitored',
 
   filters,
 

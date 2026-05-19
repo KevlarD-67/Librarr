@@ -269,22 +269,16 @@ namespace NzbDrone.Core.Books
 
         protected override void ProcessChildren(Author entity, SortedChildren children)
         {
-            // If the author opted out of auto-tracking new items, don't
-            // even insert them. Upstream Readarr's model is "always
-            // insert, just set Monitored=false" — Librarr's intent is
-            // explicit-only: the library shows ONLY the books the user
-            // clicked Add on. AddBookService sets MonitorNewItems = None
-            // on the cascade-add path so this branch fires every time a
-            // user adds their first book by a new author. Dropping the
-            // children.Added list short-circuits the downstream
-            // InsertMany + edition diff for new books; existing books
-            // (children.Updated / UpToDate) are unaffected.
-            if (entity.MonitorNewItems == NewItemMonitorTypes.None)
-            {
-                children.Added.Clear();
-                return;
-            }
-
+            // Upstream model: insert all books OL returns for the author,
+            // and let ShouldMonitorNewBook decide which to monitor based on
+            // entity.MonitorNewItems. Cascade-adds via AddBookService set
+            // MonitorNewItems = None on the new author, so the explicit
+            // add stays Monitored=true while the rest of the discography
+            // arrives unmonitored. The Books library page filters to
+            // monitored-only by default so the grid only shows what the
+            // user clicked Add on; the Author detail page shows the full
+            // bibliography so the user can browse and selectively flip
+            // the monitor flag on additional titles.
             foreach (var book in children.Added)
             {
                 book.Monitored = _monitorNewBookService.ShouldMonitorNewBook(book, children.UpToDate, entity.MonitorNewItems);
