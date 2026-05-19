@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { Tab, TabList, TabPanel, Tabs } from 'react-tabs';
 import AuthorHistoryTable from 'Author/History/AuthorHistoryTable';
+import CoverPickerModal from 'Book/CoverPicker/CoverPickerModal';
 import DeleteBookModal from 'Book/Delete/DeleteBookModal';
 import EditBookModalConnector from 'Book/Edit/EditBookModalConnector';
 import BookFileEditorTable from 'BookFile/Editor/BookFileEditorTable';
@@ -36,6 +37,7 @@ class BookDetails extends Component {
       isRetagModalOpen: false,
       isEditBookModalOpen: false,
       isDeleteBookModalOpen: false,
+      isCoverPickerModalOpen: false,
       selectedTabIndex: 0
     };
   }
@@ -78,6 +80,14 @@ class BookDetails extends Component {
     this.setState({ isDeleteBookModalOpen: false });
   };
 
+  onCoverPickerPress = () => {
+    this.setState({ isCoverPickerModalOpen: true });
+  };
+
+  onCoverPickerModalClose = () => {
+    this.setState({ isCoverPickerModalOpen: false });
+  };
+
   onTabSelect = (index, lastIndex) => {
     this.setState({ selectedTabIndex: index });
   };
@@ -100,6 +110,8 @@ class BookDetails extends Component {
       isSearching,
       onRefreshPress,
       onSearchPress,
+      onCoverSelected,
+      preferredCoverUrl,
       statistics = {}
     } = this.props;
 
@@ -112,6 +124,7 @@ class BookDetails extends Component {
       isRetagModalOpen,
       isEditBookModalOpen,
       isDeleteBookModalOpen,
+      isCoverPickerModalOpen,
       selectedTabIndex
     } = this.state;
 
@@ -152,6 +165,12 @@ class BookDetails extends Component {
             />
 
             <PageToolbarSeparator />
+
+            <PageToolbarButton
+              label={'Cover'}
+              iconName={icons.POSTER}
+              onPress={this.onCoverPickerPress}
+            />
 
             <PageToolbarButton
               label={translate('Edit')}
@@ -323,6 +342,15 @@ class BookDetails extends Component {
             onModalClose={this.onDeleteBookModalClose}
           />
 
+          <CoverPickerModal
+            isOpen={isCoverPickerModalOpen}
+            bookId={id}
+            title={title}
+            preferredCoverUrl={preferredCoverUrl}
+            onCoverSelected={onCoverSelected}
+            onModalClose={this.onCoverPickerModalClose}
+          />
+
         </PageContentBody>
       </PageContent>
     );
@@ -354,9 +382,11 @@ BookDetails.propTypes = {
   previousBook: PropTypes.object,
   nextBook: PropTypes.object,
   isSmallScreen: PropTypes.bool.isRequired,
+  preferredCoverUrl: PropTypes.string,
   onMonitorTogglePress: PropTypes.func.isRequired,
   onRefreshPress: PropTypes.func,
-  onSearchPress: PropTypes.func.isRequired
+  onSearchPress: PropTypes.func.isRequired,
+  onCoverSelected: PropTypes.func.isRequired
 };
 
 BookDetails.defaultProps = {

@@ -37,6 +37,7 @@ namespace Readarr.Api.V1.Books
         public string RemoteCover { get; set; }
         public DateTime? LastSearchTime { get; set; }
         public List<EditionResource> Editions { get; set; }
+        public string PreferredCoverUrl { get; set; }
 
         //Hiding this so people don't think its usable (only used to set the initial state)
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -81,7 +82,8 @@ namespace Readarr.Api.V1.Books
                 Links = model.Links.Concat(selectedEdition?.Links ?? new List<Links>()).ToList(),
                 Ratings = selectedEdition?.Ratings ?? new Ratings(),
                 Added = model.Added,
-                LastSearchTime = model.LastSearchTime
+                LastSearchTime = model.LastSearchTime,
+                PreferredCoverUrl = model.PreferredCoverUrl
             };
         }
 
@@ -106,7 +108,8 @@ namespace Readarr.Api.V1.Books
                 Editions = resource.Editions.ToModel(),
                 AddOptions = resource.AddOptions,
                 Author = author,
-                AuthorMetadata = author.Metadata.Value
+                AuthorMetadata = author.Metadata.Value,
+                PreferredCoverUrl = resource.PreferredCoverUrl
             };
         }
 

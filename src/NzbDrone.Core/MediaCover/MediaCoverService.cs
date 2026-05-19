@@ -29,6 +29,7 @@ namespace NzbDrone.Core.MediaCover
         IHandleAsync<AuthorRefreshCompleteEvent>,
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
+        IHandle<BookEditedEvent>,
         IMapCoversToLocal
     {
         private const string USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; SM-G975U Build/QP1A.190711.020)";
@@ -216,12 +217,20 @@ namespace NzbDrone.Core.MediaCover
             // cover-download loop in HandleAsync. Skip these defensively
             // — there's no cover to download when there's no edition.
             var monitoredEdition = book.Editions.Value.FirstOrDefault(x => x.Monitored);
-            if (monitoredEdition == null)
+            if (monitoredEdition == null && book.PreferredCoverUrl.IsNullOrWhiteSpace())
             {
                 return;
             }
 
-            foreach (var cover in monitoredEdition.Images.Where(e => e.CoverType == MediaCoverTypes.Cover))
+            // User-pinned cover (cover-picker modal) takes priority over
+            // whatever the mapper put on the monitored edition. Mapper
+            // default (work.covers[0]) is the second choice; the edition
+            // cover fallback URLs follow that in the Images list.
+            var coverSources = !book.PreferredCoverUrl.IsNullOrWhiteSpace()
+                ? new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, book.PreferredCoverUrl) }
+                : monitoredEdition.Images.Where(e => e.CoverType == MediaCoverTypes.Cover).ToList();
+
+            foreach (var cover in coverSources)
             {
                 if (cover.CoverType == MediaCoverTypes.Unknown)
                 {
@@ -398,6 +407,23 @@ namespace NzbDrone.Core.MediaCover
             catch (Exception ex)
             {
                 _logger.Warn(ex, "Couldn't pre-download cover for {0}", message.Book);
+            }
+        }
+
+        public void Handle(BookEditedEvent message)
+        {
+            // Cover-picker flow: when the user pins a cover via the
+            // modal, BookController.UpdateResource fires BookEditedEvent.
+            // Re-run EnsureBookCovers so AlreadyExistsSpecification's
+            // URL-change check (CoverAlreadyExistsSpecification.cs:30)
+            // sees the new URL and triggers a redownload.
+            try
+            {
+                EnsureBookCovers(message.Book);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Couldn't refresh cover for {0}", message.Book);
             }
         }
 

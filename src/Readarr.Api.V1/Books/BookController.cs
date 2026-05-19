@@ -14,6 +14,7 @@ using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
 using NzbDrone.Http.REST.Attributes;
@@ -35,6 +36,7 @@ namespace Readarr.Api.V1.Books
         protected readonly IAuthorService _authorService;
         protected readonly IEditionService _editionService;
         protected readonly IAddBookService _addBookService;
+        protected readonly OpenLibraryProxy _openLibraryProxy;
 
         public BookController(IAuthorService authorService,
                           IBookService bookService,
@@ -46,13 +48,15 @@ namespace Readarr.Api.V1.Books
                           IUpgradableSpecification upgradableSpecification,
                           IBroadcastSignalRMessage signalRBroadcaster,
                           QualityProfileExistsValidator qualityProfileExistsValidator,
-                          MetadataProfileExistsValidator metadataProfileExistsValidator)
+                          MetadataProfileExistsValidator metadataProfileExistsValidator,
+                          OpenLibraryProxy openLibraryProxy)
 
         : base(bookService, seriesBookLinkService, authorStatisticsService, coverMapper, upgradableSpecification, signalRBroadcaster)
         {
             _authorService = authorService;
             _editionService = editionService;
             _addBookService = addBookService;
+            _openLibraryProxy = openLibraryProxy;
 
             PostValidator.RuleFor(s => s.ForeignBookId).NotEmpty();
             PostValidator.RuleFor(s => s.Author.QualityProfileId).SetValidator(qualityProfileExistsValidator);
@@ -149,6 +153,55 @@ namespace Readarr.Api.V1.Books
                 id,
                 overview
             };
+        }
+
+        // Pin a specific cover URL from the cover-picker modal. Null
+        // body clears the pin so the mapper default applies again.
+        // Avoids the existing [RestPutById] route because that one
+        // binds a full BookResource and would null out other fields
+        // when the body is partial (model-binding gotcha verified
+        // empirically). This route mutates only PreferredCoverUrl.
+        // BookService.UpdateBook publishes BookEditedEvent, which
+        // MediaCoverService.Handle picks up to trigger a re-download.
+        [HttpPut("{id:int}/cover")]
+        public ActionResult<BookResource> SetCover(int id, [FromBody] BookCoverPinResource resource)
+        {
+            var book = _bookService.GetBook(id);
+            if (book == null)
+            {
+                return NotFound();
+            }
+
+            book.PreferredCoverUrl = resource?.PreferredCoverUrl;
+            _bookService.UpdateBook(book);
+            BroadcastResourceChange(ModelAction.Updated, book.Id);
+            return Accepted(book.Id);
+        }
+
+        // Cover-picker modal endpoint. Returns deduped cover candidates
+        // for this book — OL work-level covers (editorial picks) first,
+        // then every edition's cover_i with publisher + year captions.
+        // Hits OpenLibraryProxy's 7-day cache for the work bundle, so
+        // subsequent opens are sub-second.
+        [HttpGet("{id:int}/covers")]
+        public List<BookCoverResource> Covers(int id)
+        {
+            var book = _bookService.GetBook(id);
+            if (book == null || book.ForeignBookId.IsNullOrWhiteSpace())
+            {
+                return new List<BookCoverResource>();
+            }
+
+            var candidates = _openLibraryProxy.GetCoverCandidates(book.ForeignBookId);
+            return candidates.Select(c => new BookCoverResource
+            {
+                CoverId = c.CoverId,
+                Url = c.Url,
+                Source = c.Source,
+                EditionTitle = c.EditionTitle,
+                PublishDate = c.PublishDate,
+                Publisher = c.Publisher
+            }).ToList();
         }
 
         [RestPostById]

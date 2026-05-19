@@ -45,6 +45,12 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         public AddBookOptions AddOptions { get; set; }
 
+        // Cover-picker modal pin. When non-null, MediaCoverService
+        // downloads this URL instead of the monitored edition's cover.
+        // Survives refresh via UseDbFieldsFrom (it's a user choice,
+        // not metadata from the upstream mapper).
+        public string PreferredCoverUrl { get; set; }
+
         // These are dynamically queried from other tables
         [MemberwiseEqualityIgnore]
         public LazyLoaded<AuthorMetadata> AuthorMetadata { get; set; }
@@ -94,6 +100,7 @@ namespace NzbDrone.Core.Books
             LastSearchTime = other.LastSearchTime;
             Added = other.Added;
             AddOptions = other.AddOptions;
+            PreferredCoverUrl = other.PreferredCoverUrl;
         }
 
         public override void ApplyChanges(Book other)
@@ -103,6 +110,7 @@ namespace NzbDrone.Core.Books
             AddOptions = other.AddOptions;
             Monitored = other.Monitored;
             AnyEditionOk = other.AnyEditionOk;
+            PreferredCoverUrl = other.PreferredCoverUrl;
         }
     }
 }

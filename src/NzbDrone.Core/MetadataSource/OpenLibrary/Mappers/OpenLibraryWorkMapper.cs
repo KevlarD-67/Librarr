@@ -31,16 +31,32 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                     e.Monitored = e.ForeignEditionId == primaryKey;
                 }
 
-                // Work-level covers backfill any edition lacking its own.
-                // Most editions have their own cover ID — this only fires
-                // when OL returns sparse edition records (e.g. older
-                // imports that were never updated with an edition cover).
+                // Work-level covers serve two roles here:
+                //   1. PRIMARY: prepend work.covers[0] onto the monitored
+                //      edition's Images list so the displayed cover
+                //      matches OL's own editorial pick (the cover OL
+                //      shows on the /works/<id> page), not whichever
+                //      cover-bearing edition happened to be first in
+                //      OL's response order. This is the user-visible
+                //      "canonical" default; users override via the
+                //      cover-picker modal (PreferredCoverUrl).
+                //   2. BACKFILL: editions whose JSON has no cover_i at
+                //      all still get the work covers list so the modal
+                //      has something to show.
                 var workCovers = OpenLibraryCoverUrls.ForBook(work.Covers);
                 if (workCovers.Count > 0)
                 {
                     foreach (var e in editionList)
                     {
-                        if (e.Images.Count == 0)
+                        if (e.Monitored)
+                        {
+                            // Prepend canonical work cover; keep existing
+                            // edition-cover URLs after it so MediaCoverProxy
+                            // still has fallback URLs if the canonical
+                            // pick 404s.
+                            e.Images = workCovers.Take(1).Concat(e.Images).ToList();
+                        }
+                        else if (e.Images.Count == 0)
                         {
                             e.Images = workCovers;
                         }

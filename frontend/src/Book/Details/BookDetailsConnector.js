@@ -5,7 +5,7 @@ import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import * as commandNames from 'Commands/commandNames';
-import { toggleBooksMonitored } from 'Store/Actions/bookActions';
+import { setBookCover, toggleBooksMonitored } from 'Store/Actions/bookActions';
 import { clearBookFiles, fetchBookFiles } from 'Store/Actions/bookFileActions';
 import { executeCommand } from 'Store/Actions/commandActions';
 import { clearEditions, fetchEditions } from 'Store/Actions/editionActions';
@@ -117,7 +117,8 @@ const mapDispatchToProps = {
   clearEditions,
   clearReleases,
   cancelFetchReleases,
-  toggleBooksMonitored
+  toggleBooksMonitored,
+  setBookCover
 };
 
 function getMonitoredEditions(props) {
@@ -204,6 +205,13 @@ class BookDetailsConnector extends Component {
     });
   };
 
+  onCoverSelected = (preferredCoverUrl) => {
+    this.props.setBookCover({
+      bookId: this.props.id,
+      preferredCoverUrl
+    });
+  };
+
   //
   // Render
 
@@ -214,6 +222,7 @@ class BookDetailsConnector extends Component {
         onMonitorTogglePress={this.onMonitorTogglePress}
         onRefreshPress={this.onRefreshPress}
         onSearchPress={this.onSearchPress}
+        onCoverSelected={this.onCoverSelected}
       />
     );
   }
@@ -234,7 +243,8 @@ BookDetailsConnector.propTypes = {
   clearReleases: PropTypes.func.isRequired,
   cancelFetchReleases: PropTypes.func.isRequired,
   toggleBooksMonitored: PropTypes.func.isRequired,
-  executeCommand: PropTypes.func.isRequired
+  executeCommand: PropTypes.func.isRequired,
+  setBookCover: PropTypes.func.isRequired
 };
 
 export default connect(createMapStateToProps, mapDispatchToProps)(BookDetailsConnector);

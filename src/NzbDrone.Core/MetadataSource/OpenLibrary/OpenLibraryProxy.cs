@@ -93,38 +93,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
         {
-            // Cache the raw HTTP resources only; run the mapper on every
-            // call so each caller gets a fresh Book + Editions list.
-            // LazyCache hands back the same object reference on hit, and
-            // BookService.AddBook + BasicRepository.Insert mutate the
-            // edition objects in place (Id via reflection, BookId via
-            // ForEach, Monitored toggle) — so a cached *mapped* payload
-            // leaks those mutations across calls. After a first add,
-            // editions in cache carry Ids that no longer correspond to
-            // any DB row, and the retry path's SetMonitored assertion
-            // fires with Count(Monitored)==0.
-            var resources = Cached(true, $"ow_{id}", TimeSpan.FromDays(7), () =>
-            {
-                var workReq = _requestBuilder.For($"works/{id}.json").Build();
-                var work = Send<OpenLibraryWorkResource>(workReq)?.Resource;
-                if (work == null)
-                {
-                    throw new OpenLibraryException("OL work not found: {0}", id);
-                }
-
-                // 50 → 200 so works with long edition lists carry more
-                // cover-bearing candidates into SelectPrimaryEdition's
-                // tiered preference (English+ISBN13+cover →
-                // English+cover → any cover → ...). Latent before now —
-                // Rowling's books all had covers in the first 50 — but
-                // surfaced by the Le Guin investigation (LHoD has 91
-                // editions; cover candidates can plausibly cluster in
-                // the tail of works with audiobook/foreign reprints).
-                var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=200").Build();
-                var editionsRes = Send<OpenLibraryEditionListResource>(editionsReq)?.Resource;
-
-                return (Work: work, Editions: editionsRes);
-            });
+            var resources = FetchWorkBundle(id);
 
             var (book, authors) = OpenLibraryWorkMapper.ToBook(resources.Work, resources.Editions);
 
@@ -140,6 +109,88 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             // AddBookService:58.
             var primaryAuthorId = authors.FirstOrDefault()?.ForeignAuthorId ?? id;
             return Tuple.Create(primaryAuthorId, book, authors);
+        }
+
+        // Cover-picker modal endpoint. Returns deduped candidates from
+        // work.covers (OL's editorial picks, ordered first) plus every
+        // edition's cover_i (with publisher/year metadata for the
+        // thumbnail label). Reuses the same 7-day cache as GetBookInfo,
+        // so the first modal open after a refresh is sub-second.
+        public List<CoverCandidate> GetCoverCandidates(string foreignBookId)
+        {
+            var resources = FetchWorkBundle(foreignBookId);
+            var seen = new HashSet<int>();
+            var candidates = new List<CoverCandidate>();
+
+            foreach (var coverId in resources.Work?.Covers ?? new List<int>())
+            {
+                if (coverId > 0 && seen.Add(coverId))
+                {
+                    candidates.Add(new CoverCandidate
+                    {
+                        CoverId = coverId,
+                        Url = $"https://covers.openlibrary.org/b/id/{coverId}-L.jpg",
+                        Source = "work"
+                    });
+                }
+            }
+
+            foreach (var edition in resources.Editions?.Entries ?? new List<Resources.OpenLibraryEditionResource>())
+            {
+                foreach (var coverId in edition.Covers ?? new List<int>())
+                {
+                    if (coverId > 0 && seen.Add(coverId))
+                    {
+                        candidates.Add(new CoverCandidate
+                        {
+                            CoverId = coverId,
+                            Url = $"https://covers.openlibrary.org/b/id/{coverId}-L.jpg",
+                            Source = "edition",
+                            EditionTitle = edition.Title,
+                            PublishDate = edition.PublishDate,
+                            Publisher = edition.Publishers?.FirstOrDefault()
+                        });
+                    }
+                }
+            }
+
+            return candidates;
+        }
+
+        // Cache the raw HTTP resources only (work + editions). The mapper
+        // runs on every caller so each gets a fresh Book + Editions list:
+        // LazyCache hands back the same object reference on hit, and
+        // BookService.AddBook + BasicRepository.Insert mutate the
+        // edition objects in place (Id via reflection, BookId via
+        // ForEach, Monitored toggle) — so a cached *mapped* payload
+        // would leak those mutations across calls. After a first add,
+        // editions in cache would carry Ids that no longer correspond
+        // to any DB row, and the retry path's SetMonitored assertion
+        // would fire with Count(Monitored)==0.
+        private (Resources.OpenLibraryWorkResource Work, Resources.OpenLibraryEditionListResource Editions) FetchWorkBundle(string id)
+        {
+            return Cached(true, $"ow_{id}", TimeSpan.FromDays(7), () =>
+            {
+                var workReq = _requestBuilder.For($"works/{id}.json").Build();
+                var work = Send<Resources.OpenLibraryWorkResource>(workReq)?.Resource;
+                if (work == null)
+                {
+                    throw new OpenLibraryException("OL work not found: {0}", id);
+                }
+
+                // 50 → 200 so works with long edition lists carry more
+                // cover-bearing candidates into SelectPrimaryEdition's
+                // tiered preference (English+ISBN13+cover →
+                // English+cover → any cover → ...). Latent before now —
+                // Rowling's books all had covers in the first 50 — but
+                // surfaced by the Le Guin investigation (LHoD has 91
+                // editions; cover candidates can plausibly cluster in
+                // the tail of works with audiobook/foreign reprints).
+                var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=200").Build();
+                var editionsRes = Send<Resources.OpenLibraryEditionListResource>(editionsReq)?.Resource;
+
+                return (Work: work, Editions: editionsRes);
+            });
         }
 
         public List<Author> SearchForNewAuthor(string title)

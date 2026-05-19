@@ -288,6 +288,7 @@ export const DELETE_BOOK = 'books/deleteBook';
 export const DELETE_AUTHOR_BOOKS = 'books/deleteAuthorBooks';
 export const TOGGLE_BOOK_MONITORED = 'books/toggleBookMonitored';
 export const TOGGLE_BOOKS_MONITORED = 'books/toggleBooksMonitored';
+export const SET_BOOK_COVER = 'books/setBookCover';
 
 //
 // Action Creators
@@ -298,6 +299,7 @@ export const setBooksTableOption = createAction(SET_BOOKS_TABLE_OPTION);
 export const clearBooks = createAction(CLEAR_BOOKS);
 export const toggleBookMonitored = createThunk(TOGGLE_BOOK_MONITORED);
 export const toggleBooksMonitored = createThunk(TOGGLE_BOOKS_MONITORED);
+export const setBookCover = createThunk(SET_BOOK_COVER);
 
 export const saveBook = createThunk(SAVE_BOOK);
 
@@ -382,6 +384,50 @@ export const actionHandlers = handleThunks({
     const toDelete = books.filter((x) => x.authorId === authorId);
 
     dispatch(batchActions(toDelete.map((b) => removeItem({ section, id: b.id }))));
+  },
+
+  [SET_BOOK_COVER]: function(getState, payload, dispatch) {
+    // Cover-picker modal: PUT /book/{id}/cover with the chosen URL
+    // (or null to clear the pin). Uses a dedicated sub-route rather
+    // than the partial-PUT pattern the toggle-monitored handler uses,
+    // because [RestPutById] full-resource binding nulls every field
+    // not present in the body (empirically reproduces a 500 on
+    // partial PUTs in this codebase). The dedicated route mutates
+    // only PreferredCoverUrl, then BookService.UpdateBook publishes
+    // BookEditedEvent which MediaCoverService.Handle picks up to
+    // trigger a re-download of the new URL.
+    const { bookId, preferredCoverUrl } = payload;
+
+    dispatch(updateItem({
+      id: bookId,
+      section: 'books',
+      isSaving: true
+    }));
+
+    const promise = createAjaxRequest({
+      url: `/book/${bookId}/cover`,
+      method: 'PUT',
+      data: JSON.stringify({ preferredCoverUrl }),
+      dataType: 'json',
+      contentType: 'application/json'
+    }).request;
+
+    promise.done(() => {
+      dispatch(updateItem({
+        id: bookId,
+        section: 'books',
+        isSaving: false,
+        preferredCoverUrl
+      }));
+    });
+
+    promise.fail((xhr) => {
+      dispatch(updateItem({
+        id: bookId,
+        section: 'books',
+        isSaving: false
+      }));
+    });
   },
 
   [TOGGLE_BOOK_MONITORED]: function(getState, payload, dispatch) {
