@@ -11,14 +11,16 @@ function createMapStateToProps() {
   return createSelector(
     (state) => state.search,
     (state) => state.authors.items.length,
+    (state) => state.settings.rootFolders,
     (state) => state.router.location,
-    (search, existingAuthorsCount, location) => {
+    (search, existingAuthorsCount, rootFolders, location) => {
       const { params } = parseUrl(location.search);
 
       return {
         ...search,
         term: params.term,
-        hasExistingAuthors: existingAuthorsCount > 0
+        hasExistingAuthors: existingAuthorsCount > 0,
+        hasRootFolders: (rootFolders?.items?.length ?? 0) > 0
       };
     }
   );

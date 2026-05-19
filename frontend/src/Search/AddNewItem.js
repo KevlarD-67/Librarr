@@ -83,7 +83,8 @@ class AddNewItem extends Component {
     const {
       error,
       items,
-      hasExistingAuthors
+      hasExistingAuthors,
+      hasRootFolders
     } = this.props;
 
     const term = this.state.term;
@@ -202,7 +203,7 @@ class AddNewItem extends Component {
           }
 
           {
-            !term && !hasExistingAuthors ?
+            !term && !hasExistingAuthors && !hasRootFolders ?
               <div className={styles.message}>
                 <div className={styles.noAuthorsText}>
                   You haven't added any authors yet, do you want to add an existing library location (Root Folder) and update?
@@ -234,6 +235,7 @@ AddNewItem.propTypes = {
   addError: PropTypes.object,
   items: PropTypes.arrayOf(PropTypes.object).isRequired,
   hasExistingAuthors: PropTypes.bool.isRequired,
+  hasRootFolders: PropTypes.bool.isRequired,
   onSearchChange: PropTypes.func.isRequired,
   onClearSearch: PropTypes.func.isRequired
 };
