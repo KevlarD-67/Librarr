@@ -105,13 +105,71 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             // /b/isbn/<n>-L.jpg endpoint succeeds for many editions whose JSON
             // omits the `covers` field — see the Images-with-ISBN fallback in
             // OpenLibraryEditionMapper.ToEdition.
-            return editions.Entries.FirstOrDefault(e => IsEnglishWithIsbn13(e) && HasCover(e))
-                ?? editions.Entries.FirstOrDefault(e => IsEnglish(e) && HasCover(e))
-                ?? editions.Entries.FirstOrDefault(HasCover)
-                ?? editions.Entries.FirstOrDefault(IsEnglishWithIsbn13)
-                ?? editions.Entries.FirstOrDefault(IsEnglish)
-                ?? editions.Entries.FirstOrDefault(e => e.Isbn13?.Any() == true)
+            //
+            // Within each tier, OrderByDescending(Richness) prefers the
+            // edition with the most populated downstream metadata fields
+            // (publisher, page count, format, publish date, description)
+            // rather than whichever one OL happened to return first. Cycle 3
+            // of the Le Guin completeness loop: format/page_count/isbn_13/
+            // release_date were all hovering ~20-39 short of ceiling not
+            // because the data was missing on OL, but because the mapper
+            // was tied to OL's response order and that order is not
+            // metadata-ranked.
+            return PickRichest(editions.Entries.Where(e => IsEnglishWithIsbn13(e) && HasCover(e)))
+                ?? PickRichest(editions.Entries.Where(e => IsEnglish(e) && HasCover(e)))
+                ?? PickRichest(editions.Entries.Where(HasCover))
+                ?? PickRichest(editions.Entries.Where(IsEnglishWithIsbn13))
+                ?? PickRichest(editions.Entries.Where(IsEnglish))
+                ?? PickRichest(editions.Entries.Where(e => e.Isbn13?.Any() == true))
                 ?? editions.Entries[0];
+        }
+
+        private static OpenLibraryEditionResource PickRichest(System.Collections.Generic.IEnumerable<OpenLibraryEditionResource> candidates)
+        {
+            // Tie-stable on the original OL response order: OrderByDescending
+            // is stable, so when Richness ties (very common for sibling
+            // reprints sharing the same publisher/format/page count), the
+            // earlier-listed edition still wins.
+            return candidates.OrderByDescending(Richness).FirstOrDefault();
+        }
+
+        private static int Richness(OpenLibraryEditionResource e)
+        {
+            // One point per non-empty downstream metadata field. Cover and
+            // language are already gated by the tier predicates, so they
+            // don't contribute to within-tier ordering.
+            var score = 0;
+            if (e.PhysicalFormat.IsNotNullOrWhiteSpace())
+            {
+                score++;
+            }
+
+            if ((e.NumberOfPages ?? 0) > 0)
+            {
+                score++;
+            }
+
+            if (e.PublishDate.IsNotNullOrWhiteSpace())
+            {
+                score++;
+            }
+
+            if (e.Publishers?.Any() == true)
+            {
+                score++;
+            }
+
+            if (e.Description.IsNotNullOrWhiteSpace())
+            {
+                score++;
+            }
+
+            if (e.Isbn13?.Any() == true)
+            {
+                score++;
+            }
+
+            return score;
         }
 
         private static bool IsEnglish(OpenLibraryEditionResource e) =>
