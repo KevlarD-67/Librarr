@@ -1,7 +1,7 @@
 {
-  "name": "readarr",
-  "version": "1.0.0",
-  "description": "Readarr",
+  "name": "librarr",
+  "version": "1.0.0-beta",
+  "description": "Librarr — ebook/audiobook collection manager on OpenLibrary metadata (continuation of the archived Readarr).",
   "scripts": {
     "build": "webpack --config ./frontend/build/webpack.config.js",
     "prebuild": "yarn clean",

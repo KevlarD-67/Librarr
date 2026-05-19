@@ -4,14 +4,17 @@ Project memory for Claude sessions working in this repo.
 
 ## Project
 
-**Readarr** — ebook/audiobook member of the Servarr family (sibling to
-Sonarr, Radarr, Lidarr). Forked from Sonarr. **Upstream is archived as of
-2025-06-27.** This checkout is at `develop` HEAD (commit `0b79d300`,
-"Retirement announcement") — the final upstream state. The previous
-tagged release was `v0.4.18.2805` (commit `7cc02f95`, 2025-06-10).
+**Librarr** — ebook/audiobook collection manager, the OpenLibrary-based
+continuation of the archived Readarr (Servarr-family sibling of Sonarr,
+Radarr, Lidarr). Forked from Readarr at upstream `develop` HEAD
+`0b79d300` ("Retirement announcement", 2025-06-27). Currently at
+**`1.0.0-beta`** — engineering gate cleared, see
+[`CHANGELOG.md`](CHANGELOG.md). The previous upstream tagged release was
+`v0.4.18.2805` (commit `7cc02f95`, 2025-06-10).
 
-Full architecture map: **`ARCHITECTURE.md`** at repo root, plus per-folder
-`README.md` files in every major directory.
+Full architecture map: **`ARCHITECTURE.md`** at repo root (including a
+"Librarr fork additions" section), plus per-folder `README.md` files in
+every major directory.
 
 ## Identity quirk (read this first)
 
@@ -51,8 +54,10 @@ leg (`azure-pipelines.yml:79`); Mac/Windows skip it.
   5.4.3** DI (`src/NzbDrone.Host/Bootstrap.cs:9-10,90`), custom Dapper-based
   ORM in `NzbDrone.Core/Datastore/`, Servarr-forked FluentMigrator
   (41 migrations), dual **SQLite + PostgreSQL**, NLog logging. Sentry 3.31
-  for error reporting. Shipping version `0.4.19`
-  (`azure-pipelines.yml:12`).
+  for error reporting. Shipping version `1.0.0-beta`
+  (`azure-pipelines.yml:22`). `Directory.Build.props:77`
+  `AssemblyVersion 10.0.0.*` is the historical Readarr placeholder
+  the CI overwrites at build time; not the shipping version.
 - **Frontend:** React 17 + Redux 4 (**legacy `createStore`**, not RTK),
   Webpack 5, CSS Modules via PostCSS, `@microsoft/signalr`. Partial
   JS→TS migration (~985 `.js` / 375 `.ts` / 36 `.tsx` — ~29% TS).
@@ -113,10 +118,11 @@ leg (`azure-pipelines.yml:79`); Mac/Windows skip it.
 - **`config.xml` reload-on-change is disabled** (`Bootstrap.cs:237`) —
   changes to bootstrap config require a restart.
 - **No pre-commit hooks** — lint runs in CI only.
-- **Project is retired upstream** — any changes here will diverge from
-  the rest of the Servarr ecosystem. The retirement notice
-  (`README.md:1-20`) points to `rreading-glasses` as a third-party
-  metadata mirror, but it is unsupported by the original team.
+- **Upstream Readarr is retired** — any changes here diverge from the
+  rest of the Servarr ecosystem. Librarr is the continuation; the
+  fork swaps `bookinfo.club` for native OpenLibrary as the primary
+  metadata source. Do **not** add a `rreading-glasses` dependency —
+  the fork is committed to direct OL.
 
 ## Process modes
 
@@ -132,8 +138,14 @@ self-updater is a separate exe (`src/NzbDrone.Update/`).
 
 ## Documentation here
 
-- **`ARCHITECTURE.md`** — full map, ~1100 lines, 10 sections.
+- **`README.md`** — Librarr overview + "Migrating from Readarr" guide.
+- **`CHANGELOG.md`** — Keep-a-Changelog format release notes.
+- **`ARCHITECTURE.md`** — full code map; includes a "Librarr fork
+  additions" section near the top that inventories everything new
+  since upstream.
+- **`MASTER-PLAN.md`** — strategic blueprint for the 12-phase revival
+  (most of phases 0-11 are now shipped; 12 is post-1.0 backlog).
+- **`METADATA-MIGRATION.md`** — historical sketch; superseded by
+  the shipped `LegacyMigrationService` + `ReidentifyService`.
 - **`src/*/README.md` and `frontend/src/*/README.md`** — per-folder
-  signposts pointing back to ARCHITECTURE.md sections.
-- **`README.md`** — opens with the retirement announcement (lines 1-20),
-  then the original marketing/install section.
+  signposts pointing back to `ARCHITECTURE.md` sections.

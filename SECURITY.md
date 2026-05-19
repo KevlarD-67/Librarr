@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Librarr is a pre-alpha fork; please report (suspected) security
+Librarr is in `1.0.0-beta`; please report (suspected) security
 vulnerabilities by opening a **private security advisory** on the
 GitHub repository:
 

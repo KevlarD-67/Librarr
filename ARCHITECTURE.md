@@ -1,24 +1,155 @@
-# Readarr Architecture
+# Librarr Architecture (formerly Readarr)
 
 > A map of the codebase: layout, layering, conventions, contradictions, and
 > open challenges. Static analysis only — no runtime/operational notes.
 > File-and-line citations are accurate against the tree at the time of writing.
 >
-> **Snapshot:** describes upstream `Readarr/Readarr` at `develop` HEAD,
-> commit `0b79d300` ("Retirement announcement", 2025-06-27). Last tagged
-> release was `v0.4.18.2805` (commit `7cc02f95`, 2025-06-10). The repository
-> is now archived on GitHub.
+> **Snapshot:** describes Librarr at the `1.0.0-beta` release (`main`,
+> 2026-05-19). Inherits its codebase from upstream `Readarr/Readarr` at
+> `develop` HEAD `0b79d300` ("Retirement announcement", 2025-06-27); last
+> upstream tagged release was `v0.4.18.2805` (commit `7cc02f95`,
+> 2025-06-10). The upstream repository is archived on GitHub.
 
-**Status:** **Retired.** The Servarr team announced the retirement of the
-project on 2025-06-27 — the upstream `README.md` was rewritten to open with a
-retirement notice (`README.md:1-20`). The legacy "currently in beta testing"
-disclaimer still appears further down in the same file under the original
-project section.
+**Status of the underlying Readarr code:** **archived upstream.** This
+document still describes that inherited code map. For a focused inventory
+of what *Librarr* added on top, jump to
+[§ Librarr fork additions](#librarr-fork-additions) immediately below.
+
+---
+
+## Librarr fork additions
+
+Code paths added or materially changed in the Librarr fork on top of the
+inherited Readarr tree. Everything here is new since upstream
+`0b79d300`; the sections that follow this one describe the inherited
+codebase. See [`CHANGELOG.md`](CHANGELOG.md) for the per-cycle history
+of how this material landed.
+
+### OpenLibrary metadata source
+
+`src/NzbDrone.Core/MetadataSource/OpenLibrary/`. Native HTTP client +
+search services + response→domain mappers — no `rreading-glasses`
+shim and no `bookinfo.club` dependency.
+
+- `OpenLibraryProxy.cs` — HTTP proxy, `AllowAutoRedirect = true`
+  request shape (the explicit-opt-in pattern that Cycle 7a later
+  ported to the NZB grab path).
+- `OpenLibraryAuthorSearchService.cs`, `OpenLibraryBookSearchService.cs`
+  — search by name / title / identifier shape.
+- `OpenLibraryIdHelper.cs` — `IsAuthorId` / `IsWorkId` shape checks
+  promoted out of `MetadataSourceFactory` so other callers can share
+  the canonical OL ID predicates.
+- `Mappers/AuthorMapper.cs`, `BookMapper.cs`, `EditionMapper.cs` —
+  manual mapping from OL response shapes to `Author` / `Book` /
+  `Edition` domain entities (no AutoMapper, matching the rest of
+  the codebase).
+
+### `BookIdMapping` bridge table
+
+Migration `src/NzbDrone.Core/Datastore/Migration/041_book_id_mapping.cs`.
+Confidence-scored GoodReads-ID → OpenLibrary work/edition mappings,
+registered in `TableMapping.cs` (Cycle 4) and consumed by
+`MetadataSourceFactory.cs` on every refresh (Cycle 5). The reverse
+lookup (`GoodreadsId` → OL IDs) dominates the access pattern during
+legacy data migration. Backed by `BookIdMappingRepository.cs`.
+
+### Reidentify pipeline
+
+- `src/NzbDrone.Core/Books/Services/ReidentifyService.cs` — walks every
+  book, matches against OpenLibrary using
+  ISBN / ASIN / title-author confidence, persists results into
+  `BookIdMapping`.
+- `src/NzbDrone.Core/Books/Commands/ReidentifyLibraryCommand.cs` — the
+  command that triggers it. Manually runnable, or auto-enqueued by
+  the first-boot migration below.
+
+### First-boot legacy migration
+
+- `src/NzbDrone.Core/Books/Services/LegacyMigrationService.cs` —
+  handles `ApplicationStartedEvent` + `CommandExecutedEvent`. On
+  first boot of a legacy DB, it: (1) detects GoodReads-shaped IDs,
+  (2) flips `MonitorNewItems` to `None` per-author (so the OL
+  refresh path doesn't grab unwanted editions mid-migration),
+  (3) enqueues `ReidentifyLibraryCommand` at high priority and
+  stashes the command ID, (4) on the matching `CommandExecutedEvent`
+  Completed status, persists the `LegacyMigrationCompleted` marker.
+- Config surface: `LegacyMigrationCompleted` + `LegacyMigrationVersion`
+  in `ConfigService.cs`. `LegacyMigrationService.CurrentVersion`
+  defines the schema version.
+- `src/NzbDrone.Core/HealthCheck/Checks/LegacyMigrationCheck.cs` —
+  state machine: marker set → Ok; no legacy authors → Ok; command
+  queued/running → Notice; legacy authors + no command → Warning.
+
+### Frontend migration banner
+
+- `frontend/src/App/LegacyMigrationBanner.js` + `.css` + `Connector.js`
+  — polls `state.system.health.items` filtered to
+  `source === 'LegacyMigrationCheck'` and `state.commands.items` for
+  active `ReidentifyLibrary` commands every 15 s. Renders
+  `Alert kind=INFO` while running, `WARNING` while pending,
+  auto-hides on Ok.
+- Wired into `frontend/src/Components/Page/Page.js:94` directly
+  below `<PageHeader>`.
+
+### Narrator surface
+
+- Migrations `042_edition_narrators.cs`, `043_normalized_narrators.cs`,
+  `044_drop_editions_narrators.cs` — additive normalized narrator
+  schema, then drop the legacy CSV column once the join is live.
+- `NarratorService.cs` (under `Books/Services/`), wired into
+  `RefreshEditionService.cs`.
+- REST surface: `Readarr.Api.V1.Narrators` (`NarratorController.cs` +
+  `NarratorResource.cs`), with a per-narrator detail page on the
+  frontend.
+
+### Cover-picker + canonical default
+
+- Migration `045_book_preferred_cover_url.cs` — `Book.PreferredCoverUrl`
+  column.
+- Frontend modal lets the user pick from candidate OL covers; the
+  canonical OL cover is the default.
+- `scripts/bench_le_guin.py` — offline harness for evaluating
+  cover-pick quality against a held-out fixture set.
+
+### Quality / file recognition
+
+- `src/NzbDrone.Core/MediaFiles/MediaFileExtensions.cs:24` — `.azw`
+  (Kindle KF7) mapped to `Quality.MOBI`. Same Mobipocket container
+  as `.mobi`; extraction path is identical. *(Cycle 7c.)*
+
+### Download-client fix: NZB redirects
+
+`src/NzbDrone.Core/Download/UsenetClientBase.cs` — sets
+`request.AllowAutoRedirect = true` on the NZB grab. Required because
+locally-built docker images don't run as Azure `officialBuild`, so
+the dev-mode redirect-rejection guardrail in `HttpClient.cs:101` was
+rejecting every NZBgeek / NzbPlanet CDN-redirect grab. *(Cycle 7a.)*
+
+### Loud import-rejection surface
+
+`src/NzbDrone.Core/MediaFiles/BookImport/ImportApprovedBooks.cs`'s
+`Import()` method — for every rejected `ImportDecision`, materializes
+an `ImportResult` entry, logs a Warn line with the rejection reasons,
+and publishes `TrackImportFailedEvent`. Real Transmission /
+SABnzbd-originated imports also light up a `BookImportIncomplete` row
+in Activity history via the existing
+`CompletedDownloadService.Process` chain. Was previously a silent
+Debug-level skip. *(Cycle 7d.)*
+
+### CI / packaging
+
+- `azure-pipelines.yml:22` — `majorVersion: '1.0.0-beta'`.
+- `distribution/docker/Dockerfile` — self-contained multi-stage build
+  (Phase 9b). Compiles backend + frontend inside the image, runs on
+  `aspnet:6.0-alpine`. Build command + run shape documented in
+  `distribution/docker/README.md`.
+- GitHub Actions replaces Azure Pipelines as the CI driver.
 
 ---
 
 ## Table of contents
 
+0. [Librarr fork additions](#librarr-fork-additions) — what this fork added on top of inherited Readarr
 1. [Overview](#1-overview)
 2. [High-level architecture](#2-high-level-architecture)
 3. [Repository layout](#3-repository-layout)
@@ -68,9 +199,11 @@ The architecture is **forked from Sonarr** and shows it in two visible ways:
 
    The ruleset was forked from Radarr without retitling.
 
-The product currently versions itself at `0.4.19` (`azure-pipelines.yml:12`).
-The `AssemblyVersion 10.0.0.*` in `Directory.Build.props:77` is a placeholder
-the CI replaces — not the shipping version.
+The product currently versions itself at `1.0.0-beta`
+(`azure-pipelines.yml:22`). The `AssemblyVersion 10.0.0.*` in
+`Directory.Build.props:77` is the historical Readarr placeholder the CI
+overwrites at build time — not the shipping version, and not bumped
+for this beta. Revisit at the 1.0.0 final cut.
 
 ---
 
@@ -728,7 +861,8 @@ Setup → Build_Backend (Linux | Mac | Windows matrix)
 
 Notable variables (`azure-pipelines.yml:6-23`):
 
-- `majorVersion: '0.4.19'` — the *real* shipping version.
+- `majorVersion: '1.0.0-beta'` — the *real* shipping version
+  (`azure-pipelines.yml:22`).
 - `minorVersion: $[counter('minorVersion', 1)]` — auto-incremented.
 - `dotnetVersion: '6.0.427'` — .NET 6, not 8.
 - `nodeVersion: '20.X'` — frontend runtime.

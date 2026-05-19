@@ -1,12 +1,14 @@
 # Librarr
 
-> **Status: pre-alpha.** Forked from the archived
+> **1.0.0-beta — 2026-05-19.** Forked from the archived
 > [Readarr/Readarr](https://github.com/Readarr/Readarr) project (last
-> upstream commit `0b79d300`, 2025-06-27). Goal: rebuild Readarr on top
-> of Open Library as the primary metadata source. See
-> [`MASTER-PLAN.md`](MASTER-PLAN.md) for the 12-phase revival plan and
-> [`METADATA-MIGRATION.md`](METADATA-MIGRATION.md) for the technical
-> migration sketch.
+> upstream commit `0b79d300`, 2025-06-27). Rebuilds Readarr on top of
+> Open Library as the primary metadata source.
+>
+> See [`CHANGELOG.md`](CHANGELOG.md) for full release notes,
+> [`MASTER-PLAN.md`](MASTER-PLAN.md) for the strategic roadmap, and
+> [`ARCHITECTURE.md`](ARCHITECTURE.md) § "Librarr fork additions" for
+> a map of what changed in the fork.
 
 Librarr is an ebook and audiobook collection manager for Usenet and
 BitTorrent users. It monitors RSS feeds for new books from your favorite
@@ -21,6 +23,37 @@ Sonarr in the Servarr family (Sonarr / Radarr / Lidarr / Readarr).
 Internally many namespaces and assemblies still carry the `Readarr` and
 `NzbDrone` names — see [`CLAUDE.md`](CLAUDE.md) and
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full identity map.
+
+## Migrating from Readarr
+
+Librarr ships a hands-off first-boot migration for existing Readarr
+libraries. Point the container at your old Readarr `config/` directory
+(it already contains your authors, books, and download history) and
+start it — `LegacyMigrationService`
+(`src/NzbDrone.Core/Books/Services/LegacyMigrationService.cs`) takes
+over from there:
+
+1. On `ApplicationStartedEvent` it scans the imported DB for legacy
+   GoodReads-shaped IDs.
+2. If it finds any, it flips `MonitorNewItems` to `None` per-author so
+   the OpenLibrary refresh path doesn't grab unwanted new editions
+   mid-migration.
+3. It enqueues `ReidentifyLibraryCommand` at high priority. The
+   reidentify pipeline walks every book, matches it against
+   OpenLibrary using ISBN / ASIN / title-author confidence scoring,
+   and writes results into the `BookIdMapping` bridge table
+   (migration `041_book_id_mapping.cs`).
+4. A frontend banner
+   (`frontend/src/App/LegacyMigrationBanner.js`) reports progress
+   while it runs, then auto-hides when done. The companion health
+   check (`LegacyMigrationCheck`) surfaces problems if the marker
+   never sets.
+5. A persisted marker (`LegacyMigrationCompleted` in `config.xml`)
+   prevents re-runs on subsequent restarts.
+
+If you already manually reidentified your library before upgrading, the
+migration detects the pre-populated `BookIdMapping` table and skips
+straight to setting the marker.
 
 ## Major Features
 
@@ -52,10 +85,20 @@ Internally many namespaces and assemblies still carry the `Readarr` and
 
 ## Status
 
-The metadata seam refactor, OpenLibrary proxy, and ID-bridge migration
-are in flight. **Do not use this fork on a production library yet** —
-the reidentify wizard for migrating existing Goodreads-ID libraries
-isn't shipped. Track progress in [`MASTER-PLAN.md`](MASTER-PLAN.md).
+**1.0.0-beta — engineering gate cleared.** The OpenLibrary metadata
+proxy, BookIdMapping bridge, reidentify pipeline, first-boot
+migration, and downstream import-loop fixes are all shipped. See
+[`CHANGELOG.md`](CHANGELOG.md) for the per-cycle breakdown.
+
+Caveats:
+
+- Field-validated on a single deployment so far. Field reports
+  welcome.
+- The fork does not publish docker images to any registry yet — build
+  locally from [`distribution/docker/`](distribution/docker/).
+- Several known follow-ups remain (duplicate-book-record dedupe,
+  broader indexer coverage). Track progress in
+  [`MASTER-PLAN.md`](MASTER-PLAN.md).
 
 ## Contributing
 

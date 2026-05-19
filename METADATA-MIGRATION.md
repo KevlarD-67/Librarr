@@ -1,5 +1,13 @@
 # Metadata-Source Migration Sketch
 
+> **Superseded by shipped implementation (2026-05-19).** This sketch
+> predates the shipped `LegacyMigrationService`, `ReidentifyService`, and
+> `BookIdMapping` bridge. See [`ARCHITECTURE.md`](ARCHITECTURE.md)
+> § "Librarr fork additions" and [`CHANGELOG.md`](CHANGELOG.md) for the
+> as-shipped flow. Kept here for historical interest only — the analysis
+> below is what the engineering effort looked like before any code was
+> written.
+
 > Sketch only — not a committed plan. Sized as "what would the smallest
 > credible engineering effort look like" if someone wanted to revive Readarr
 > after the upstream archive on 2025-06-27. Cross-references

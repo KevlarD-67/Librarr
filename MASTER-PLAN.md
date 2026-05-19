@@ -1,10 +1,22 @@
 # Master Plan: Reviving Readarr on Open Library
 
 > Expanded version of `~/.claude/plans/analyze-the-project-architechture-generic-dawn.md`
-> with concrete code sketches and implementation notes per phase. This is a
-> working blueprint, not committed code — every snippet has been hand-written
-> against the real interfaces in `src/NzbDrone.Core/MetadataSource/` but none of it
-> has been compiled.
+> with concrete code sketches and implementation notes per phase. Originally
+> a working blueprint, not committed code — every snippet was hand-written
+> against the real interfaces in `src/NzbDrone.Core/MetadataSource/` before
+> any of it had been compiled.
+
+## Status at 1.0.0-beta (2026-05-19)
+
+Phases 0-11 plus Phase 12.4 are shipped — see [`CHANGELOG.md`](CHANGELOG.md)
+for the mapping of Cycle N commits to phase milestones, and
+[`ARCHITECTURE.md`](ARCHITECTURE.md) § "Librarr fork additions" for the
+as-shipped code map. The 12-phase body below remains the strategic
+blueprint; treat it as a record of the original plan plus the
+post-1.0 backlog still ahead (dedupe, normalization, broader indexer
+coverage). The sketches were preserved as written — not retrofitted to
+match the shipped code, so individual snippets may diverge from
+current `src/`. When in doubt, the code is the source of truth.
 
 ## Context
 
