@@ -1,6 +1,6 @@
 # distribution/ — Packaging
 
-Installer assets for shipping Readarr to end users.
+Installer assets for shipping Librarr to end users.
 
 ## Subfolders
 

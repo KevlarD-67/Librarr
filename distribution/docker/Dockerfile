@@ -101,7 +101,7 @@ RUN yarn run build --env production
 FROM mcr.microsoft.com/dotnet/aspnet:6.0-alpine AS runtime
 
 LABEL org.opencontainers.image.title="Librarr" \
-      org.opencontainers.image.description="Ebook/audiobook collection manager — Readarr fork on Open Library" \
+      org.opencontainers.image.description="Librarr — OpenLibrary continuation of the archived Readarr ebook manager" \
       org.opencontainers.image.source="https://github.com/Librarr/Librarr" \
       org.opencontainers.image.licenses="GPL-3.0-only"
 

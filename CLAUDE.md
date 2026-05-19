@@ -25,6 +25,21 @@ a `RootNamespace` rewrite. `using Readarr.Core;` will NOT compile —
 `Stylecop.ruleset:1` file even still labels itself "Rules for Radarr"
 from when the ruleset was forked over.
 
+Also intentionally kept as `readarr`/`Readarr`:
+
+- **On-disk identifiers** in
+  `src/NzbDrone.Common/Extensions/PathExtensions.cs:15-26` — `readarr.db`,
+  `readarr.restore`, `readarr_update`, `readarr_backup`,
+  `readarr_appdata_backup`, `Readarr.Update`. Renaming would break
+  `LegacyMigrationService` (expects `readarr.db` as input) and any
+  existing install upgrading in place.
+- **Binary names** produced by csproj — `Readarr.exe`,
+  `Readarr.Console.exe`, macOS `CFBundleExecutable=Readarr`. These
+  follow the csproj names above.
+- **Cross-app icons** under
+  `frontend/src/Content/Images/Icons/logo-{readarr,sonarr,radarr,lidarr,prowlarr}.png`
+  — these display *other* Servarr family members in the UI, not us.
+
 ## Common commands
 
 ```bash
