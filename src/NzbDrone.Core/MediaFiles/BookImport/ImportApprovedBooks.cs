@@ -91,6 +91,26 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var addedAuthors = new List<Author>();
             var addedBooks = new List<Book>();
 
+            // Surface rejected decisions so they reach the import history
+            // and UI. Previously, decisions filtered out by the .Approved
+            // check below were dropped silently — a file that failed
+            // identification (e.g. an .azw whose internal tags can't
+            // match any OL candidate) just disappeared from
+            // ImportApprovedBooks with no rejection visible, no health
+            // warning, just an Info-level "Importing 0 files" log line.
+            foreach (var rejected in decisions.Where(e => !e.Approved))
+            {
+                var rejectionText = string.Join(", ", rejected.Rejections.Select(r => r.Reason));
+                importResults.Add(new ImportResult(rejected, rejectionText));
+                _logger.Warn("Rejected import {0}: {1}", rejected.Item?.Path, rejectionText);
+
+                if (rejected.Item != null)
+                {
+                    _eventAggregator.PublishEvent(
+                        new TrackImportFailedEvent(null, rejected.Item, !rejected.Item.ExistingFile, downloadClientItem));
+                }
+            }
+
             var bookDecisions = decisions.Where(e => e.Item.Book != null && e.Approved)
                 .GroupBy(e => e.Item.Book.ForeignBookId).ToList();
 
