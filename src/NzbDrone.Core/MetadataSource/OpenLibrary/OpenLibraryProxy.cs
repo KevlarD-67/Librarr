@@ -306,8 +306,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return prefixed;
             }
 
+            // Two layers of dedup for authors:
+            //   seenAuthorIds   — drops duplicate OLIDs (cheap)
+            //   authorByCleanName — drops duplicate *people*. OL frequently
+            //     has multiple author OLIDs for the same person spelled
+            //     three different ways ("J. K. Rowling", "J.K. Rowling",
+            //     "J.k. Rowling" → OL23919A, OL16230142A, OL16034707A).
+            //     The book-search-synthesized candidate is preferred when
+            //     a duplicate is detected, because OL's book index links
+            //     to the *canonical* author OLID (the one that actually has
+            //     works attached) rather than the stub records that pollute
+            //     /search/authors.json. CleanName normalization (no spaces,
+            //     no dots, lowercase) is what Parser.CleanAuthorName already
+            //     produces, so reuse it.
             var result = new List<object>();
             var seenAuthorIds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            var authorByCleanName = new Dictionary<string, Author>(System.StringComparer.OrdinalIgnoreCase);
 
             foreach (var author in SearchForNewAuthor(title))
             {
@@ -316,25 +330,37 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     seenAuthorIds.Add(author.Metadata.Value.ForeignAuthorId);
                 }
 
-                result.Add(author);
-                if (result.Count >= 20)
+                var cleanName = author.CleanName;
+                if (!string.IsNullOrWhiteSpace(cleanName))
                 {
-                    break;
+                    // First write wins for /search/authors.json hits — they
+                    // arrive in OL's own ranking order. We may overwrite
+                    // with a book-synthesized hit later.
+                    if (!authorByCleanName.ContainsKey(cleanName))
+                    {
+                        authorByCleanName[cleanName] = author;
+                    }
+                }
+                else
+                {
+                    // No clean name (shouldn't happen, but be safe) —
+                    // surface as-is.
+                    result.Add(author);
                 }
             }
 
             var books = SearchForNewBook(title, null);
 
-            // Synthesize Author tiles from the books' author metadata
-            // when OL's /search/authors.json missed them — most commonly
-            // on misspellings (the user's "j.k. rowlling" typo returns
-            // 0 docs from /search/authors.json but 5 from /search.json
-            // because OL's book index uses a more lenient analyzer).
-            // Surface the inferred authors ahead of their books so the
-            // user can still click through to the Author add page even
-            // when the name was misspelled. Each book in the search
-            // mapper already carries Book.Author + Book.AuthorMetadata,
-            // so we just dedupe by ForeignAuthorId and reuse those.
+            // Synthesize Author tiles from the books' author metadata.
+            // OL's book index links to the canonical author OLID for each
+            // work, so a synthesized author is *always* the preferred
+            // entry when its CleanName collides with a stub from
+            // /search/authors.json — overwrite. Don't gate on
+            // seenAuthorIds here: a canonical OLID can legitimately
+            // appear in BOTH /search/authors.json and the book index
+            // (it just happens to have a J.K. Rowling stub spelled
+            // three different ways in the author search), and we want
+            // the book-derived entry to win the name-collision.
             foreach (var book in books)
             {
                 var meta = book?.AuthorMetadata?.Value;
@@ -343,7 +369,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     continue;
                 }
 
-                if (!seenAuthorIds.Add(meta.ForeignAuthorId))
+                var cleanName = Parser.Parser.CleanAuthorName(meta.Name);
+
+                // Already synthesized for this exact OLID under this
+                // CleanName — skip the duplicate (every other book by
+                // the same author would otherwise re-run the work).
+                if (!string.IsNullOrWhiteSpace(cleanName)
+                    && authorByCleanName.TryGetValue(cleanName, out var existing)
+                    && existing.Metadata?.Value?.ForeignAuthorId == meta.ForeignAuthorId)
                 {
                     continue;
                 }
@@ -357,10 +390,24 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                         Name = meta.Name,
                         Images = OpenLibraryCoverUrls.ForAuthorByOlid(meta.ForeignAuthorId)
                     },
-                    CleanName = Parser.Parser.CleanAuthorName(meta.Name)
+                    CleanName = cleanName
                 };
 
-                result.Add(synthesizedAuthor);
+                if (!string.IsNullOrWhiteSpace(cleanName))
+                {
+                    authorByCleanName[cleanName] = synthesizedAuthor;
+                }
+                else
+                {
+                    result.Add(synthesizedAuthor);
+                }
+
+                seenAuthorIds.Add(meta.ForeignAuthorId);
+            }
+
+            foreach (var author in authorByCleanName.Values)
+            {
+                result.Add(author);
                 if (result.Count >= 20)
                 {
                     break;
