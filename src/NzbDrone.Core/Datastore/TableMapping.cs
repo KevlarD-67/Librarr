@@ -169,6 +169,17 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<Narrator>("Narrators").RegisterModel();
             Mapper.Entity<EditionNarrator>("EditionNarrators").RegisterModel();
 
+            // Required for BookIdMappingRepository to resolve its
+            // Query<BookIdMapping> calls. Without this, every read or
+            // write throws KeyNotFoundException("The given key
+            // 'NzbDrone.Core.Books.BookIdMapping' was not present in the
+            // dictionary.") — observed silently swallowing every single
+            // ReidentifyLibrary mapping insert in production. Migration
+            // 041 created the table but the type registration was the
+            // missing piece preventing ReidentifyLibrary from doing
+            // anything useful.
+            Mapper.Entity<BookIdMapping>("BookIdMapping").RegisterModel();
+
             Mapper.Entity<BookFile>("BookFiles").RegisterModel()
                 .Ignore(x => x.PartCount)
                 .HasOne(f => f.Edition, f => f.EditionId)
