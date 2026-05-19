@@ -140,8 +140,33 @@ namespace NzbDrone.Core.Books
                 var fullBook = hydrated.Books.Value.SingleOrDefault(x => x.ForeignBookId == local.ForeignBookId);
                 if (fullBook != null)
                 {
+                    // Preserve the parent author identity from the per-author
+                    // refresh context. OL's per-work payload picks a "primary
+                    // author" from authors[] which may not match the author
+                    // the user actually added (co-authored works, Sparknotes
+                    // shared imprints, pen names like Robert Galbraith ⇄
+                    // Rowling). Without this guard, EnsureNewParent treats
+                    // the per-work primary as a missing parent and calls
+                    // _addAuthorService.AddAuthor on it — cascade-adds that
+                    // co-author's full works list (often 100s of books),
+                    // each of which refreshes, each finds more co-authors,
+                    // each cascades — the refresh queue explodes
+                    // exponentially. Verified empirically: 4 user-added
+                    // authors → 1012 books + 44 queued RefreshAuthors within
+                    // a few minutes. Only the editions need GetSkyhookData
+                    // hydration; the author stays whoever owns the local row.
+                    if (book != null && book.AuthorMetadata != null)
+                    {
+                        fullBook.AuthorMetadata = book.AuthorMetadata;
+                        fullBook.Author = book.Author;
+                    }
+                    else if (data?.Metadata?.Value != null)
+                    {
+                        fullBook.AuthorMetadata = data.Metadata.Value;
+                        fullBook.Author = data;
+                    }
+
                     book = fullBook;
-                    data = hydrated;
                 }
             }
 

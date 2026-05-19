@@ -15,6 +15,30 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             var asin = resource.Identifiers?.Amazon?.FirstOrDefault();
             var format = NormalizeFormat(resource.PhysicalFormat);
 
+            // Cover-resolution chain (best → fallback):
+            //   1. resource.Covers — work-specific cover_i list returned by OL
+            //      for editions that have an indexed primary cover.
+            //   2. ISBN-keyed — many editions ship without a `covers` field
+            //      yet have an /b/isbn/<n>-L.jpg image. Verified live for the
+            //      majority of Sparknotes / Pottermore editions whose JSON
+            //      omits `covers`. `?default=false` (set in
+            //      OpenLibraryCoverUrls) makes missing covers 404 so the
+            //      MediaCoverProxy 404-quiet path takes over.
+            //   3. olid-keyed — final fallback for editions that have no
+            //      ISBN either; cheap to keep, harmless when it 404s.
+            // When none of the three actually produces an image, the
+            // frontend renders its built-in book placeholder.
+            var images = OpenLibraryCoverUrls.ForBook(resource.Covers);
+            if (images.Count == 0 && isbn13.IsNotNullOrWhiteSpace())
+            {
+                images = OpenLibraryCoverUrls.ForBookByIsbn(isbn13);
+            }
+
+            if (images.Count == 0 && olKey.IsNotNullOrWhiteSpace())
+            {
+                images = OpenLibraryCoverUrls.ForBookByOlid(olKey);
+            }
+
             return new Edition
             {
                 ForeignEditionId = olKey,
@@ -29,7 +53,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 Publisher = resource.Publishers?.FirstOrDefault(),
                 PageCount = resource.NumberOfPages ?? 0,
                 ReleaseDate = OpenLibraryDateParser.Parse(resource.PublishDate),
-                Images = OpenLibraryCoverUrls.ForBook(resource.Covers),
+                Images = images,
                 Monitored = true
             };
         }

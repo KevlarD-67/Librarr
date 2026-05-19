@@ -81,10 +81,18 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 return null;
             }
 
-            // Preference order: English + ISBN-13 → English → has ISBN-13 → first.
-            // TODO Phase 4: include user locale preference and edition quality
-            // signals once the metadata profile gains an OL section.
-            return editions.Entries.FirstOrDefault(IsEnglishWithIsbn13)
+            // Preference order: English + ISBN-13 + cover → English + cover → any
+            // with cover → English + ISBN-13 → English → has ISBN-13 → first.
+            // Pulling cover-bearing editions ahead of the language/ISBN tiers
+            // dramatically improves the % of library books that surface with
+            // a tile image. The ISBN tier still matters because OL's
+            // /b/isbn/<n>-L.jpg endpoint succeeds for many editions whose JSON
+            // omits the `covers` field — see the Images-with-ISBN fallback in
+            // OpenLibraryEditionMapper.ToEdition.
+            return editions.Entries.FirstOrDefault(e => IsEnglishWithIsbn13(e) && HasCover(e))
+                ?? editions.Entries.FirstOrDefault(e => IsEnglish(e) && HasCover(e))
+                ?? editions.Entries.FirstOrDefault(HasCover)
+                ?? editions.Entries.FirstOrDefault(IsEnglishWithIsbn13)
                 ?? editions.Entries.FirstOrDefault(IsEnglish)
                 ?? editions.Entries.FirstOrDefault(e => e.Isbn13?.Any() == true)
                 ?? editions.Entries[0];
@@ -95,6 +103,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
 
         private static bool IsEnglishWithIsbn13(OpenLibraryEditionResource e) =>
             IsEnglish(e) && e.Isbn13?.Any() == true;
+
+        private static bool HasCover(OpenLibraryEditionResource e) =>
+            (e.Covers?.Any(c => c > 0) == true) || (e.Isbn13?.Any() == true);
 
         private static string ExtractKey(string olKey)
         {
