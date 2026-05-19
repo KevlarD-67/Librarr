@@ -48,7 +48,13 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
         {
-            return Cached(useCache, $"oa_{foreignAuthorId}", TimeSpan.FromHours(24), () =>
+            // Cache the raw HTTP resources only; run the mapper on every
+            // call so each caller gets a fresh Author + slim Book list.
+            // LazyCache hands back the same object reference on hit, and
+            // downstream code (BookService.AddBook, BasicRepository.Insert)
+            // mutates Book/Edition fields in place — so a cached *mapped*
+            // payload leaks Id/BookId/Monitored mutations across calls.
+            var resources = Cached(useCache, $"oa_{foreignAuthorId}", TimeSpan.FromHours(24), () =>
             {
                 var authorReq = _requestBuilder.For($"authors/{foreignAuthorId}.json").Build();
                 var worksReq = _requestBuilder.For($"authors/{foreignAuthorId}/works.json?limit=200").Build();
@@ -61,8 +67,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     throw new OpenLibraryException("OL author not found: {0}", foreignAuthorId);
                 }
 
-                return OpenLibraryAuthorMapper.ToAuthor(authorResp.Resource, worksResp?.Resource);
+                return (Author: authorResp.Resource, Works: worksResp?.Resource);
             });
+
+            return OpenLibraryAuthorMapper.ToAuthor(resources.Author, resources.Works);
         }
 
         public HashSet<string> GetChangedAuthors(DateTime startTime)
@@ -75,7 +83,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
         {
-            return Cached(true, $"ow_{id}", TimeSpan.FromDays(7), () =>
+            // Cache the raw HTTP resources only; run the mapper on every
+            // call so each caller gets a fresh Book + Editions list.
+            // LazyCache hands back the same object reference on hit, and
+            // BookService.AddBook + BasicRepository.Insert mutate the
+            // edition objects in place (Id via reflection, BookId via
+            // ForEach, Monitored toggle) — so a cached *mapped* payload
+            // leaks those mutations across calls. After a first add,
+            // editions in cache carry Ids that no longer correspond to
+            // any DB row, and the retry path's SetMonitored assertion
+            // fires with Count(Monitored)==0.
+            var resources = Cached(true, $"ow_{id}", TimeSpan.FromDays(7), () =>
             {
                 var workReq = _requestBuilder.For($"works/{id}.json").Build();
                 var work = Send<OpenLibraryWorkResource>(workReq)?.Resource;
@@ -85,23 +103,25 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 }
 
                 var editionsReq = _requestBuilder.For($"works/{id}/editions.json?limit=50").Build();
-                var editions = Send<OpenLibraryEditionListResource>(editionsReq)?.Resource;
+                var editionsRes = Send<OpenLibraryEditionListResource>(editionsReq)?.Resource;
 
-                var (book, authors) = OpenLibraryWorkMapper.ToBook(work, editions);
-
-                // AddBookService.AddSkyhookData:130 expects Item1 to be
-                // the **author** foreign id so it can locate the matching
-                // AuthorMetadata in Item3 via
-                //   tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1)
-                // The BookInfoProxy returned `authorId` here; this mapper
-                // was incorrectly returning the work id, which never
-                // matched anything in `authors` (those carry author OLIDs
-                // ending in A, work id ends in W). Result: AuthorMetadata
-                // null, then NRE on `.Value.ForeignAuthorId` access in
-                // AddBookService:58.
-                var primaryAuthorId = authors.FirstOrDefault()?.ForeignAuthorId ?? id;
-                return Tuple.Create(primaryAuthorId, book, authors);
+                return (Work: work, Editions: editionsRes);
             });
+
+            var (book, authors) = OpenLibraryWorkMapper.ToBook(resources.Work, resources.Editions);
+
+            // AddBookService.AddSkyhookData:130 expects Item1 to be
+            // the **author** foreign id so it can locate the matching
+            // AuthorMetadata in Item3 via
+            //   tuple.Item3.FirstOrDefault(x => x.ForeignAuthorId == tuple.Item1)
+            // The BookInfoProxy returned `authorId` here; the mapper
+            // was incorrectly returning the work id, which never
+            // matched anything in `authors` (those carry author OLIDs
+            // ending in A, work id ends in W). Result: AuthorMetadata
+            // null, then NRE on `.Value.ForeignAuthorId` access in
+            // AddBookService:58.
+            var primaryAuthorId = authors.FirstOrDefault()?.ForeignAuthorId ?? id;
+            return Tuple.Create(primaryAuthorId, book, authors);
         }
 
         public List<Author> SearchForNewAuthor(string title)

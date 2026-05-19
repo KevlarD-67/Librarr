@@ -121,10 +121,28 @@ namespace NzbDrone.Core.Books
                 return result;
             }
 
-            if (book == null)
+            // The `remote` list comes from RefreshAuthorService → the per-author
+            // works payload. With OpenLibrary as the metadata source that list
+            // is hydrated by OpenLibraryAuthorMapper.ToSlimBooks, which gives
+            // each book a single placeholder Edition (ForeignEditionId == work
+            // key) just to satisfy MetadataProfileService.FilterBooks. Using
+            // that slim view as the remote source for the edition diff would
+            // treat all real M-keyed editions inserted by Add Book / refresh
+            // as "removed" and silently delete them — the user would then see
+            // only placeholder data on the book detail page (Dec 31 1899,
+            // 0.0 rating, no cover). Re-fetch per-book via GetSkyhookData so
+            // the diff sees real editions. OpenLibraryProxy.GetBookInfo
+            // memoizes the underlying HTTP resources for 7 days, so the
+            // per-book fan-out is cheap on every refresh after the first.
+            var hydrated = GetSkyhookData(local);
+            if (hydrated != null)
             {
-                data = GetSkyhookData(local);
-                book = data.Books.Value.SingleOrDefault(x => x.ForeignBookId == local.ForeignBookId);
+                var fullBook = hydrated.Books.Value.SingleOrDefault(x => x.ForeignBookId == local.ForeignBookId);
+                if (fullBook != null)
+                {
+                    book = fullBook;
+                    data = hydrated;
+                }
             }
 
             result.Entity = book;
