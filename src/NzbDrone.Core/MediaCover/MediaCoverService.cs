@@ -24,6 +24,7 @@ namespace NzbDrone.Core.MediaCover
     }
 
     public class MediaCoverService :
+        IHandle<BookAddedEvent>,
         IHandleAsync<AuthorRefreshCompleteEvent>,
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
@@ -363,6 +364,27 @@ namespace NzbDrone.Core.MediaCover
             }
 
             return null;
+        }
+
+        public void Handle(BookAddedEvent message)
+        {
+            // Pull the cover for the explicitly-added book immediately,
+            // before the user navigates back to the Books page. The
+            // AuthorRefreshCompleteEvent handler below covers all books
+            // at the end of a per-author refresh, but that fires
+            // minutes after Add (the per-author refresh processes the
+            // author's full works list). Downloading just one cover
+            // here is sub-second and is idempotent (the same handler
+            // will be called again at refresh completion and the
+            // AlreadyExists spec will short-circuit it).
+            try
+            {
+                EnsureBookCovers(message.Book);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Couldn't pre-download cover for {0}", message.Book);
+            }
         }
 
         public void HandleAsync(AuthorRefreshCompleteEvent message)
