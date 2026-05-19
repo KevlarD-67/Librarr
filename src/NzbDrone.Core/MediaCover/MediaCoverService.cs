@@ -25,6 +25,7 @@ namespace NzbDrone.Core.MediaCover
 
     public class MediaCoverService :
         IHandle<BookAddedEvent>,
+        IHandle<AuthorAddedEvent>,
         IHandleAsync<AuthorRefreshCompleteEvent>,
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
@@ -384,6 +385,26 @@ namespace NzbDrone.Core.MediaCover
             catch (Exception ex)
             {
                 _logger.Warn(ex, "Couldn't pre-download cover for {0}", message.Book);
+            }
+        }
+
+        public void Handle(AuthorAddedEvent message)
+        {
+            // Same eager-download pattern for newly-added authors so
+            // the photo lands on disk before the user navigates to the
+            // Authors page. AuthorRefreshCompleteEvent does the same
+            // job at the end of the per-author refresh, but with
+            // MonitorNewItems=None the refresh may complete without
+            // inserting any books (and may still take a while to walk
+            // the empty-Added path). EnsureAuthorCovers is idempotent
+            // via the AlreadyExists spec.
+            try
+            {
+                EnsureAuthorCovers(message.Author);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Couldn't pre-download cover for {0}", message.Author);
             }
         }
 

@@ -269,16 +269,30 @@ namespace NzbDrone.Core.Books
 
         protected override void ProcessChildren(Author entity, SortedChildren children)
         {
-            // Upstream model: insert all books OL returns for the author,
-            // and let ShouldMonitorNewBook decide which to monitor based on
-            // entity.MonitorNewItems. Cascade-adds via AddBookService set
-            // MonitorNewItems = None on the new author, so the explicit
-            // add stays Monitored=true while the rest of the discography
-            // arrives unmonitored. The Books library page filters to
-            // monitored-only by default so the grid only shows what the
-            // user clicked Add on; the Author detail page shows the full
-            // bibliography so the user can browse and selectively flip
-            // the monitor flag on additional titles.
+            // Distinguish two refresh contexts by checking whether the
+            // author already has books locally:
+            //
+            // 1. Author has existing books AND MonitorNewItems=None
+            //    → cascade-add path from AddBookService (the user added
+            //      a book, which cascaded the author). They want the
+            //      author detail page to show the full discography, so
+            //      insert the remaining works as Monitored=false.
+            //
+            // 2. Author has zero existing books AND MonitorNewItems=None
+            //    → explicit Add Author flow with Monitor=None. The user
+            //      picked None in the dialog to say "I don't want this
+            //      author's books in my library". Drop children.Added
+            //      so nothing is inserted.
+            //
+            // 3. MonitorNewItems=All or New → upstream behavior.
+            if (entity.MonitorNewItems == NewItemMonitorTypes.None
+                && children.UpToDate.Count == 0
+                && children.Updated.Count == 0)
+            {
+                children.Added.Clear();
+                return;
+            }
+
             foreach (var book in children.Added)
             {
                 book.Monitored = _monitorNewBookService.ShouldMonitorNewBook(book, children.UpToDate, entity.MonitorNewItems);

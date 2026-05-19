@@ -30,10 +30,15 @@ export const defaultState = {
   addError: null,
   items: [],
 
+  // Librarr default = explicit-only. Adding an author or a book is
+  // a deliberate per-item action, not "track this person's entire
+  // bibliography forever" — that would re-introduce the 175-book
+  // cascade the user complained about. Users who want the upstream
+  // Readarr "fan out" behavior can pick 'all' from the dropdown.
   authorDefaults: {
     rootFolderPath: '',
-    monitor: monitorOptions[0].key,
-    monitorNewItems: monitorNewItemsOptions[0].key,
+    monitor: 'none',
+    monitorNewItems: 'none',
     qualityProfileId: 0,
     metadataProfileId: 0,
     tags: []
@@ -41,8 +46,8 @@ export const defaultState = {
 
   bookDefaults: {
     rootFolderPath: '',
-    monitor: monitorOptions[0].key,
-    monitorNewItems: monitorNewItemsOptions[0].key,
+    monitor: 'none',
+    monitorNewItems: 'none',
     qualityProfileId: 0,
     metadataProfileId: 0,
     tags: []
