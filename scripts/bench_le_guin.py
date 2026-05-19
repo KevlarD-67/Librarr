@@ -126,10 +126,7 @@ def score_book(book: dict, api_key: str) -> tuple[dict, dict]:
         "genres":        len(book.get("genres") or []) > 0,
         "format":        bool((monitored or {}).get("format")),
         "rating":        ((book.get("ratings") or {}).get("value") or 0) > 0,
-        # Language not exposed on EditionResource yet — score it from
-        # the OL ceiling side only so we can detect when the column gets
-        # plumbed through in a future cycle.
-        "language":      False,
+        "language":      bool((monitored or {}).get("language")),
     }
 
     def ed_any(field: str) -> bool:

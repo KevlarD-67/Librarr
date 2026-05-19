@@ -46,6 +46,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 Isbn13 = isbn13,
                 Asin = asin,
                 Title = resource.Title,
+                Language = ExtractLanguageCode(resource.Languages),
                 Overview = resource.Description,
                 Format = format,
                 IsEbook = IsEbookFormat(format),
@@ -56,6 +57,27 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 Images = images,
                 Monitored = true
             };
+        }
+
+        // OL's Languages list carries entries like {"key": "/languages/eng"}.
+        // Extract the 3-letter ISO 639-2 code from the last segment of the
+        // first entry. Cycle 2 of the Le Guin completeness loop: Edition
+        // already had a Language column + the EditionResource already
+        // surfaced it both ways, but the mapper here was the gap — so
+        // 0/249 books had a populated language despite OL having data on
+        // 244/249. SelectPrimaryEdition in OpenLibraryWorkMapper already
+        // reads the same Languages list for its English-preference tiers,
+        // proving the data shape is reliable.
+        private static string ExtractLanguageCode(System.Collections.Generic.List<Resources.OpenLibraryKey> languages)
+        {
+            var key = languages?.FirstOrDefault()?.Key;
+            if (key.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var slash = key.LastIndexOf('/');
+            return slash >= 0 ? key.Substring(slash + 1) : key;
         }
 
         public static Book ToBook(OpenLibraryEditionResource resource)
