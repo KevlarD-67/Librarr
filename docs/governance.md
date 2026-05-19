@@ -68,7 +68,7 @@ Costs that funding should cover:
 4. Sentry-equivalent error-tracking subscription (also optional;
    self-hosted Sentry is on the table).
 5. Domain registration (if/when the fork picks one — current setup
-   uses github.com/Librarr/Librarr as the canonical URL).
+   uses github.com/Rorqualx/Librarr as the canonical URL).
 
 Out of scope for funding:
 

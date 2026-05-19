@@ -6,7 +6,7 @@ Librarr is in `1.0.0-beta`; please report (suspected) security
 vulnerabilities by opening a **private security advisory** on the
 GitHub repository:
 
-<https://github.com/Librarr/Librarr/security/advisories/new>
+<https://github.com/Rorqualx/Librarr/security/advisories/new>
 
 Use private advisories for issues that could compromise running
 instances (auth bypass, RCE, SSRF, credential exposure, etc.). Public

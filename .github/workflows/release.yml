@@ -7,15 +7,18 @@
 #   * A draft GitHub release with the tarballs + zips + SHA256SUMS
 #     attached. Draft so the user reviews release notes before publish.
 #   * Multi-arch Docker image (linux/amd64, linux/arm64, linux/arm/v7)
-#     built from distribution/docker/Dockerfile — `push: false` for now.
+#     built from distribution/docker/Dockerfile, pushed to:
+#       - ghcr.io/<owner>/librarr  (always — uses workflow GITHUB_TOKEN)
+#       - docker.io/<DOCKERHUB_USERNAME>/librarr  (gated on
+#         DOCKERHUB_TOKEN secret; step skips silently when unset).
+#     Image tags via docker/metadata-action: :<version>, :beta on beta
+#     tags, :latest only on non-prerelease tags.
 #
 # Explicitly out of scope (TODO with required secrets noted inline):
 #   * Windows installer (.exe) via Inno Setup
 #   * Authenticode signing of the Windows binaries
 #   * macOS .app notarization via notarytool
 #   * Sentry source-map upload (azure-pipelines.yml:377-393)
-#   * Docker registry push — needs a registry decision (ghcr.io vs
-#     hub.docker.com) plus the matching token secret.
 #
 # Stay-local: this file lives dormant until `git push --tags` happens.
 # `gh release create --draft` and `docker build-push-action push:false`
@@ -246,18 +249,53 @@ jobs:
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
 
-      # TODO Phase 9b: registry login + `push: true` once a registry
-      # decision lands. Candidates:
-      #   * ghcr.io  — uses GITHUB_TOKEN, no extra secret needed
-      #   * Docker Hub — needs DOCKERHUB_USERNAME + DOCKERHUB_TOKEN
-      - name: Build multi-arch image (no push)
+      - name: Log in to GHCR
+        # Zero-config — uses the workflow's built-in GITHUB_TOKEN. The
+        # release.yml `permissions:` block declares `packages: write`.
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        # Gated — step skips entirely when DOCKERHUB_TOKEN secret is unset.
+        # Set via: gh secret set DOCKERHUB_USERNAME / DOCKERHUB_TOKEN.
+        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute image tags
+        # Generates :<version> exact + :beta rolling pointer (only on
+        # beta tags) + :latest (only on non-prerelease tags). Docker
+        # Hub image is only listed when the secret is present.
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/librarr
+            name=docker.io/${{ secrets.DOCKERHUB_USERNAME || 'librarr' }}/librarr,enable=${{ secrets.DOCKERHUB_TOKEN != '' }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc') }}
+            type=raw,value=beta,enable=${{ contains(github.ref_name, 'beta') }}
+          labels: |
+            org.opencontainers.image.title=Librarr
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build + push multi-arch image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: distribution/docker/Dockerfile
           platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: false
-          tags: librarr/librarr:${{ needs.variables.outputs.version }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             LIBRARR_VERSION=${{ needs.variables.outputs.version }}
           cache-from: type=gha

@@ -275,7 +275,7 @@ jobs:
             -pn Librarr \
             -pv "${MAJOR_VERSION}.${GITHUB_RUN_NUMBER}" \
             -ps "Librarr Project" \
-            -nsb https://github.com/Librarr/Librarr || echo "sbom-tool returned non-zero; continuing"
+            -nsb https://github.com/Rorqualx/Librarr || echo "sbom-tool returned non-zero; continuing"
 
       - name: Install Node SBOM tool (syft)
         shell: bash

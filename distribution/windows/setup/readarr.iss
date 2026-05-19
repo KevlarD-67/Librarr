@@ -3,8 +3,8 @@
 
 #define AppName "Librarr"
 #define AppPublisher "Librarr Project"
-#define AppURL "https://github.com/Librarr/Librarr"
-#define ForumsURL "https://github.com/Librarr/Librarr/discussions"
+#define AppURL "https://github.com/Rorqualx/Librarr"
+#define ForumsURL "https://github.com/Rorqualx/Librarr/discussions"
 #define AppExeName "Readarr.exe"
 #define BaseVersion GetEnv('MAJORVERSION')
 #define BuildNumber GetEnv('MINORVERSION')

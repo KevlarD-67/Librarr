@@ -146,5 +146,5 @@ fork's code-level inventory.
 - Internal `Readarr.*` csproj rename / `NzbDrone.*` namespace
   rebrand (deliberately preserved).
 
-[Unreleased]: #unreleased
-[1.0.0-beta]: #100-beta--2026-05-19
+[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.0.0-beta...HEAD
+[1.0.0-beta]: https://github.com/Rorqualx/Librarr/releases/tag/v1.0.0-beta
