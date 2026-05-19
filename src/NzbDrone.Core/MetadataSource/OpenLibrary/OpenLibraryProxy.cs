@@ -307,9 +307,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             var result = new List<object>();
+            var seenAuthorIds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
             foreach (var author in SearchForNewAuthor(title))
             {
+                if (author.Metadata?.Value?.ForeignAuthorId != null)
+                {
+                    seenAuthorIds.Add(author.Metadata.Value.ForeignAuthorId);
+                }
+
                 result.Add(author);
                 if (result.Count >= 20)
                 {
@@ -317,7 +323,51 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 }
             }
 
-            foreach (var book in SearchForNewBook(title, null))
+            var books = SearchForNewBook(title, null);
+
+            // Synthesize Author tiles from the books' author metadata
+            // when OL's /search/authors.json missed them — most commonly
+            // on misspellings (the user's "j.k. rowlling" typo returns
+            // 0 docs from /search/authors.json but 5 from /search.json
+            // because OL's book index uses a more lenient analyzer).
+            // Surface the inferred authors ahead of their books so the
+            // user can still click through to the Author add page even
+            // when the name was misspelled. Each book in the search
+            // mapper already carries Book.Author + Book.AuthorMetadata,
+            // so we just dedupe by ForeignAuthorId and reuse those.
+            foreach (var book in books)
+            {
+                var meta = book?.AuthorMetadata?.Value;
+                if (meta == null || string.IsNullOrWhiteSpace(meta.ForeignAuthorId))
+                {
+                    continue;
+                }
+
+                if (!seenAuthorIds.Add(meta.ForeignAuthorId))
+                {
+                    continue;
+                }
+
+                var synthesizedAuthor = new Author
+                {
+                    Metadata = new AuthorMetadata
+                    {
+                        ForeignAuthorId = meta.ForeignAuthorId,
+                        TitleSlug = meta.TitleSlug ?? meta.ForeignAuthorId,
+                        Name = meta.Name,
+                        Images = OpenLibraryCoverUrls.ForAuthorByOlid(meta.ForeignAuthorId)
+                    },
+                    CleanName = Parser.Parser.CleanAuthorName(meta.Name)
+                };
+
+                result.Add(synthesizedAuthor);
+                if (result.Count >= 20)
+                {
+                    break;
+                }
+            }
+
+            foreach (var book in books)
             {
                 result.Add(book);
                 if (result.Count >= 40)

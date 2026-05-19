@@ -69,6 +69,17 @@ namespace NzbDrone.Core.Books
 
                 author.Metadata.Value.ForeignAuthorId = book.AuthorMetadata.Value.ForeignAuthorId;
 
+                // Cascade-add through Add Book: the user only asked to
+                // add THIS book, not the author's full discography. The
+                // post-add RefreshAuthorCommand still pulls in the
+                // author's works list (so the author detail page shows
+                // the full bibliography), but with MonitorNewItems=None
+                // those other books arrive unmonitored ('Missing'
+                // status). Only the explicitly-added book stays
+                // Monitored=true. Users opt into more books per-row
+                // from the author page.
+                author.MonitorNewItems = NewItemMonitorTypes.None;
+
                 dbAuthor = _addAuthorService.AddAuthor(author, false);
             }
 
