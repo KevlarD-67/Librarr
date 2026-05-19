@@ -269,30 +269,14 @@ namespace NzbDrone.Core.Books
 
         protected override void ProcessChildren(Author entity, SortedChildren children)
         {
-            // Distinguish two refresh contexts by checking whether the
-            // author already has books locally:
-            //
-            // 1. Author has existing books AND MonitorNewItems=None
-            //    → cascade-add path from AddBookService (the user added
-            //      a book, which cascaded the author). They want the
-            //      author detail page to show the full discography, so
-            //      insert the remaining works as Monitored=false.
-            //
-            // 2. Author has zero existing books AND MonitorNewItems=None
-            //    → explicit Add Author flow with Monitor=None. The user
-            //      picked None in the dialog to say "I don't want this
-            //      author's books in my library". Drop children.Added
-            //      so nothing is inserted.
-            //
-            // 3. MonitorNewItems=All or New → upstream behavior.
-            if (entity.MonitorNewItems == NewItemMonitorTypes.None
-                && children.UpToDate.Count == 0
-                && children.Updated.Count == 0)
-            {
-                children.Added.Clear();
-                return;
-            }
-
+            // Upstream model: always insert. The "Monitor=None /
+            // MonitorNewItems=None" dialog selections control the
+            // Monitored flag on each new book (via ShouldMonitorNewBook),
+            // not whether the rows exist at all. Books appear on the
+            // Author detail page (the user wants to browse the full
+            // discography) but the Books library page's monitored-only
+            // filter default hides them from the library grid until
+            // the user explicitly flips the monitor toggle on a row.
             foreach (var book in children.Added)
             {
                 book.Monitored = _monitorNewBookService.ShouldMonitorNewBook(book, children.UpToDate, entity.MonitorNewItems);

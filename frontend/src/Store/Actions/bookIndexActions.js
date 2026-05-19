@@ -286,7 +286,12 @@ export const defaultState = {
 export const persistState = [
   'bookIndex.sortKey',
   'bookIndex.sortDirection',
-  'bookIndex.selectedFilterKey',
+  // selectedFilterKey deliberately NOT persisted: the library Books
+  // grid should always default to 'monitored' on each page load so
+  // the user sees only books they explicitly added. Persisting the
+  // key meant a once-set 'all' followed the user across sessions
+  // and re-introduced the cascade-of-discography books they had to
+  // re-filter every time. Within-session changes still apply.
   'bookIndex.customFilters',
   'bookIndex.view',
   'bookIndex.columns',
