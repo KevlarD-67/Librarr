@@ -9,6 +9,8 @@ namespace NzbDrone.Core.Books
     {
         BookIdMapping FindByGoodreadsId(string goodreadsId);
         List<BookIdMapping> FindByGoodreadsIds(List<string> goodreadsIds);
+        BookIdMapping FindByOpenLibraryWorkId(string openLibraryWorkId);
+        BookIdMapping FindByOpenLibraryAuthorId(string openLibraryAuthorId);
         List<BookIdMapping> GetLowConfidence(double threshold);
     }
 
@@ -27,6 +29,26 @@ namespace NzbDrone.Core.Books
         public List<BookIdMapping> FindByGoodreadsIds(List<string> goodreadsIds)
         {
             return Query(x => goodreadsIds.Contains(x.GoodreadsId));
+        }
+
+        public BookIdMapping FindByOpenLibraryWorkId(string openLibraryWorkId)
+        {
+            // Reverse lookup used by MetadataSourceFactory to restore the
+            // local GoodReads-shaped ForeignBookId on returned remote books
+            // so RefreshAuthorService can still correlate them to the
+            // existing DB rows (which carry the GoodReads numeric id).
+            return Query(x => x.OpenLibraryWorkId == openLibraryWorkId).FirstOrDefault();
+        }
+
+        public BookIdMapping FindByOpenLibraryAuthorId(string openLibraryAuthorId)
+        {
+            // Author mappings are written by ReidentifyService.MapAuthor
+            // with OpenLibraryWorkId=null and the OL author OLID stuffed
+            // into OpenLibraryEditionId (awkward column reuse, but that's
+            // the convention the migration locked in). Match on that
+            // field + the null work id so we don't accidentally cross
+            // with book-shaped mappings.
+            return Query(x => x.OpenLibraryEditionId == openLibraryAuthorId && x.OpenLibraryWorkId == null).FirstOrDefault();
         }
 
         public List<BookIdMapping> GetLowConfidence(double threshold)

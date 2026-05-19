@@ -43,6 +43,7 @@ namespace NzbDrone.Core.MetadataSource
         private readonly OpenLibraryProxy _openLibrary;
         private readonly GoodreadsProxy _goodreadsProxy;
         private readonly OpenLibrarySeriesProxy _openLibrarySeries;
+        private readonly IBookIdMappingRepository _mappingRepo;
         private readonly Logger _logger;
 
         public MetadataSourceFactory(IConfigService configService,
@@ -50,6 +51,7 @@ namespace NzbDrone.Core.MetadataSource
                                      OpenLibraryProxy openLibrary,
                                      GoodreadsProxy goodreadsProxy,
                                      OpenLibrarySeriesProxy openLibrarySeries,
+                                     IBookIdMappingRepository mappingRepo,
                                      Logger logger)
         {
             _configService = configService;
@@ -57,6 +59,7 @@ namespace NzbDrone.Core.MetadataSource
             _openLibrary = openLibrary;
             _goodreadsProxy = goodreadsProxy;
             _openLibrarySeries = openLibrarySeries;
+            _mappingRepo = mappingRepo;
             _logger = logger;
         }
 
@@ -64,9 +67,30 @@ namespace NzbDrone.Core.MetadataSource
 
         // IProvideAuthorInfo
         public Author GetAuthorInfo(string foreignAuthorId, bool useCache = true)
-            => IsOpenLibrary
-                ? _openLibrary.GetAuthorInfo(foreignAuthorId, useCache)
-                : _bookInfo.GetAuthorInfo(foreignAuthorId, useCache);
+        {
+            if (!IsOpenLibrary)
+            {
+                return _bookInfo.GetAuthorInfo(foreignAuthorId, useCache);
+            }
+
+            // Translate GoodReads → OL on the way in via the BookIdMapping
+            // table populated by ReidentifyLibraryCommand. Without this
+            // step, the OL proxy 404s on every GoodReads-shaped author id
+            // ("3345" for Joseph Conrad) imported from a pre-cutover DB.
+            var olAuthorId = TranslateAuthorToOpenLibrary(foreignAuthorId);
+            var lookupId = olAuthorId ?? foreignAuthorId;
+
+            var author = _openLibrary.GetAuthorInfo(lookupId, useCache);
+
+            // Restore local identity on the way out so RefreshAuthorService
+            // still correlates the returned author + books to the existing
+            // GoodReads-shaped DB rows. Books whose OL work id has no
+            // mapping keep their OL ForeignBookId — those represent new
+            // books OL knows about that weren't in the original library.
+            return olAuthorId != null
+                ? RestoreLocalIdentityOnAuthor(author, foreignAuthorId)
+                : author;
+        }
 
         public HashSet<string> GetChangedAuthors(DateTime startTime)
             => IsOpenLibrary
@@ -75,9 +99,148 @@ namespace NzbDrone.Core.MetadataSource
 
         // IProvideBookInfo
         public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
-            => IsOpenLibrary
-                ? _openLibrary.GetBookInfo(id)
-                : _bookInfo.GetBookInfo(id);
+        {
+            if (!IsOpenLibrary)
+            {
+                return _bookInfo.GetBookInfo(id);
+            }
+
+            var olWorkId = TranslateBookToOpenLibrary(id);
+            var lookupId = olWorkId ?? id;
+
+            var result = _openLibrary.GetBookInfo(lookupId);
+
+            return olWorkId != null
+                ? RestoreLocalIdentityOnBookInfo(result, originalForeignBookId: id)
+                : result;
+        }
+
+        // BookIdMapping rows for authors carry the GoodReads id as
+        // GoodreadsId and the OL author OLID in OpenLibraryEditionId
+        // (book mappings reuse that column for the edition id — see
+        // ReidentifyService.MapAuthor / .MapBook for the asymmetry).
+        // Returns null when the input already looks OL-shaped, no
+        // mapping exists, or the mapping has an empty translation.
+        private string TranslateAuthorToOpenLibrary(string foreignAuthorId)
+        {
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            if (LooksLikeOpenLibraryAuthorId(foreignAuthorId))
+            {
+                return null;
+            }
+
+            var mapping = _mappingRepo.FindByGoodreadsId(foreignAuthorId);
+            var olKey = mapping?.OpenLibraryEditionId;
+            if (olKey.IsNullOrWhiteSpace() || !LooksLikeOpenLibraryAuthorId(olKey))
+            {
+                return null;
+            }
+
+            _logger.Debug("Translated GoodReads author {0} → OL {1} via BookIdMapping", foreignAuthorId, olKey);
+            return olKey;
+        }
+
+        private string TranslateBookToOpenLibrary(string foreignBookId)
+        {
+            if (foreignBookId.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            if (LooksLikeOpenLibraryWorkId(foreignBookId))
+            {
+                return null;
+            }
+
+            var mapping = _mappingRepo.FindByGoodreadsId(foreignBookId);
+            var olKey = mapping?.OpenLibraryWorkId;
+            if (olKey.IsNullOrWhiteSpace() || !LooksLikeOpenLibraryWorkId(olKey))
+            {
+                return null;
+            }
+
+            _logger.Debug("Translated GoodReads book {0} → OL {1} via BookIdMapping", foreignBookId, olKey);
+            return olKey;
+        }
+
+        private Author RestoreLocalIdentityOnAuthor(Author author, string originalForeignAuthorId)
+        {
+            if (author?.Metadata?.Value != null)
+            {
+                author.Metadata.Value.ForeignAuthorId = originalForeignAuthorId;
+            }
+
+            // Books surfaced inside the Author response (LazyLoaded) get
+            // their ForeignBookId reverse-translated when a mapping
+            // exists, so RefreshAuthorService's id-based correlation
+            // matches them to the existing DB rows instead of treating
+            // them as a fresh set + marking the originals removed.
+            if (author?.Books?.IsLoaded == true && author.Books.Value != null)
+            {
+                foreach (var book in author.Books.Value)
+                {
+                    book.ForeignBookId = ReverseBookId(book.ForeignBookId) ?? book.ForeignBookId;
+                }
+            }
+
+            return author;
+        }
+
+        private Tuple<string, Book, List<AuthorMetadata>> RestoreLocalIdentityOnBookInfo(
+            Tuple<string, Book, List<AuthorMetadata>> result,
+            string originalForeignBookId)
+        {
+            if (result == null)
+            {
+                return null;
+            }
+
+            var book = result.Item2;
+            if (book != null)
+            {
+                book.ForeignBookId = originalForeignBookId;
+            }
+
+            // Item1 is the primary author's foreign id (per OpenLibraryProxy.GetBookInfo
+            // comment block) — reverse-translate it if we have an author mapping
+            // for the OL author OLID returned in Item3.
+            var authors = result.Item3;
+            var primaryAuthorMeta = authors != null && authors.Count > 0 ? authors[0] : null;
+            var restoredPrimaryAuthorId = primaryAuthorMeta?.ForeignAuthorId;
+            if (primaryAuthorMeta != null && LooksLikeOpenLibraryAuthorId(primaryAuthorMeta.ForeignAuthorId))
+            {
+                var revAuthor = _mappingRepo.FindByOpenLibraryAuthorId(primaryAuthorMeta.ForeignAuthorId);
+                if (revAuthor?.GoodreadsId.IsNotNullOrWhiteSpace() == true)
+                {
+                    primaryAuthorMeta.ForeignAuthorId = revAuthor.GoodreadsId;
+                    primaryAuthorMeta.TitleSlug = revAuthor.GoodreadsId;
+                    restoredPrimaryAuthorId = revAuthor.GoodreadsId;
+                }
+            }
+
+            return Tuple.Create(restoredPrimaryAuthorId ?? result.Item1, book, authors);
+        }
+
+        private string ReverseBookId(string foreignBookId)
+        {
+            if (foreignBookId.IsNullOrWhiteSpace() || !LooksLikeOpenLibraryWorkId(foreignBookId))
+            {
+                return null;
+            }
+
+            var mapping = _mappingRepo.FindByOpenLibraryWorkId(foreignBookId);
+            return mapping?.GoodreadsId;
+        }
+
+        private static bool LooksLikeOpenLibraryAuthorId(string id)
+            => id != null && id.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && id.EndsWith("A", StringComparison.OrdinalIgnoreCase);
+
+        private static bool LooksLikeOpenLibraryWorkId(string id)
+            => id != null && id.StartsWith("OL", StringComparison.OrdinalIgnoreCase) && id.EndsWith("W", StringComparison.OrdinalIgnoreCase);
 
         // IProvideSeriesInfo
         public SeriesInfo GetSeriesInfo(string foreignSeriesId, bool useCache = true)
