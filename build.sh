@@ -21,7 +21,13 @@ UpdateVersionNumber()
 {
     if [ "$READARRVERSION" != "" ]; then
         echo "Updating Version Info"
-        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$READARRVERSION<\/AssemblyVersion>/g" src/Directory.Build.props
+        # AssemblyVersion attribute requires strict numeric major[.minor[.build[.revision]]].
+        # Strip any semver pre-release suffix like "-beta" / "-rc1" so
+        # "1.0.0-beta.4" → "1.0.0.4". The full semver string is still
+        # carried in the macOS Info.plist CFBundleShortVersionString below
+        # and surfaces in /api/v1/system/status via InformationalVersion.
+        ASSEMBLY_VERSION=$(echo "$READARRVERSION" | sed 's/-[A-Za-z][A-Za-z0-9]*//')
+        sed -i'' -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>$ASSEMBLY_VERSION<\/AssemblyVersion>/g" src/Directory.Build.props
         sed -i'' -e "s/<AssemblyConfiguration>[\$()A-Za-z-]\+<\/AssemblyConfiguration>/<AssemblyConfiguration>${BUILD_SOURCEBRANCHNAME}<\/AssemblyConfiguration>/g" src/Directory.Build.props
         sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$READARRVERSION<\/string>/g" distribution/osx/Readarr.app/Contents/Info.plist
     fi
