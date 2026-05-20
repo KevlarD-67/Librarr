@@ -91,17 +91,22 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var addedAuthors = new List<Author>();
             var addedBooks = new List<Book>();
 
-            // Surface rejected decisions so they reach the import history
-            // and UI. Previously, decisions filtered out by the .Approved
-            // check below were dropped silently — a file that failed
-            // identification (e.g. an .azw whose internal tags can't
-            // match any OL candidate) just disappeared from
-            // ImportApprovedBooks with no rejection visible, no health
-            // warning, just an Info-level "Importing 0 files" log line.
+            // Cycle 7d: make rejected decisions LOUD. They're already
+            // materialized as ImportResult entries at the bottom of this
+            // method (see the importResults.AddRange near the end), but
+            // they used to be invisible in the log + history. Now:
+            //   * emit a Warn-level log so the failure shows up in
+            //     `docker logs librarr` instead of getting buried at
+            //     Debug level, and
+            //   * publish TrackImportFailedEvent so downstream handlers
+            //     (CompletedDownloadService.Process via the
+            //     BookImportIncomplete chain) get a chance to surface
+            //     the failure to History.
+            // We deliberately do NOT add a second ImportResult here —
+            // the AddRange below already does it.
             foreach (var rejected in decisions.Where(e => !e.Approved))
             {
                 var rejectionText = string.Join(", ", rejected.Rejections.Select(r => r.Reason));
-                importResults.Add(new ImportResult(rejected, rejectionText));
                 _logger.Warn("Rejected import {0}: {1}", rejected.Item?.Path, rejectionText);
 
                 if (rejected.Item != null)
