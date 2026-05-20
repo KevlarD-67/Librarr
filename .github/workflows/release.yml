@@ -6,12 +6,12 @@
 #   * SHA256SUMS file aggregating the archive checksums.
 #   * A draft GitHub release with the tarballs + zips + SHA256SUMS
 #     attached. Draft so the user reviews release notes before publish.
-#   * Multi-arch Docker image (linux/amd64, linux/arm64, linux/arm/v7)
+#   * Docker image (linux/amd64 for 1.0.0-beta; multi-arch deferred)
 #     built from distribution/docker/Dockerfile, pushed to:
-#       - ghcr.io/<owner>/librarr  (always — uses workflow GITHUB_TOKEN)
+#       - ghcr.io/<owner>/librarr            (workflow GITHUB_TOKEN)
+#       - docker.io/<DOCKERHUB_USERNAME>/librarr  (DOCKERHUB_TOKEN secret)
 #     Image tags via docker/metadata-action: :<version>, :beta on beta
-#     tags, :latest only on non-prerelease tags. Docker Hub publish is
-#     deferred until a DOCKERHUB_TOKEN secret is set (separate cycle).
+#     tags, :latest only on non-prerelease tags.
 #
 # Explicitly out of scope (TODO with required secrets noted inline):
 #   * Windows installer (.exe) via Inno Setup
@@ -266,13 +266,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker Hub push is intentionally NOT wired here. The first
-      # workflow validation pass rejected the `secrets.DOCKERHUB_TOKEN`
-      # gates in `if:` and metadata-action `images:` — the Actions
-      # expression validator doesn't accept that pattern at workflow
-      # startup when the secret is undefined. Add a focused follow-up
-      # cycle once a Docker Hub token is provisioned, mirroring the
-      # GHCR login + extending the images list below.
+      - name: Log in to Docker Hub
+        # Unconditional — assumes DOCKERHUB_USERNAME + DOCKERHUB_TOKEN
+        # are set as repo secrets. If they ever go missing the step
+        # fails loudly (matching the GHCR step's "fail-fast" behavior).
+        # Earlier attempt at `if: secrets.X != ''` gating broke workflow
+        # validation, so we drop the conditional entirely now that
+        # secrets are provisioned.
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Compute image tags
         # Generates :<version> exact + :beta rolling pointer (only on
@@ -282,6 +286,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/librarr
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/librarr
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
