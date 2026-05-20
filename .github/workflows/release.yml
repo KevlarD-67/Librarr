@@ -9,10 +9,9 @@
 #   * Multi-arch Docker image (linux/amd64, linux/arm64, linux/arm/v7)
 #     built from distribution/docker/Dockerfile, pushed to:
 #       - ghcr.io/<owner>/librarr  (always — uses workflow GITHUB_TOKEN)
-#       - docker.io/<DOCKERHUB_USERNAME>/librarr  (gated on
-#         DOCKERHUB_TOKEN secret; step skips silently when unset).
 #     Image tags via docker/metadata-action: :<version>, :beta on beta
-#     tags, :latest only on non-prerelease tags.
+#     tags, :latest only on non-prerelease tags. Docker Hub publish is
+#     deferred until a DOCKERHUB_TOKEN secret is set (separate cycle).
 #
 # Explicitly out of scope (TODO with required secrets noted inline):
 #   * Windows installer (.exe) via Inno Setup
@@ -267,25 +266,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Docker Hub
-        # Gated — step skips entirely when DOCKERHUB_TOKEN secret is unset.
-        # Set via: gh secret set DOCKERHUB_USERNAME / DOCKERHUB_TOKEN.
-        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Docker Hub push is intentionally NOT wired here. The first
+      # workflow validation pass rejected the `secrets.DOCKERHUB_TOKEN`
+      # gates in `if:` and metadata-action `images:` — the Actions
+      # expression validator doesn't accept that pattern at workflow
+      # startup when the secret is undefined. Add a focused follow-up
+      # cycle once a Docker Hub token is provisioned, mirroring the
+      # GHCR login + extending the images list below.
 
       - name: Compute image tags
         # Generates :<version> exact + :beta rolling pointer (only on
-        # beta tags) + :latest (only on non-prerelease tags). Docker
-        # Hub image is only listed when the secret is present.
+        # beta tags) + :latest (only on non-prerelease tags).
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/librarr
-            name=docker.io/${{ secrets.DOCKERHUB_USERNAME || 'librarr' }}/librarr,enable=${{ secrets.DOCKERHUB_TOKEN != '' }}
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
