@@ -18,7 +18,7 @@ set -euo pipefail
 
 LIBRARR_PORT="${LIBRARR_PORT:-8787}"
 LIBRARR_HOST="${LIBRARR_HOST:-http://localhost:${LIBRARR_PORT}}"
-LIBRARR_DATA="${LIBRARR_DATA:-$(mktemp -d -t librarr-smoke)}"
+LIBRARR_DATA="${LIBRARR_DATA:-$(mktemp -d -t librarr-smoke.XXXXXX)}"
 READARR_BIN="${READARR_BIN:-}"
 
 if [[ -z "${READARR_BIN}" ]]; then

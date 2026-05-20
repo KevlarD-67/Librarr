@@ -21,8 +21,8 @@
             a global threshold >0 fails the whole run.
 
             To actually gate on a non-zero number, CI needs to:
-              1. Run all assemblies in one process (--single-process),
-                 producing a single merged XML; OR
+              1. Run all assemblies in one process (the single-process
+                 vstest flag), producing a single merged XML; OR
               2. Add a reportgenerator step that merges per-XML reports
                  and asserts on the aggregate (see
                  azure-pipelines.yml:1224 for the pattern).
