@@ -116,7 +116,16 @@ PackageFiles()
     mkdir -p $folder
     cp -r $outputFolder/$framework/$runtime/publish/* $folder
     cp -r $outputFolder/Readarr.Update/$framework/$runtime/publish $folder/Readarr.Update
-    cp -r $outputFolder/UI $folder
+    # UI is usually built in the same checkout (./build.sh runs both
+    # --frontend and --backend) and lives at _output/UI. In CI's
+    # split-job shape, the frontend lives in a separate artifact and
+    # is stitched in later by the `package` job. Tolerate either.
+    if [ -d "$outputFolder/UI" ]; then
+        cp -r $outputFolder/UI $folder
+    else
+        echo "Note: $outputFolder/UI not present — leaving placeholder for CI to populate"
+        mkdir -p $folder/UI
+    fi
 
     echo "Adding LICENSE"
     cp LICENSE.md $folder

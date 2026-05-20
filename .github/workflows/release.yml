@@ -94,15 +94,6 @@ jobs:
             echo "Skipping platform patch — bundled-versions file not found at $SDK_DIR (this is OK on hosted runners with current SDK)"
           fi
 
-      - name: Stage placeholder UI directory
-        # build.sh --packages calls PackageFiles() which `cp -r _output/UI`
-        # into each RID's output. Frontend is built in a separate parallel
-        # job (build-frontend) and stitched in by the later `package` job,
-        # so _output/UI doesn't exist in this checkout yet. Drop a stub
-        # so the cp succeeds; the real UI is re-staged in `package`.
-        shell: bash
-        run: mkdir -p _output/UI
-
       - name: Build + package backend
         shell: bash
         # --enable-extra-platforms (freebsd-x64 + linux-x86) is deferred
