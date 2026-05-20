@@ -218,9 +218,23 @@ PackageWindows()
     ProgressStart "Creating $runtime Package for $framework"
 
     local folder=$artifactsFolder/$runtime/$framework/Readarr
-    
+
     PackageFiles "$folder" "$framework" "$runtime"
-    cp -r $outputFolder/$framework-windows/$runtime/publish/* $folder
+
+    # The Windows-specific TFM (net6.0-windows) publish only exists
+    # when a Windows runner ran `dotnet publish`. On Linux-only CI
+    # (Phase 9 release.yml) this directory is missing — the release.yml
+    # package job's tarball loop is already WARN+skip on missing per-RID
+    # outputs, so we just skip building this incomplete Windows package
+    # entirely rather than producing a half-baked archive.
+    local winPublish="$outputFolder/$framework-windows/$runtime/publish"
+    if [ ! -d "$winPublish" ]; then
+        echo "Note: $winPublish not present — skipping Windows package for $runtime (incomplete, downstream WARN+skip)"
+        rm -rf "$folder"
+        ProgressEnd "Creating $runtime Package for $framework"
+        return 0
+    fi
+    cp -r "$winPublish"/* $folder
 
     echo "Removing Readarr.Mono"
     rm -f $folder/Readarr.Mono.*
