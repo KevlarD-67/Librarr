@@ -3,8 +3,6 @@ import { createAction } from 'redux-actions';
 import { batchActions } from 'redux-batched-actions';
 import { createThunk, handleThunks } from 'Store/thunks';
 import getNewAuthor from 'Utilities/Author/getNewAuthor';
-import monitorNewItemsOptions from 'Utilities/Author/monitorNewItemsOptions';
-import monitorOptions from 'Utilities/Author/monitorOptions';
 import getNewBook from 'Utilities/Book/getNewBook';
 import createAjaxRequest from 'Utilities/createAjaxRequest';
 import getSectionState from 'Utilities/State/getSectionState';
