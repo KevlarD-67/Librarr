@@ -92,7 +92,12 @@ jobs:
 
       - name: Build backend
         shell: bash
-        run: ./build.sh --backend --enable-extra-platforms
+        # --enable-extra-platforms (freebsd-x64 + linux-x86) is deferred
+        # for 1.0.0-beta: the GHA runner's .NET 10 SDK no longer ships
+        # runtime packs for those RIDs on net6.0. Re-enable in a future
+        # cycle once we either pin the SDK via global.json or upgrade
+        # the target framework.
+        run: ./build.sh --backend
 
       - name: Upload backend output
         uses: actions/upload-artifact@v4
