@@ -80,10 +80,20 @@ namespace NzbDrone.Common.Http.Dispatchers
                 else if (request.Credentials is NetworkCredential nc)
                 {
                     var creds = GetCredentialCache();
-                    foreach (var authtype in new[] { "Basic", "Digest" })
+
+                    // CredentialCache (System.Net) is not thread-safe and this
+                    // dispatcher's cache is a shared singleton. Concurrent
+                    // requests to the same URL — e.g. the Calibre root-folder
+                    // health check overlapping a library rescan — can both pass
+                    // Remove() and then race on Add(), throwing "An item with the
+                    // same key has already been added." Serialize the mutation.
+                    lock (creds)
                     {
-                        creds.Remove((Uri)request.Url, authtype);
-                        creds.Add((Uri)request.Url, authtype, nc);
+                        foreach (var authtype in new[] { "Basic", "Digest" })
+                        {
+                            creds.Remove((Uri)request.Url, authtype);
+                            creds.Add((Uri)request.Url, authtype, nc);
+                        }
                     }
                 }
             }
