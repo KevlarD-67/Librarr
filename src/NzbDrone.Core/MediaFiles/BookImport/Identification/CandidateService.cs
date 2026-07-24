@@ -4,7 +4,6 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.Goodreads;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.BookImport.Identification
@@ -213,7 +212,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchByIsbn(isbns[0]);
                 }
-                catch (GoodreadsException e)
+                catch (System.Exception e)
                 {
                     _logger.Info(e, "Skipping ISBN search due to Goodreads Error");
                     remoteBooks = new List<Book>();
@@ -235,7 +234,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchByAsin(asins[0]);
                 }
-                catch (GoodreadsException e)
+                catch (System.Exception e)
                 {
                     _logger.Info(e, "Skipping ASIN search due to Goodreads Error");
                     remoteBooks = new List<Book>();
@@ -258,7 +257,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     {
                         remoteBooks = _bookSearchService.SearchByForeignBookId(goodreads[0], true);
                     }
-                    catch (GoodreadsException e)
+                    catch (System.Exception e)
                     {
                         _logger.Info(e, "Skipping Goodreads ID search due to Goodreads Error");
                         remoteBooks = new List<Book>();
@@ -271,7 +270,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
             }
 
-            // If we got an id result, or any overrides are set, stop
+            // If an ID lookup (ISBN/ASIN/Goodreads) already produced candidates,
+            // or an override is set, stop — the broader author/title search is
+            // unnecessary. ISBN/ASIN candidates now carry author names (SearchByIsbn
+            // routes through search.json, not the name-less /isbn edition endpoint),
+            // so an ID hit is directly matchable and we avoid extra OL calls.
             if (seenCandidates.Any() ||
                 idOverrides?.Edition != null ||
                 idOverrides?.Book != null ||
@@ -313,7 +316,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchForNewBook(bookTag, authorTag);
                 }
-                catch (GoodreadsException e)
+                catch (System.Exception e)
                 {
                     _logger.Info(e, "Skipping author/title search due to Goodreads Error");
                     remoteBooks = new List<Book>();
@@ -336,7 +339,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 remoteBooks = _bookSearchService.SearchForNewBook(bookTag, null);
             }
-            catch (GoodreadsException e)
+            catch (System.Exception e)
             {
                 _logger.Info(e, "Skipping book title search due to Goodreads Error");
                 remoteBooks = new List<Book>();
@@ -354,7 +357,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchForNewBook(a, null);
                 }
-                catch (GoodreadsException e)
+                catch (System.Exception e)
                 {
                     _logger.Info(e, "Skipping author search due to Goodreads Error");
                     remoteBooks = new List<Book>();
@@ -378,6 +381,39 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 foreach (var edition in book.Editions.Value)
                 {
                     edition.Book = book;
+
+                    // A DB lazy-load normally guarantees AuthorMetadata/Author are
+                    // populated. OL candidate mappers can leave them unset — the
+                    // ISBN/ASIN edition lookup builds a slim book with no author at
+                    // all, and the work/search mappers omit the author when OL gives
+                    // no name/key. Downstream identification (DistanceCalculator,
+                    // LocalEdition.PopulateMatch) dereferences them unconditionally,
+                    // so a null here NREs and fails the whole import. Backfill a stub.
+                    if (book.AuthorMetadata?.Value == null)
+                    {
+                        book.AuthorMetadata = new AuthorMetadata { Name = string.Empty };
+                    }
+                    else if (book.AuthorMetadata.Value.Name == null)
+                    {
+                        book.AuthorMetadata.Value.Name = string.Empty;
+                    }
+
+                    if (book.Author?.Value == null)
+                    {
+                        book.Author = new Author { Metadata = book.AuthorMetadata.Value, CleanName = string.Empty };
+                    }
+                    else if (book.Author.Value.Metadata?.Value == null)
+                    {
+                        book.Author.Value.Metadata = book.AuthorMetadata.Value;
+                    }
+
+                    // Same story for SeriesLinks — remote candidates leave it null,
+                    // which NREs in LocalEdition.PopulateMatch and elsewhere that
+                    // assume the DB lazy-load populated it.
+                    if (book.SeriesLinks == null || !book.SeriesLinks.IsLoaded)
+                    {
+                        book.SeriesLinks = new List<SeriesBookLink>();
+                    }
 
                     if (!seenCandidates.Contains(edition.ForeignEditionId) && SatisfiesOverride(edition, idOverrides))
                     {

@@ -54,16 +54,38 @@ namespace NzbDrone.Core.Parser.Model
                     var book = new Book();
                     book.UseMetadataFrom(fullBook);
                     book.UseDbFieldsFrom(fullBook);
-                    book.Author.Value.UseMetadataFrom(fullBook.Author.Value);
-                    book.Author.Value.UseDbFieldsFrom(fullBook.Author.Value);
-                    book.Author.Value.Metadata = fullBook.AuthorMetadata.Value;
-                    book.AuthorMetadata = fullBook.AuthorMetadata.Value;
+
+                    // For a brand-new remote import there is no DB-backed Author to
+                    // lazy-load, so both the freshly-created book's Author and the
+                    // matched book's Author/AuthorMetadata can be null. Guard the
+                    // clone so it never NREs (previously crashed every import here).
+                    var fullAuthor = fullBook.Author?.Value;
+                    var fullAuthorMeta = fullBook.AuthorMetadata?.Value ?? new AuthorMetadata { Name = string.Empty };
+
+                    if (book.Author?.Value == null)
+                    {
+                        book.Author = new Author();
+                    }
+
+                    if (fullAuthor != null)
+                    {
+                        book.Author.Value.UseMetadataFrom(fullAuthor);
+                        book.Author.Value.UseDbFieldsFrom(fullAuthor);
+                    }
+
+                    book.Author.Value.Metadata = fullAuthorMeta;
+                    book.AuthorMetadata = fullAuthorMeta;
                     book.BookFiles = fullBook.BookFiles;
                     book.Editions = new List<Edition> { edition };
 
-                    if (fullBook.SeriesLinks.IsLoaded)
+                    // Remote candidates arrive with SeriesLinks unset (null), which
+                    // NREs on the .IsLoaded check below. Treat null/unloaded as "no
+                    // series" and skip links whose Series didn't resolve.
+                    if (fullBook.SeriesLinks != null && fullBook.SeriesLinks.IsLoaded)
                     {
-                        book.SeriesLinks = fullBook.SeriesLinks.Value.Select(l => new SeriesBookLink
+                        book.SeriesLinks = fullBook.SeriesLinks.Value
+                            .Where(l => l.Series?.Value != null)
+                            .Select(l => new SeriesBookLink
                         {
                             Book = book,
                             Series = new Series
@@ -80,9 +102,13 @@ namespace NzbDrone.Core.Parser.Model
                             SeriesPosition = l.SeriesPosition
                         }).ToList();
                     }
-                    else
+                    else if (fullBook.SeriesLinks != null)
                     {
                         book.SeriesLinks = fullBook.SeriesLinks;
+                    }
+                    else
+                    {
+                        book.SeriesLinks = new List<SeriesBookLink>();
                     }
 
                     edition.Book = book;

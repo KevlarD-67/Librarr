@@ -296,16 +296,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             return Cached(true, $"oisbn_{isbn}", TimeSpan.FromDays(30), () =>
             {
-                var request = _requestBuilder.For($"isbn/{isbn}.json").Build();
-                request.AllowAutoRedirect = true;
-
-                var resp = Send<OpenLibraryEditionResource>(request);
-                if (resp?.Resource == null)
-                {
-                    return new List<Book>();
-                }
-
-                return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
+                // Query the search index by ISBN instead of /isbn/{isbn}.json.
+                // search.json returns the work key AND author_name inline, so the
+                // candidate carries a real author name (required for the import
+                // matcher to score it) plus a work id for the DB record. The
+                // /isbn/{isbn}.json edition endpoint only returns author *keys*,
+                // producing name-less candidates that never match. Mirrors the
+                // SearchByAsin identifier-query path and reuses the search mapper.
+                var qs = $"?q=isbn%3A{Uri.EscapeDataString(isbn)}&limit=5&fields=key,title,author_name,author_key,first_publish_year,isbn,cover_i,edition_count";
+                var req = _requestBuilder.For($"search.json{qs}").Build();
+                var resp = Send<OpenLibrarySearchResource>(req);
+                return OpenLibrarySearchMapper.ReRankAndMap(resp?.Resource, isbn, null);
             });
         }
 

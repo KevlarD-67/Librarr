@@ -16,7 +16,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             // OL's documented politeness rule: identify the consumer and
             // throttle. See https://openlibrary.org/developers/api#politeness
-            var userAgent = $"Librarr/{BuildInfo.Version} (+https://github.com/Librarr/Librarr)";
+            var userAgent = $"Librarr/{BuildInfo.Version} (+https://github.com/Librarr/Librarr; dennis.eijsten@gmail.com)";
 
             return new HttpRequestBuilder(BaseUrl + path.TrimStart('/'))
                 .Accept(HttpAccept.Json)
