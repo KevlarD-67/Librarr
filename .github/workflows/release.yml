@@ -6,7 +6,7 @@
 #   * SHA256SUMS file aggregating the archive checksums.
 #   * A draft GitHub release with the tarballs + zips + SHA256SUMS
 #     attached. Draft so the user reviews release notes before publish.
-#   * Docker image (linux/amd64 for 1.0.0-beta; multi-arch deferred)
+#   * Multi-arch Docker manifest (linux/amd64, linux/arm64, linux/arm/v7)
 #     built from distribution/docker/Dockerfile, pushed to:
 #       - ghcr.io/<owner>/librarr            (workflow GITHUB_TOKEN)
 #       - docker.io/<DOCKERHUB_USERNAME>/librarr  (DOCKERHUB_TOKEN secret)
@@ -297,22 +297,23 @@ jobs:
             org.opencontainers.image.title=Librarr
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
-      - name: Build + push image (linux/amd64 for 1.0.0-beta)
-        # Multi-arch (arm64 + arm/v7) is deferred: the inherited
-        # Dockerfile takes ARG DOTNET_RID without a default, and buildx
-        # doesn't auto-translate TARGETPLATFORM → .NET RID. A follow-up
-        # cycle will add a TARGETARCH → RID case-statement inside the
-        # Dockerfile and re-enable the full platform set.
+      - name: Build + push image (amd64 + arm64 + armv7)
+        # The Dockerfile maps TARGETARCH → musl RID itself and pins both
+        # build stages to $BUILDPLATFORM, so all three arches cross-compile
+        # on the amd64 runner. Do NOT pass DOTNET_RID here — a single
+        # build-arg applies to every platform and would pin all three
+        # manifest entries to the same RID.
         uses: docker/build-push-action@v5
         with:
           context: .
           file: distribution/docker/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             LIBRARR_VERSION=${{ needs.variables.outputs.version }}
-            DOTNET_RID=linux-musl-x64
+            BUILD_BRANCH=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

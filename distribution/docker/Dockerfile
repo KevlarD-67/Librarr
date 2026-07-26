@@ -8,9 +8,19 @@
 # package _output/, use distribution/docker/Dockerfile.prebuilt.
 #
 # Stages:
-#   1. backend-build  → dotnet publish for ${DOTNET_RID}
+#   1. backend-build  → dotnet publish for the target arch's musl RID
 #   2. frontend-build → yarn install + yarn build → _output/UI
 #   3. runtime        → aspnet:6.0-alpine, copies from 1 + 2
+#
+# Multi-arch: supports linux/amd64, linux/arm64 and linux/arm/v7. Both
+# build stages are pinned to $BUILDPLATFORM and CROSS-compile — .NET
+# framework-dependent publish just needs the target's apphost from the
+# runtime pack, and webpack output is arch-independent. Never let the
+# SDK stage run under QEMU: Roslyn segfaults under x86_64-on-arm64
+# emulation, and even where it survives it is ~10x slower.
+#
+#   docker buildx build -f distribution/docker/Dockerfile \
+#     --platform linux/amd64,linux/arm64,linux/arm/v7 -t librarr/librarr:dev .
 #
 # Status: skeleton — the layer graph and stage flow are wired, but a
 # full smoke (build → `docker run` → web UI loads) hasn't been run on
@@ -25,16 +35,64 @@
 # ────────────────────────────────────────────────────────────────────
 # Stage 1 — backend build
 # ────────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS backend-build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS backend-build
 
 ARG LIBRARR_VERSION=1.0.0-beta.0
+
+# READARRVERSION is what build.sh's UpdateVersionNumber() reads — kept for
+# parity, but this Dockerfile calls `dotnet publish` directly and never runs
+# build.sh, so the env var alone stamps nothing. The version is applied as
+# MSBuild properties on the publish commands below instead; without that
+# every image reported the 10.0.0.* placeholder from Directory.Build.props.
+#
+# This is not cosmetic. RuntimeInfo.InternalIsOfficialBuild()
+# (src/NzbDrone.Common/EnvironmentInfo/RuntimeInfo.cs:206-215) treats
+# Major >= 10 as an unofficial build, so a placeholder-versioned image runs
+# with IsProduction == false — which changes Sentry DSN selection, analytics,
+# HTTP redirect handling and initialize.json caching.
+#
+# Only AssemblyVersion and AssemblyConfiguration are worth passing:
+# Directory.Build.props:86-88 sets GenerateAssemblyFileVersionAttribute and
+# GenerateAssemblyInformationalVersionAttribute to false, so -p:FileVersion /
+# -p:InformationalVersion are silently discarded. build.sh stamps the same
+# two, via sed.
+#
+# Branch name recorded as AssemblyConfiguration; surfaces as BuildInfo.Branch
+# and in the "release" field of /initialize.json.
+ARG BUILD_BRANCH=main
 ENV READARRVERSION=${LIBRARR_VERSION}
 
-# Override at build time for non-x64 hosts. Apple Silicon devs should
-# pass `--build-arg DOTNET_RID=linux-musl-arm64` (and drop the
-# `--platform linux/amd64` flag) — Roslyn segfaults under x86_64-on-arm64
-# emulation. CI keeps the x64 default.
-ARG DOTNET_RID=${DOTNET_RID}
+# TARGETARCH / TARGETVARIANT are injected by BuildKit from --platform. They
+# are empty under the legacy (non-BuildKit) builder, which cannot do
+# multi-platform anyway — that case falls back to linux-musl-x64.
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+# Escape hatch: pass --build-arg DOTNET_RID=... to pin the RID explicitly
+# and skip the TARGETARCH mapping below.
+ARG DOTNET_RID=""
+
+# Resolve the .NET RID once and stash it at /rid for the later stages of
+# this build. The runtime base is alpine, so every target is musl.
+# Note the ${VAR:-} guards: BuildKit omits an ARG from the RUN environment
+# entirely when it has no value, so bare ${TARGETVARIANT} would trip `set -u`
+# on amd64/arm64 (which carry no variant).
+RUN set -eu; \
+    if [ -n "${DOTNET_RID:-}" ]; then \
+        rid="${DOTNET_RID}"; \
+    else \
+        case "${TARGETARCH:-}${TARGETVARIANT:-}" in \
+            amd64)           rid="linux-musl-x64" ;; \
+            arm64|arm64v8)   rid="linux-musl-arm64" ;; \
+            arm|armv7|armv6) rid="linux-musl-arm" ;; \
+            "")              rid="linux-musl-x64" ;; \
+            *)               echo "unsupported TARGETARCH '${TARGETARCH:-}${TARGETVARIANT:-}' — add it to the case in distribution/docker/Dockerfile" >&2; exit 1 ;; \
+        esac; \
+    fi; \
+    echo "building for RID: ${rid}"; \
+    printf '%s' "${rid}" > /rid; \
+    printf '%s' "$(echo "${LIBRARR_VERSION}" | sed 's/-[A-Za-z][A-Za-z0-9]*//')" > /assemblyversion; \
+    echo "assembly version: $(cat /assemblyversion) (informational: ${LIBRARR_VERSION})"
 
 WORKDIR /src
 
@@ -50,14 +108,16 @@ COPY .editorconfig ./
 # Release publish dies with CS1566 on the embedded resource.
 COPY Logo/ ./Logo/
 COPY src/ ./src/
-RUN dotnet restore src/Readarr.sln -p:Configuration=Release -p:Platform=Posix -r ${DOTNET_RID}
+RUN dotnet restore src/Readarr.sln -p:Configuration=Release -p:Platform=Posix -r "$(cat /rid)"
 RUN dotnet publish src/NzbDrone.Console/Readarr.Console.csproj \
         -c Release \
         -f net6.0 \
-        -r ${DOTNET_RID} \
+        -r "$(cat /rid)" \
         --no-restore \
         --self-contained false \
         -p:Platform=Posix \
+        -p:AssemblyVersion="$(cat /assemblyversion)" \
+        -p:AssemblyConfiguration="${BUILD_BRANCH}" \
         -o /publish
 
 # The platform shim (Readarr.Mono on Linux/macOS; Readarr.Windows on
@@ -69,16 +129,22 @@ RUN dotnet publish src/NzbDrone.Console/Readarr.Console.csproj \
 RUN dotnet publish src/NzbDrone.Mono/Readarr.Mono.csproj \
         -c Release \
         -f net6.0 \
-        -r ${DOTNET_RID} \
+        -r "$(cat /rid)" \
         --no-restore \
         --self-contained false \
         -p:Platform=Posix \
+        -p:AssemblyVersion="$(cat /assemblyversion)" \
+        -p:AssemblyConfiguration="${BUILD_BRANCH}" \
         -o /publish
 
 # ────────────────────────────────────────────────────────────────────
 # Stage 2 — frontend build
 # ────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS frontend-build
+# Pinned to $BUILDPLATFORM: the webpack output under _output/UI is plain
+# JS/CSS/HTML with no per-arch content, so building it once natively and
+# copying it into every arch's runtime image is both correct and much
+# faster than re-running yarn under emulation for each platform.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-build
 
 WORKDIR /src
 

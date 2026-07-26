@@ -13,19 +13,57 @@ your own image.
 
 ## Build
 
-From the repo root:
+From the repo root — builds for the host's architecture:
 
 ```bash
 docker build \
   -f distribution/docker/Dockerfile \
-  --build-arg DOTNET_RID=linux-musl-x64 \
   -t librarr/librarr:1.0.0-beta \
   .
 ```
 
-Adjust `DOTNET_RID` if you target a non-musl runtime
-(`linux-x64`, `linux-arm64`, etc.). `win-arm64` is **not** in the RID
-list and is unsupported (`src/Directory.Build.props:11`).
+### Multi-arch
+
+Supported platforms: **`linux/amd64`**, **`linux/arm64`**,
+**`linux/arm/v7`**. The Dockerfile maps BuildKit's `TARGETARCH` to the
+matching musl RID itself, so nothing needs to be passed per-arch:
+
+| Platform | .NET RID |
+|---|---|
+| `linux/amd64` | `linux-musl-x64` |
+| `linux/arm64` | `linux-musl-arm64` |
+| `linux/arm/v7` | `linux-musl-arm` |
+
+```bash
+docker buildx create --use --name librarr   # once
+docker buildx build \
+  -f distribution/docker/Dockerfile \
+  --platform linux/amd64,linux/arm64,linux/arm/v7 \
+  -t librarr/librarr:1.0.0-beta \
+  --push \
+  .
+```
+
+A multi-platform build cannot load into the local daemon — use `--push`
+to a registry, or build one platform at a time with `--load`.
+
+Both build stages are pinned to `$BUILDPLATFORM` and **cross-compile**:
+`dotnet publish -r <rid> --self-contained false` only needs the target's
+apphost from the runtime pack, and the webpack bundle is
+arch-independent. This is deliberate — the .NET SDK under QEMU is both
+drastically slower and prone to Roslyn segfaults on x86_64-on-arm64.
+QEMU is still required (the runtime stage's `apk add` runs on the
+target), hence `docker/setup-qemu-action` in `release.yml`.
+
+`--build-arg DOTNET_RID=...` still overrides the mapping for a
+single-platform build — e.g. to target a glibc base (`linux-x64`,
+`linux-arm64`) after swapping the runtime image. `win-arm64` is **not**
+in the RID list and is unsupported (`src/Directory.Build.props:11`).
+
+`Dockerfile.prebuilt` accepts the same `--platform` set, but only for
+RIDs you have already built into `_output/net6.0/` — a missing RID fails
+that platform's build with an explicit error rather than silently
+shipping the wrong binaries.
 
 ## Run
 
