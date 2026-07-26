@@ -63,7 +63,23 @@ in the RID list and is unsupported (`src/Directory.Build.props:11`).
 `Dockerfile.prebuilt` accepts the same `--platform` set, but only for
 RIDs you have already built into `_output/net6.0/` — a missing RID fails
 that platform's build with an explicit error rather than silently
-shipping the wrong binaries.
+shipping the wrong binaries. Populate it with:
+
+```bash
+READARRVERSION=1.0.0-beta.4 ./build.sh --backend --frontend
+```
+
+`READARRVERSION` matters: the prebuilt variant compiles nothing, so it
+cannot stamp a version the way `Dockerfile` does. Without it the binaries
+keep the `10.0.0.*` placeholder, and since
+`RuntimeInfo.InternalIsOfficialBuild()` rejects `Major >= 10` the image
+runs with `IsProduction == false` — changing Sentry DSN selection,
+analytics and `initialize.json` caching.
+
+Note `build.sh` begins with `rm -rf _output`, and passing `-r` a
+semicolon-separated RID list does not work (MSBuild reads `;` as a
+property separator, and `RuntimeIdentifiers` is consumed as singular
+downstream). Build the full RID set, or one RID per run.
 
 ## Run
 

@@ -14,6 +14,15 @@
 #   /books          your library root
 #   /downloads      where the download clients drop completed files
 #
+# Versioning: unlike distribution/docker/Dockerfile, this variant compiles
+# nothing and so cannot stamp a version — it inherits whatever build.sh
+# baked into _output. A plain `./build.sh --backend` leaves the 10.0.0.*
+# placeholder, and because RuntimeInfo.InternalIsOfficialBuild() rejects
+# Major >= 10 the resulting image runs with IsProduction == false. Export
+# READARRVERSION before building if that matters:
+#
+#   READARRVERSION=1.0.0-beta.4 ./build.sh --backend --frontend
+#
 # Multi-arch: this variant can only produce the arches you actually built
 # locally. `./build.sh --backend --enable-extra-platforms` emits every RID
 # under _output/net6.0/, in which case:
