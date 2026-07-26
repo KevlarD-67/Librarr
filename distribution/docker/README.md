@@ -1,8 +1,20 @@
 # distribution/docker — Librarr docker images
 
-Local-only docker artifacts for the `1.0.0-beta` release. **No image is
-published to any public registry yet** — build locally and run from
-your own image.
+Docker build definitions for Librarr. Images are published automatically
+by [`.github/workflows/release.yml`](../../.github/workflows/release.yml)
+on every `v*` tag push, as a multi-arch manifest covering
+`linux/amd64`, `linux/arm64` and `linux/arm/v7`:
+
+```bash
+docker pull ghcr.io/rorqualx/librarr:latest    # GitHub Container Registry
+docker pull rorqualx/librarr:latest            # Docker Hub
+```
+
+Tags: `:<version>` exact, `:<major>.<minor>`, `:beta` on beta tags, and
+`:latest` only on non-prerelease tags. Docker will select the right
+architecture for your host automatically.
+
+You can also build locally from this directory — see **Build** below.
 
 ## Files
 
