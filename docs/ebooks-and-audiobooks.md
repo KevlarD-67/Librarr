@@ -75,6 +75,63 @@ designs, neither small:
    Larger change: monitoring, wanted/missing, and the import path all currently
    assume one monitored slot per edition.
 
-Option 2 is the better end state; option 1 is the cheaper route to feature
-parity. Either needs a decision before code — this file is deliberately not
-that decision.
+## Decision: option 1 first (2026-07-30)
+
+Option 2 remains the better end state. It is not, however, an alternative to
+option 1 — it *contains* it. Monitoring "Elantris (ebook)" and "Elantris
+(audiobook)" separately requires each monitored format to carry its own
+profile, which is exactly what option 1 builds. Doing option 1 first is not a
+detour to be undone later.
+
+The deciding argument is what each change breaks. Option 1's blast radius is
+wide but mechanical: it is a change to how a profile is resolved, and the
+compiler plus the specification fixtures find every site. Option 2 changes what
+a monitored thing *is*, and monitoring, wanted/missing and the import path all
+encode "one monitored slot per edition" as an unstated assumption — semantic
+breakage that nothing in the toolchain catches. On a fork field-validated on a
+single deployment with no frontend test suite at all, take the change the
+toolchain can verify.
+
+### What makes this tractable
+
+Three things that are already true, and are why this is a smaller job than the
+prose above implies:
+
+* **Storage already allows both.** `BookFile` carries `EditionId` *and*
+  `Part`, and `Book` lazy-loads a *list* of files. Nothing in the schema says
+  one file per book. The constraint is entirely that a single ordered profile
+  makes an EPUB and an M4B compete for one slot.
+* **Format is already derivable.** `Quality` ids split cleanly — 0-4 text
+  (Unknown, PDF, MOBI, EPUB, AZW3), 10-13 audio (MP3, FLAC, M4B,
+  UnknownAudio), with 5-9 left as a deliberate gap. A `Format` property on
+  `Quality` is a pure function over the existing ids; no migration, no data
+  backfill.
+* **Every read site already knows the format.** All sixteen reads are
+  `subject.Author.QualityProfile.Value` where `subject` is a `RemoteBook`
+  carrying `ParsedBookInfo.Quality`, or an import item carrying
+  `Item.Quality`. None of them has to be taught something new — they have the
+  quality in hand at the point they resolve the profile.
+
+### Work breakdown
+
+1. **`Quality.Format`** — derived `{ Text, Audio }` from the id ranges, plus a
+   fixture pinning every existing quality to its family so a future quality
+   added in the 5-9 gap fails loudly rather than silently classifying as text.
+2. **`Author.AudiobookQualityProfileId`** — one nullable column, one
+   FluentMigrator migration. **Null means "single-format author"** and
+   resolves to `QualityProfileId` for every format, so existing installs
+   behave exactly as they do today and the migration needs no backfill.
+3. **The resolution seam** — replace the sixteen `Author.QualityProfile.Value`
+   reads with one call that takes the quality. This is the whole change; steps
+   1, 2 and 4 exist to serve it. Do it as a single mechanical commit so the
+   diff is reviewable as "did every site get the same treatment".
+4. **Cutoff and upgrade** — fall out of step 3 rather than needing their own
+   work, since each format resolves its own profile and therefore its own
+   cutoff. Worth its own fixture proving an M4B import does not replace an
+   existing EPUB.
+5. **UI** — an optional second profile picker on the author edit form and in
+   root-folder defaults. Kept last deliberately: everything above is testable
+   without it.
+
+Sequencing note: steps 1-3 are worthless individually and valuable together,
+so they want to land as one reviewed branch, not trickled onto `main`.
