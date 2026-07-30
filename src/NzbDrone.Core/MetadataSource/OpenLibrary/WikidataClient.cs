@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -31,13 +30,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public WikidataSparqlResponse Query(string sparql)
         {
-            var userAgent = $"Librarr/{BuildInfo.Version} (+https://github.com/Librarr/Librarr; series metadata)";
-
             var request = new HttpRequestBuilder(Endpoint)
                 .AddQueryParam("query", sparql)
                 .AddQueryParam("format", "json")
                 .Accept(HttpAccept.Json)
-                .SetHeader("User-Agent", userAgent)
+                .SetHeader("User-Agent", MetadataUserAgent.For("series metadata"))
                 .WithRateLimit(1.5)
                 .Build();
 

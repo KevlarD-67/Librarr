@@ -1,4 +1,3 @@
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -16,15 +15,20 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             // OL's documented politeness rule: identify the consumer and
             // throttle. See https://openlibrary.org/developers/api#politeness
-            var userAgent = $"Librarr/{BuildInfo.Version} (+https://github.com/Librarr/Librarr)";
-
             return new HttpRequestBuilder(BaseUrl + path.TrimStart('/'))
                 .Accept(HttpAccept.Json)
-                .SetHeader("User-Agent", userAgent)
+                .SetHeader("User-Agent", MetadataUserAgent.Value)
 
                 // WithRateLimit(seconds) — 0.6s between calls ≈ 100 req/min.
-                // OL's actual limit is generous (no public number, but they've
-                // tolerated higher rates from Open Library Bot). Stay conservative.
+                //
+                // OL publishes a hard number for the covers API only (100 req
+                // per IP per 5 minutes, 403 when exceeded) and that limit does
+                // not apply here — this builder only issues bibliographic JSON
+                // requests against openlibrary.org, not covers.openlibrary.org.
+                // See OpenLibraryCoverUrls for the covers side.
+                //
+                // No published number exists for the JSON endpoints, so stay
+                // conservative and identifiable rather than fast.
                 .WithRateLimit(0.6);
         }
     }

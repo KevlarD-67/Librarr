@@ -13,6 +13,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Events;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource;
 
 namespace NzbDrone.Core.MediaCover
 {
@@ -32,7 +33,13 @@ namespace NzbDrone.Core.MediaCover
         IHandle<BookEditedEvent>,
         IMapCoversToLocal
     {
-        private const string USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; SM-G975U Build/QP1A.190711.020)";
+        // Was a spoofed Android/Dalvik string inherited from upstream Readarr,
+        // where it existed to get cover images past Goodreads/Amazon. Librarr
+        // fetches covers from OpenLibrary, whose politeness policy grants a 3x
+        // rate allowance to clients that identify themselves honestly — and
+        // who ask not to be used as a third-party backend at all. Pretending to
+        // be a phone forfeited the allowance and misrepresented us.
+        private static string UserAgent => MetadataUserAgent.For("cover images");
 
         private readonly IMediaCoverProxy _mediaCoverProxy;
         private readonly IImageResizer _resizer;
@@ -271,7 +278,7 @@ namespace NzbDrone.Core.MediaCover
             var fileName = GetCoverPath(author.Id, MediaCoverEntity.Author, cover.CoverType, cover.Extension);
 
             _logger.Info("Downloading {0} for {1} {2}", cover.CoverType, author, cover.Url);
-            _httpClient.DownloadFile(cover.Url, fileName, USER_AGENT);
+            _httpClient.DownloadFile(cover.Url, fileName, UserAgent);
 
             try
             {
@@ -288,7 +295,7 @@ namespace NzbDrone.Core.MediaCover
             var fileName = GetCoverPath(book.Id, MediaCoverEntity.Book, cover.CoverType, cover.Extension, null);
 
             _logger.Info("Downloading {0} for {1} {2}", cover.CoverType, book, cover.Url);
-            _httpClient.DownloadFile(cover.Url, fileName, USER_AGENT);
+            _httpClient.DownloadFile(cover.Url, fileName, UserAgent);
 
             try
             {
@@ -366,7 +373,7 @@ namespace NzbDrone.Core.MediaCover
             };
 
             request.Headers.Add("Range", "bytes=0-0");
-            request.Headers.Add("User-Agent", USER_AGENT);
+            request.Headers.Add("User-Agent", UserAgent);
 
             return _httpClient.Get(request).Headers;
         }

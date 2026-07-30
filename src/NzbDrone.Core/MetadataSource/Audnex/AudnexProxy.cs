@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
@@ -70,10 +69,9 @@ namespace NzbDrone.Core.MetadataSource.Audnex
             AudnexBookResource resource;
             try
             {
-                var userAgent = $"Librarr/{BuildInfo.Version} (+https://github.com/Librarr/Librarr)";
                 var request = new HttpRequestBuilder($"{BaseUrl}/books/{edition.Asin}")
                     .Accept(HttpAccept.Json)
-                    .SetHeader("User-Agent", userAgent)
+                    .SetHeader("User-Agent", MetadataUserAgent.For("audiobook metadata"))
                     .WithRateLimit(1.0)
                     .Build();
                 request.SuppressHttpError = true;
