@@ -407,11 +407,20 @@ namespace NzbDrone.Core.Download.Pending
                 return;
             }
 
-            var profile = remoteBook.Author.QualityProfile.Value;
+            var grabbedQuality = remoteBook.ParsedBookInfo.Quality;
+            var profile = remoteBook.Author.QualityProfileFor(grabbedQuality);
 
             foreach (var existingReport in existingReports)
             {
-                var compare = new QualityModelComparer(profile).Compare(remoteBook.ParsedBookInfo.Quality,
+                // Grabbing an ebook must not discard a pending audiobook for
+                // the same book. They're separate slots, and their qualities
+                // aren't comparable within one profile's ranking anyway.
+                if (existingReport.RemoteBook.ParsedBookInfo.Quality.Format() != grabbedQuality.Format())
+                {
+                    continue;
+                }
+
+                var compare = new QualityModelComparer(profile).Compare(grabbedQuality,
                                                                         existingReport.RemoteBook.ParsedBookInfo.Quality);
 
                 //Only remove lower/equal quality pending releases

@@ -176,9 +176,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 _eventAggregator.PublishEvent(new BookEditedEvent(book, book));
             }
 
+            // Grouped by author *and format*: the two formats are ranked by
+            // different profiles now, so ordering them against one another
+            // with a single comparer would be meaningless.
             var qualifiedImports = decisions.Where(c => c.Approved)
-                .GroupBy(c => c.Item.Author.Id, (i, s) => s
-                         .OrderByDescending(c => c.Item.Quality, new QualityModelComparer(s.First().Item.Author.QualityProfile))
+                .GroupBy(c => new { AuthorId = c.Item.Author.Id, Format = c.Item.Quality.Format() }, (i, s) => s
+                         .OrderByDescending(c => c.Item.Quality, new QualityModelComparer(s.First().Item.Author.QualityProfileFor(i.Format)))
                          .ThenByDescending(c => c.Item.Size))
                 .SelectMany(c => c)
                 .ToList();

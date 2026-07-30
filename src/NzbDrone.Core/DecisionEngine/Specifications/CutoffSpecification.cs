@@ -29,9 +29,14 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public virtual Decision IsSatisfiedBy(RemoteBook subject, SearchCriteriaBase searchCriteria)
         {
-            var qualityProfile = subject.Author.QualityProfile.Value;
+            var releaseQuality = subject.ParsedBookInfo?.Quality;
+            var qualityProfile = subject.Author.QualityProfileFor(releaseQuality);
 
-            foreach (var file in subject.Books.SelectMany(b => b.BookFiles.Value))
+            // Only files of the same format compete with this release. An
+            // existing EPUB says nothing about whether the audiobook cutoff
+            // has been met, and comparing against it is what used to make an
+            // author effectively single-format.
+            foreach (var file in subject.Books.SelectMany(b => b.BookFiles.Value).MatchingFormat(releaseQuality))
             {
                 // Get a distinct list of all current track qualities for a given book
                 var currentQualities = new List<QualityModel> { file.Quality };
