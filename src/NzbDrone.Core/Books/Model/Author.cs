@@ -5,6 +5,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Profiles.Metadata;
 using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.Books
 {
@@ -26,6 +27,13 @@ namespace NzbDrone.Core.Books
         public string RootFolderPath { get; set; }
         public DateTime Added { get; set; }
         public int QualityProfileId { get; set; }
+
+        // 0 means "single-format author": every release, whatever its format,
+        // is judged by QualityProfileId. Set it and audiobook-format releases
+        // get their own profile, their own ranking and their own cutoff —
+        // which is what lets one author hold both an EPUB and an M4B instead
+        // of the two competing for a single slot. See QualityProfileFor.
+        public int AudiobookQualityProfileId { get; set; }
         public int MetadataProfileId { get; set; }
         public HashSet<int> Tags { get; set; }
         [MemberwiseEqualityIgnore]
@@ -37,11 +45,55 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         public LazyLoaded<QualityProfile> QualityProfile { get; set; }
         [MemberwiseEqualityIgnore]
+        public LazyLoaded<QualityProfile> AudiobookQualityProfile { get; set; }
+        [MemberwiseEqualityIgnore]
         public LazyLoaded<MetadataProfile> MetadataProfile { get; set; }
         [MemberwiseEqualityIgnore]
         public LazyLoaded<List<Book>> Books { get; set; }
         [MemberwiseEqualityIgnore]
         public LazyLoaded<List<Series>> Series { get; set; }
+
+        // The single place any download or import decision resolves an
+        // author's quality profile. Everything that used to read
+        // Author.QualityProfile.Value directly now comes through here with
+        // the quality it is actually judging, because the answer depends on
+        // the release's format.
+        //
+        // Falls back to the ebook profile whenever the author is
+        // single-format (AudiobookQualityProfileId == 0) or the audiobook
+        // profile could not be loaded. Falling back rather than failing is
+        // deliberate: a missing profile must not silently reject every
+        // release for an author, and this reproduces exactly the behaviour
+        // that existed before formats were separable.
+        // Null-tolerant all the way down, deliberately. These are called from
+        // decision specifications, where an unexpected null must degrade to
+        // the old single-profile behaviour rather than throw — a spec that
+        // throws doesn't reject one release, it takes down the decision for
+        // every release in the batch.
+        public QualityProfile QualityProfileFor(QualityModel quality)
+        {
+            return QualityProfileFor(quality?.Quality);
+        }
+
+        public QualityProfile QualityProfileFor(Quality quality)
+        {
+            return QualityProfileFor(quality?.Format ?? QualityFormat.Text);
+        }
+
+        public QualityProfile QualityProfileFor(QualityFormat format)
+        {
+            if (format == QualityFormat.Audio && AudiobookQualityProfileId > 0)
+            {
+                var audiobookProfile = AudiobookQualityProfile?.Value;
+
+                if (audiobookProfile != null)
+                {
+                    return audiobookProfile;
+                }
+            }
+
+            return QualityProfile?.Value;
+        }
 
         //compatibility properties
         [MemberwiseEqualityIgnore]
@@ -78,6 +130,8 @@ namespace NzbDrone.Core.Books
             Added = other.Added;
             QualityProfileId = other.QualityProfileId;
             QualityProfile = other.QualityProfile;
+            AudiobookQualityProfileId = other.AudiobookQualityProfileId;
+            AudiobookQualityProfile = other.AudiobookQualityProfile;
             MetadataProfileId = other.MetadataProfileId;
             MetadataProfile = other.MetadataProfile;
             Tags = other.Tags;
@@ -89,6 +143,8 @@ namespace NzbDrone.Core.Books
             Path = other.Path;
             QualityProfileId = other.QualityProfileId;
             QualityProfile = other.QualityProfile;
+            AudiobookQualityProfileId = other.AudiobookQualityProfileId;
+            AudiobookQualityProfile = other.AudiobookQualityProfile;
             MetadataProfileId = other.MetadataProfileId;
             MetadataProfile = other.MetadataProfile;
 

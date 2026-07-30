@@ -115,6 +115,33 @@ namespace NzbDrone.Core.Qualities
             };
         }
 
+        // Which qualities are audiobooks and which are ebooks. Stated
+        // explicitly rather than inferred from the id ranges, because the
+        // ranges are a convention (0-4 text, 10-13 audio, 5-9 an unused gap)
+        // and a convention is exactly the thing that gets broken by the next
+        // quality someone adds.
+        //
+        // Unknown ids resolve to Text rather than throwing: an id we don't
+        // recognise is almost certainly deserialized from a newer database,
+        // and treating it as text reproduces the pre-per-format behaviour
+        // instead of taking the process down. QualityFormatFixture asserts
+        // every member of All is classified here, so forgetting to classify a
+        // new quality fails the test suite rather than shipping.
+        private static readonly HashSet<int> TextQualityIds = new () { 0, 1, 2, 3, 4 };
+        private static readonly HashSet<int> AudioQualityIds = new () { 10, 11, 12, 13 };
+
+        public QualityFormat Format => FormatOf(Id);
+
+        public static QualityFormat FormatOf(int qualityId)
+        {
+            return AudioQualityIds.Contains(qualityId) ? QualityFormat.Audio : QualityFormat.Text;
+        }
+
+        public static bool IsClassified(int qualityId)
+        {
+            return TextQualityIds.Contains(qualityId) || AudioQualityIds.Contains(qualityId);
+        }
+
         public static readonly List<Quality> All;
 
         public static readonly Quality[] AllLookup;

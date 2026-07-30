@@ -3,6 +3,7 @@ using NLog;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
 {
@@ -26,9 +27,12 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public virtual Decision IsSatisfiedBy(RemoteBook subject, SearchCriteriaBase searchCriteria)
         {
-            var qualityProfile = subject.Author.QualityProfile.Value;
+            var releaseQuality = subject.ParsedBookInfo?.Quality;
+            var qualityProfile = subject.Author.QualityProfileFor(releaseQuality);
 
-            foreach (var file in subject.Books.SelectMany(b => b.BookFiles.Value))
+            // Same-format files only — an audiobook is never an upgrade of an
+            // ebook, so an existing EPUB must not veto an incoming M4B.
+            foreach (var file in subject.Books.SelectMany(b => b.BookFiles.Value).MatchingFormat(releaseQuality))
             {
                 if (file == null)
                 {

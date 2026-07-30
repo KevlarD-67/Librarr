@@ -46,7 +46,16 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             foreach (var queueItem in matchingBook)
             {
                 var remoteBook = queueItem.RemoteBook;
-                var qualityProfile = subject.Author.QualityProfile.Value;
+                var qualityProfile = subject.Author.QualityProfileFor(subject.ParsedBookInfo?.Quality);
+
+                // A queued release of the other format isn't competing for
+                // this release's slot — an M4B already downloading is no
+                // reason to reject an EPUB, and the two aren't even
+                // comparable within a single profile's ranking.
+                if (remoteBook.ParsedBookInfo.Quality.Format() != subject.ParsedBookInfo.Quality.Format())
+                {
+                    continue;
+                }
 
                 // To avoid a race make sure it's not FailedPending (failed awaiting removal/search).
                 // Failed items (already searching for a replacement) won't be part of the queue since

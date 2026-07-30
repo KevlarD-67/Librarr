@@ -135,3 +135,33 @@ prose above implies:
 
 Sequencing note: steps 1-3 are worthless individually and valuable together,
 so they want to land as one reviewed branch, not trickled onto `main`.
+
+### What implementing it changed (2026-07-30)
+
+Steps 1-4 are done. Step 5 is not. Two things the plan above got wrong, both
+found by reading the code rather than by testing:
+
+**Resolving a different profile is only half of it.** Point 4 above assumed
+cutoff and upgrade "fall out of step 3". They do not. Every one of those
+decisions walks the book's existing files —
+`subject.Books.SelectMany(b => b.BookFiles.Value)` — with no filter, so an
+incoming M4B was still compared against the EPUB you already had no matter
+which profile ranked it. Each site needs the comparison set narrowed to the
+same format as well, which is what `QualityFormatExtensions.MatchingFormat`
+is for.
+
+**The severe case is not a ranking, it is a deletion.**
+`UpgradeMediaFileService.UpgradeBookFile` loops the book's existing files and
+recycle-bins each one, then deletes its row. Unfiltered, that meant importing
+an audiobook for a book already held as an ebook *destroyed the ebook* — the
+constraint this document describes was not only "you can't express wanting
+both", it was "trying anyway loses a file". That single filter is the most
+important line in the change, and
+`UpgradeMediaFileServiceFixture.should_not_delete_an_ebook_when_importing_an_audiobook`
+is the test that matters.
+
+Also worth recording: the seam is null-tolerant on purpose. These run inside
+decision specifications where a throw doesn't reject one release, it takes
+down the decision for the whole batch — so an unknown or missing quality
+resolves to the ebook profile, reproducing the old single-profile behaviour
+rather than failing.

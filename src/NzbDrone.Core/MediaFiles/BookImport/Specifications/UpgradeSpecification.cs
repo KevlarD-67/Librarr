@@ -26,15 +26,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
 
         public Decision IsSatisfiedBy(LocalBook item, DownloadClientItem downloadClientItem)
         {
-            var files = item.Book?.BookFiles?.Value;
-            if (files == null || !files.Any())
+            var allFiles = item.Book?.BookFiles?.Value;
+            if (allFiles == null || !allFiles.Any())
             {
                 // No existing books, skip.  This guards against new authors not having a QualityProfile.
                 return Decision.Accept();
             }
 
+            // Only same-format files can make this one "not an upgrade". An
+            // existing EPUB is not something an M4B upgrades or fails to
+            // upgrade — it occupies a different slot entirely.
+            var files = allFiles.MatchingFormat(item.Quality).ToList();
+            if (!files.Any())
+            {
+                return Decision.Accept();
+            }
+
             var downloadPropersAndRepacks = _configService.DownloadPropersAndRepacks;
-            var qualityComparer = new QualityModelComparer(item.Author.QualityProfile);
+            var qualityComparer = new QualityModelComparer(item.Author.QualityProfileFor(item.Quality));
 
             foreach (var bookFile in files)
             {

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -9,6 +10,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -120,6 +122,80 @@ namespace NzbDrone.Core.Test.MediaFiles
             GivenSingleTrackWithSingleTrackFile();
 
             Subject.UpgradeBookFile(_trackFile, _localTrack).OldFiles.Count.Should().Be(1);
+        }
+
+        private void GivenExistingFiles(params Quality[] qualities)
+        {
+            var id = 1;
+            var files = qualities.Select(q => new BookFile
+            {
+                Id = id++,
+                Path = Path.Combine(_rootPath, $"existing.{q.Name}"),
+                Quality = new QualityModel(q)
+            }).ToList();
+
+            _localTrack.Book = Builder<Book>.CreateNew()
+                .With(e => e.BookFiles = new LazyLoaded<List<BookFile>>(files))
+                .Build();
+        }
+
+        // The whole point of per-format quality profiles, asserted at the one
+        // place that actually destroys data. Before this, importing an
+        // audiobook for a book already held as an ebook recycle-binned the
+        // ebook and deleted its row — not "ranked it lower", removed it.
+        [Test]
+        public void should_not_delete_an_ebook_when_importing_an_audiobook()
+        {
+            GivenExistingFiles(Quality.EPUB);
+            _trackFile.Quality = new QualityModel(Quality.M4B);
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack);
+
+            result.OldFiles.Should().BeEmpty();
+
+            Mocker.GetMock<IRecycleBinProvider>()
+                  .Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Verify(v => v.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
+        }
+
+        [Test]
+        public void should_not_delete_an_audiobook_when_importing_an_ebook()
+        {
+            GivenExistingFiles(Quality.M4B);
+            _trackFile.Quality = new QualityModel(Quality.EPUB);
+
+            Subject.UpgradeBookFile(_trackFile, _localTrack).OldFiles.Should().BeEmpty();
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Verify(v => v.Delete(It.IsAny<BookFile>(), It.IsAny<DeleteMediaFileReason>()), Times.Never());
+        }
+
+        // The other half: replacing within a format must still work, or this
+        // change would have quietly disabled upgrades altogether.
+        [Test]
+        public void should_still_replace_an_existing_file_of_the_same_format()
+        {
+            GivenExistingFiles(Quality.MP3);
+            _trackFile.Quality = new QualityModel(Quality.M4B);
+
+            Subject.UpgradeBookFile(_trackFile, _localTrack).OldFiles.Should().HaveCount(1);
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Verify(v => v.Delete(It.IsAny<BookFile>(), DeleteMediaFileReason.Upgrade), Times.Once());
+        }
+
+        [Test]
+        public void should_replace_only_the_matching_format_when_the_book_has_both()
+        {
+            GivenExistingFiles(Quality.EPUB, Quality.MP3);
+            _trackFile.Quality = new QualityModel(Quality.M4B);
+
+            var result = Subject.UpgradeBookFile(_trackFile, _localTrack);
+
+            result.OldFiles.Should().HaveCount(1);
+            result.OldFiles.Single().Quality.Quality.Should().Be(Quality.MP3);
         }
 
         [Test]

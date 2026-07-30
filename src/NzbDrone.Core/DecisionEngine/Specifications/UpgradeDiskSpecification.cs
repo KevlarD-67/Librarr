@@ -4,6 +4,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
 {
@@ -28,6 +29,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public virtual Decision IsSatisfiedBy(RemoteBook subject, SearchCriteriaBase searchCriteria)
         {
+            var releaseQuality = subject.ParsedBookInfo?.Quality;
+
             foreach (var file in subject.Books.SelectMany(c => c.BookFiles.Value))
             {
                 if (file == null)
@@ -35,9 +38,18 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     return Decision.Accept();
                 }
 
+                // A file of the other format doesn't occupy this release's
+                // slot, so it can't be "equal or higher preference" than it.
+                // Skipped rather than filtered out of the collection so the
+                // null early-accept above keeps its existing meaning.
+                if (file.Quality.Format() != releaseQuality.Format())
+                {
+                    continue;
+                }
+
                 var customFormats = _formatService.ParseCustomFormat(file);
 
-                if (!_upgradableSpecification.IsUpgradable(subject.Author.QualityProfile,
+                if (!_upgradableSpecification.IsUpgradable(subject.Author.QualityProfileFor(releaseQuality),
                                                            file.Quality,
                                                            customFormats,
                                                            subject.ParsedBookInfo.Quality,

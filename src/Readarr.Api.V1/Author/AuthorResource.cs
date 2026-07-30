@@ -43,6 +43,11 @@ namespace Readarr.Api.V1.Author
         //View & Edit
         public string Path { get; set; }
         public int QualityProfileId { get; set; }
+
+        // 0 = single-format author; every format uses QualityProfileId. Set
+        // it and audiobook releases get their own profile and cutoff, which
+        // is what lets one author hold both an ebook and an audiobook.
+        public int AudiobookQualityProfileId { get; set; }
         public int MetadataProfileId { get; set; }
 
         //Editing Only
@@ -95,6 +100,7 @@ namespace Readarr.Api.V1.Author
 
                 Path = model.Path,
                 QualityProfileId = model.QualityProfileId,
+                AudiobookQualityProfileId = model.AudiobookQualityProfileId,
                 MetadataProfileId = model.MetadataProfileId,
                 Links = model.Metadata.Value.Links,
 
@@ -147,6 +153,7 @@ namespace Readarr.Api.V1.Author
                 //AlternateTitles
                 Path = resource.Path,
                 QualityProfileId = resource.QualityProfileId,
+                AudiobookQualityProfileId = resource.AudiobookQualityProfileId,
                 MetadataProfileId = resource.MetadataProfileId,
 
                 Monitored = resource.Monitored,

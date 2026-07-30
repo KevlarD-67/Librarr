@@ -60,18 +60,27 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                         continue;
                     }
 
+                    // A grab of the other format tells us nothing about this
+                    // release — an audiobook grabbed yesterday is not a
+                    // reason to skip the ebook.
+                    if (mostRecent.Quality.Format() != subject.ParsedBookInfo.Quality.Format())
+                    {
+                        continue;
+                    }
+
                     var customFormats = _formatService.ParseCustomFormat(mostRecent, subject.Author);
+                    var qualityProfile = subject.Author.QualityProfileFor(subject.ParsedBookInfo?.Quality);
 
                     // The series will be the same as the one in history since it's the same episode.
                     // Instead of fetching the series from the DB reuse the known series.
                     var cutoffUnmet = _upgradableSpecification.CutoffNotMet(
-                        subject.Author.QualityProfile,
+                        qualityProfile,
                         new List<QualityModel> { mostRecent.Quality },
                         customFormats,
                         subject.ParsedBookInfo.Quality);
 
                     var upgradeable = _upgradableSpecification.IsUpgradable(
-                        subject.Author.QualityProfile,
+                        qualityProfile,
                         mostRecent.Quality,
                         customFormats,
                         subject.ParsedBookInfo.Quality,

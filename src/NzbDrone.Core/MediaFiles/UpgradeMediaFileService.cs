@@ -5,6 +5,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 
 namespace NzbDrone.Core.MediaFiles
@@ -47,7 +48,19 @@ namespace NzbDrone.Core.MediaFiles
         public BookFileMoveResult UpgradeBookFile(BookFile bookFile, LocalBook localBook, bool copyOnly = false)
         {
             var moveFileResult = new BookFileMoveResult();
-            var existingFiles = localBook.Book.BookFiles.Value;
+
+            // Only files of the same format are replaced by this import.
+            //
+            // This loop deletes what it finds — recycle bin on disk and a row
+            // out of the database — so before per-format profiles existed,
+            // importing an audiobook for a book you already had as an ebook
+            // deleted the ebook. Not "ranked it lower": removed the file.
+            // That is the concrete thing standing between one instance and
+            // holding both formats, and it is why the filter belongs here
+            // rather than only in the decision engine.
+            var existingFiles = localBook.Book.BookFiles.Value
+                                         .MatchingFormat(bookFile.Quality)
+                                         .ToList();
 
             var rootFolderPath = _diskProvider.GetParentFolder(localBook.Author.Path);
             var rootFolder = _rootFolderService.GetBestRootFolder(rootFolderPath);
