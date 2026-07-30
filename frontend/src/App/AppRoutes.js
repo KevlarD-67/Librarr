@@ -12,6 +12,8 @@ import BookshelfConnector from 'Bookshelf/BookshelfConnector';
 import CalendarPageConnector from 'Calendar/CalendarPageConnector';
 import NotFound from 'Components/NotFound';
 import Switch from 'Components/Router/Switch';
+import LibraryImportConnector from 'LibraryImport/LibraryImportConnector';
+import LibraryImportSelectFolderConnector from 'LibraryImport/LibraryImportSelectFolderConnector';
 import NarratorDetailsPage from 'Narrator/NarratorDetailsPage';
 import AddNewItemConnector from 'Search/AddNewItemConnector';
 import CustomFormatSettingsConnector from 'Settings/CustomFormats/CustomFormatSettingsConnector';
@@ -81,6 +83,17 @@ function AppRoutes(props) {
       <Route
         path="/add/search"
         component={AddNewItemConnector}
+      />
+
+      <Route
+        exact={true}
+        path="/add/import"
+        component={LibraryImportSelectFolderConnector}
+      />
+
+      <Route
+        path="/add/import/:rootFolderId"
+        component={LibraryImportConnector}
       />
 
       <Route

@@ -20,5 +20,9 @@ namespace NzbDrone.Core.RootFolders
         public bool Accessible { get; set; }
         public long? FreeSpace { get; set; }
         public long? TotalSpace { get; set; }
+
+        // Not persisted — recomputed from disk on each read. See
+        // RootFolderService.GetUnmappedFolders.
+        public List<UnmappedFolder> UnmappedFolders { get; set; } = new ();
     }
 }

@@ -38,6 +38,10 @@ const links = [
         to: '/add/search'
       },
       {
+        title: () => translate('LibraryImport'),
+        to: '/add/import'
+      },
+      {
         title: () => translate('Bookshelf'),
         to: '/shelf'
       },

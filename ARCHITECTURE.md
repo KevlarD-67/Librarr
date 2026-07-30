@@ -136,6 +136,37 @@ in Activity history via the existing
 `CompletedDownloadService.Process` chain. Was previously a silent
 Debug-level skip. *(Cycle 7d.)*
 
+### Library Import wizard
+
+Restores the bulk "adopt what's already on disk" flow that every other
+Servarr app ships (`ImportSeries` / `ImportMovies` / `ImportArtist`) and
+that upstream Readarr dropped when it forked from Lidarr — leaving
+`RootFolders/UnmappedFolder.cs` and
+`MediaFiles/BookImport/ImportArtistDefaults.cs` behind as dead code.
+
+- `src/NzbDrone.Core/RootFolders/RootFolderService.cs` —
+  `GetUnmappedFolders()` lists first-level subdirectories of a root
+  folder that no author's path claims, minus a special-folder blocklist
+  (`$RECYCLE.BIN`, `lost+found`, `@eaDir`, Calibre's `.caltrash`, …).
+  Takes `IAuthorRepository` rather than `IAuthorService`: the latter
+  would close a DryIoc cycle through `AuthorPathBuilder` →
+  `IRootFolderService`. Surfaced as
+  `RootFolderResource.UnmappedFolders`, and `Ignore`d in
+  `TableMapping.cs` since it is recomputed per read, never persisted.
+- `src/Readarr.Api.V1/Author/AuthorImportController.cs` — `POST
+  /api/v1/author/import`, bulk-adds via the pre-existing
+  `IAddAuthorService.AddAuthors`. Returns only the authors actually
+  created, since `AddAuthors` skips ones it cannot resolve.
+- `frontend/src/LibraryImport/` — the two-step UI, at `/add/import`.
+  See that folder's `README.md` for why lookups are queued rather than
+  parallel (Open Library meters the search endpoint) and why no row is
+  ever pre-selected.
+
+Complements rather than replaces the root folder rescan button: rescan
+is file-driven and unattended, this is folder-driven and asks the user
+to confirm each author, which narrows the subsequent file matching from
+all of Open Library to that author's bibliography.
+
 ### CI / packaging
 
 - `azure-pipelines.yml:22` — `majorVersion: '1.0.0-beta'`.

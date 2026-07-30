@@ -32,6 +32,7 @@ namespace Readarr.Api.V1.RootFolders
         public bool Accessible { get; set; }
         public long? FreeSpace { get; set; }
         public long? TotalSpace { get; set; }
+        public List<UnmappedFolder> UnmappedFolders { get; set; }
     }
 
     public static class RootFolderResourceMapper
@@ -68,6 +69,7 @@ namespace Readarr.Api.V1.RootFolders
                 Accessible = model.Accessible,
                 FreeSpace = model.FreeSpace,
                 TotalSpace = model.TotalSpace,
+                UnmappedFolders = model.UnmappedFolders,
             };
         }
 
