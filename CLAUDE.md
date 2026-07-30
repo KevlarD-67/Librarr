@@ -69,7 +69,8 @@ Every figure below was counted, not remembered. The previous version of
 this section had drifted badly (see the TypeScript note), and a precise
 number that is wrong is worse than no number, because it gets trusted.
 
-- **Backend:** .NET 6 (`dotnetVersion: '6.0.427'`, `azure-pipelines.yml:28`),
+- **Backend:** .NET 10 LTS (`dotnetVersion: '10.0.302'`, `azure-pipelines.yml:28`,
+  pinned in `global.json`),
   ASP.NET Core, **DryIoc 5.4.3** DI (`src/NzbDrone.Host/Bootstrap.cs:9-10,90`),
   custom Dapper-based ORM in `NzbDrone.Core/Datastore/`, Servarr-forked
   FluentMigrator (`Servarr.FluentMigrator.Runner 3.3.2.9`; **47 migrations**,
@@ -79,10 +80,19 @@ number that is wrong is worse than no number, because it gets trusted.
   `AssemblyVersion 10.0.0.*` is the historical Readarr placeholder the CI
   overwrites at build time; not the shipping version.
 
-  **.NET 6 has been out of support since 2024-11-12.** The move to
-  .NET 10 LTS is tracked work, not a someday — Sonarr's `v5-develop` is
-  already on `net10.0` and dropped the Servarr FluentMigrator fork for
-  upstream FluentMigrator 8.0.1, which is the reference path.
+  Migrated from .NET 6 (EOL 2024-11-12) on 2026-07-30. Supported to
+  2028-11-14. The Servarr-forked packages did **not** need replacing —
+  `Servarr.FluentMigrator.Runner 3.3.2.9`,
+  `System.Data.SQLite.Core.Servarr` and `Mono.Posix...-servarr22` all run
+  on .NET 10 unchanged, and all 47 migrations apply.
+
+  **The trap that migration exposed:** ASP.NET Core 10 no longer infers
+  `[FromBody]` for complex parameters on controllers that opt in via
+  `IApiBehaviorMetadata` (which is how `V1ApiControllerAttribute` works).
+  Every write action silently bound an all-default model and failed
+  validation. All 39 write actions now carry explicit `[FromBody]` /
+  `[FromQuery]`, matching Sonarr v5. **Any new POST/PUT action must
+  annotate its parameters explicitly** — inference will not save you.
 - **Frontend:** **React 18.3.1** (real `createRoot` root API —
   `frontend/src/bootstrap.tsx:3,18` — not legacy mode) + Redux 4.2.1 with
   **legacy `createStore`**, not RTK. `react-redux` is still 7.2.4. Webpack 5,

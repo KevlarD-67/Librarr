@@ -164,7 +164,7 @@ namespace Readarr.Api.V1.Books
         // BookService.UpdateBook publishes BookEditedEvent, which
         // MediaCoverService.Handle picks up to trigger a re-download.
         [HttpPut("{id:int}/cover")]
-        public ActionResult<BookResource> SetCover(int id, [FromBody] BookCoverPinResource resource)
+        public ActionResult<BookResource> SetCover([FromQuery] int id, [FromBody] BookCoverPinResource resource)
         {
             var book = _bookService.GetBook(id);
             if (book == null)
@@ -205,7 +205,7 @@ namespace Readarr.Api.V1.Books
         }
 
         [RestPostById]
-        public ActionResult<BookResource> AddBook(BookResource bookResource)
+        public ActionResult<BookResource> AddBook([FromBody] BookResource bookResource)
         {
             var book = _addBookService.AddBook(bookResource.ToModel());
 
@@ -213,7 +213,7 @@ namespace Readarr.Api.V1.Books
         }
 
         [RestPutById]
-        public ActionResult<BookResource> UpdateBook(BookResource bookResource)
+        public ActionResult<BookResource> UpdateBook([FromBody] BookResource bookResource)
         {
             var book = _bookService.GetBook(bookResource.Id);
 

@@ -49,7 +49,7 @@ namespace Readarr.Api.V1.Metadata
         }
 
         [RestPutById]
-        public ActionResult<LowConfidenceMappingResource> OverrideMapping(LowConfidenceMappingResource resource)
+        public ActionResult<LowConfidenceMappingResource> OverrideMapping([FromBody] LowConfidenceMappingResource resource)
         {
             // Manual override: trust the user's chosen OL ID, lock
             // confidence at 1.0, and stamp Source=Manual so subsequent

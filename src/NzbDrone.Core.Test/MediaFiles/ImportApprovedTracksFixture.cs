@@ -101,6 +101,14 @@ namespace NzbDrone.Core.Test.MediaFiles
             Subject.Import(_rejectedDecisions, false).Where(i => i.Result == ImportResultType.Imported).Should().BeEmpty();
 
             Mocker.GetMock<IMediaFileService>().Verify(v => v.Add(It.IsAny<BookFile>()), Times.Never());
+
+            // ImportApprovedBooks logs one Warn per rejected decision — a
+            // deliberate fork addition so failed imports surface in
+            // `docker logs` instead of being buried at Debug level. There
+            // are three rejected decisions in Setup, so three warnings are
+            // the correct outcome, and the test should say so rather than
+            // leave ExceptionVerification's implicit "expect zero".
+            ExceptionVerification.ExpectedWarns(3);
         }
 
         [Test]
@@ -120,6 +128,14 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             result.Should().HaveCount(all.Count);
             result.Where(i => i.Result == ImportResultType.Imported).Should().HaveCount(_approvedDecisions.Count);
+
+            // ImportApprovedBooks logs one Warn per rejected decision — a
+            // deliberate fork addition so failed imports surface in
+            // `docker logs` instead of being buried at Debug level. There
+            // are three rejected decisions in Setup, so three warnings are
+            // the correct outcome, and the test should say so rather than
+            // leave ExceptionVerification's implicit "expect zero".
+            ExceptionVerification.ExpectedWarns(3);
         }
 
         [Test]
