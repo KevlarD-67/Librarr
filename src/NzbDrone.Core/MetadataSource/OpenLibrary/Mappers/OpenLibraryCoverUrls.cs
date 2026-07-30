@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MediaCover;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
@@ -55,6 +57,30 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
         public static List<MediaCover.MediaCover> ForBookByIsbn(string isbn)
         {
             return BuildOlidCover(isbn, BookCoverByIsbnFormat, MediaCoverTypes.Cover);
+        }
+
+        // OL rate-limits the covers API to 100 requests per IP per 5 minutes and
+        // answers 403 beyond it — but ONLY for lookups keyed by something other
+        // than CoverID or OLID. Requests to /b/id/ and /a/id/ (CoverID) and to
+        // /b/olid/ and /a/olid/ (OLID) are explicitly exempt:
+        //   https://openlibrary.org/dev/docs/api/covers
+        //
+        // So the ISBN fallback in the cover chain (cover_i -> ISBN -> olid) is
+        // the only form that can get us blocked, and a library refresh issues
+        // one per edition lacking a work-level cover. Throttle just that form;
+        // throttling the exempt majority would slow every refresh for nothing.
+        //
+        // 100 per 5 minutes is one per 3 seconds.
+        public static TimeSpan? RateLimitFor(string url)
+        {
+            if (url.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            return url.Contains("/isbn/", StringComparison.OrdinalIgnoreCase)
+                ? TimeSpan.FromSeconds(3)
+                : null;
         }
 
         private static List<MediaCover.MediaCover> BuildCovers(List<int> ids, string urlFormat, MediaCoverTypes type)

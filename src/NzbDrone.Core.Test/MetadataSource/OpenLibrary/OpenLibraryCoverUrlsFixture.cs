@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using FluentAssertions;
 using NUnit.Framework;
@@ -64,6 +65,40 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             var covers = OpenLibraryCoverUrls.ForAuthor(null);
 
             covers.Should().BeEmpty();
+        }
+
+        // OL rate-limits the covers API to 100 requests per IP per 5 minutes,
+        // answering 403 past that — but ONLY for lookups keyed by something
+        // other than CoverID or OLID, which are explicitly exempt.
+        // https://openlibrary.org/dev/docs/api/covers
+        //
+        // Getting this backwards is silently expensive in both directions:
+        // throttling the exempt forms slows every library refresh for no
+        // reason, and not throttling the ISBN form gets covers 403'd.
+        [Test]
+        public void RateLimitFor_should_throttle_isbn_keyed_covers()
+        {
+            var limit = OpenLibraryCoverUrls.RateLimitFor("https://covers.openlibrary.org/b/isbn/9780765350374-L.jpg?default=false");
+
+            limit.Should().NotBeNull();
+            limit.Value.Should().Be(TimeSpan.FromSeconds(3));
+        }
+
+        [TestCase("https://covers.openlibrary.org/b/id/12345-L.jpg")]
+        [TestCase("https://covers.openlibrary.org/a/id/12345-L.jpg")]
+        [TestCase("https://covers.openlibrary.org/b/olid/OL123W-L.jpg?default=false")]
+        [TestCase("https://covers.openlibrary.org/a/olid/OL456A-L.jpg?default=false")]
+        public void RateLimitFor_should_not_throttle_exempt_cover_forms(string url)
+        {
+            OpenLibraryCoverUrls.RateLimitFor(url).Should().BeNull();
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("   ")]
+        public void RateLimitFor_should_handle_missing_urls(string url)
+        {
+            OpenLibraryCoverUrls.RateLimitFor(url).Should().BeNull();
         }
     }
 }

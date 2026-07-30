@@ -6,6 +6,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.MetadataSource.OpenLibrary.Mappers;
 
 namespace NzbDrone.Core.MediaCover
 {
@@ -83,6 +84,17 @@ namespace NzbDrone.Core.MediaCover
                 SuppressHttpErrorStatusCodes = new[] { HttpStatusCode.NotFound },
                 LogHttpError = false
             };
+
+            // ISBN-keyed cover lookups are the only form OL rate-limits (100 per
+            // IP per 5 minutes, then 403). CoverID and OLID lookups are exempt,
+            // so this returns null for them and costs nothing. See
+            // OpenLibraryCoverUrls.RateLimitFor.
+            var rateLimit = OpenLibraryCoverUrls.RateLimitFor(url);
+
+            if (rateLimit.HasValue)
+            {
+                request.RateLimit = rateLimit.Value;
+            }
 
             var response = _httpClient.Get(request);
             if (response.StatusCode == HttpStatusCode.NotFound)

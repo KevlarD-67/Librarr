@@ -19,6 +19,13 @@ namespace NzbDrone.Common.Http
     {
         HttpResponse Execute(HttpRequest request);
         void DownloadFile(string url, string fileName, string userAgent = null);
+
+        // Deliberately an overload rather than a fourth optional parameter on
+        // the method above: Moq's Verify/Setup lambdas are expression trees,
+        // and C# forbids optional arguments there (CS0854). Adding a default
+        // parameter breaks every existing `Verify(c => c.DownloadFile(a, b,
+        // null))` across the test suite.
+        void DownloadFile(string url, string fileName, string userAgent, TimeSpan? rateLimit);
         HttpResponse Get(HttpRequest request);
         HttpResponse<T> Get<T>(HttpRequest request)
             where T : new();
@@ -29,6 +36,7 @@ namespace NzbDrone.Common.Http
 
         Task<HttpResponse> ExecuteAsync(HttpRequest request);
         Task DownloadFileAsync(string url, string fileName, string userAgent = null);
+        Task DownloadFileAsync(string url, string fileName, string userAgent, TimeSpan? rateLimit);
         Task<HttpResponse> GetAsync(HttpRequest request);
         Task<HttpResponse<T>> GetAsync<T>(HttpRequest request)
             where T : new();
@@ -262,7 +270,12 @@ namespace NzbDrone.Common.Http
             }
         }
 
-        public async Task DownloadFileAsync(string url, string fileName, string userAgent = null)
+        public Task DownloadFileAsync(string url, string fileName, string userAgent = null)
+        {
+            return DownloadFileAsync(url, fileName, userAgent, null);
+        }
+
+        public async Task DownloadFileAsync(string url, string fileName, string userAgent, TimeSpan? rateLimit)
         {
             var fileNamePart = fileName + ".part";
 
@@ -283,6 +296,25 @@ namespace NzbDrone.Common.Http
                     request.AllowAutoRedirect = true;
                     request.ResponseStream = fileStream;
                     request.RequestTimeout = TimeSpan.FromSeconds(300);
+
+                    // The userAgent parameter had been accepted and then
+                    // silently dropped, so every caller that bothered to pass
+                    // one still went out under the default UserAgentBuilder
+                    // string. Honour it.
+                    if (userAgent.IsNotNullOrWhiteSpace())
+                    {
+                        request.Headers.Add("User-Agent", userAgent);
+                    }
+
+                    // Opt-in per-host throttling, enforced by IRateLimitService
+                    // keyed on request.Url.Host. Used for OpenLibrary's covers
+                    // API, which publishes a hard 100-requests-per-IP-per-5-minutes
+                    // limit and answers 403 past it.
+                    if (rateLimit.HasValue)
+                    {
+                        request.RateLimit = rateLimit.Value;
+                    }
+
                     var response = await GetAsync(request);
 
                     if (response.Headers.ContentType != null && response.Headers.ContentType.Contains("text/html"))
@@ -312,8 +344,13 @@ namespace NzbDrone.Common.Http
 
         public void DownloadFile(string url, string fileName, string userAgent = null)
         {
+            DownloadFile(url, fileName, userAgent, null);
+        }
+
+        public void DownloadFile(string url, string fileName, string userAgent, TimeSpan? rateLimit)
+        {
             // https://docs.microsoft.com/en-us/archive/msdn-magazine/2015/july/async-programming-brownfield-async-development#the-thread-pool-hack
-            Task.Run(() => DownloadFileAsync(url, fileName, userAgent)).GetAwaiter().GetResult();
+            Task.Run(() => DownloadFileAsync(url, fileName, userAgent, rateLimit)).GetAwaiter().GetResult();
         }
 
         public Task<HttpResponse> GetAsync(HttpRequest request)
