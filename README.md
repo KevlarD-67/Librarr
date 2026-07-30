@@ -58,7 +58,9 @@ straight to setting the marker.
 ## Major Features
 
 * Watches for better quality of the ebooks and audiobooks you have and
-  does automatic upgrades (e.g., from PDF to AZW3).
+  does automatic upgrades (e.g., from PDF to AZW3). One instance handles
+  both formats, but not for the same author at once — see
+  [Ebooks and audiobooks in one instance](docs/ebooks-and-audiobooks.md).
 * Cross-platform: Windows, Linux, macOS, Raspberry Pi.
 * Automatically detects new books.
 * Scans your existing library and downloads missing books.
