@@ -10,6 +10,27 @@ import { icons, inputTypes, kinds } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
 import styles from './LibraryImportRow.css';
 
+// The only thing that reliably separates two same-named Open Library
+// records. OL carries three "Stephen King" author records — 606 works
+// (Carrie), 48 (Misery), and 7 (Principles of Macroeconomics) — and a
+// zero-work record is almost always an empty stub rather than a real
+// alternate. Shown for every row, not just collisions: on a single
+// result it's the difference between "matched the real author" and
+// "matched a stub", which is the question this page exists to answer.
+function describeMatch({ workCount, topWork }) {
+  if (typeof workCount !== 'number') {
+    return null;
+  }
+
+  if (workCount === 0) {
+    return translate('LibraryImportNoWorks');
+  }
+
+  const works = translate('LibraryImportWorkCount', { count: workCount });
+
+  return topWork ? `${works}, ${topWork}` : works;
+}
+
 class LibraryImportRow extends Component {
 
   //
@@ -70,11 +91,11 @@ class LibraryImportRow extends Component {
     } = this.props;
 
     // OpenLibrary routinely returns several records for the same author, and
-    // often none of them carry a disambiguation — a search for "Brandon
-    // Sanderson" comes back as two records identical in every field except the
-    // OL id. Falling back to the id keeps the dropdown from offering choices
-    // the user has no way to tell apart. It's only shown on a collision,
-    // since it is noise the rest of the time.
+    // none of them carry a disambiguation — a search for "Brandon Sanderson"
+    // comes back as two records identical in every field the API exposes
+    // except the OL id. describeMatch() uses the work count OL does send;
+    // the OL id stays as the fallback for a response that predates it, so
+    // the dropdown never offers choices the user can't tell apart.
     const nameCounts = items.reduce((acc, author) => {
       acc[author.authorName] = (acc[author.authorName] || 0) + 1;
 
@@ -82,17 +103,26 @@ class LibraryImportRow extends Component {
     }, {});
 
     const authorOptions = items.map((author) => {
-      let value = author.authorName;
+      const match = describeMatch(author);
+      const qualifiers = [];
 
       if (author.disambiguation) {
-        value = `${value} (${author.disambiguation})`;
+        qualifiers.push(author.disambiguation);
+      }
+
+      if (match) {
+        qualifiers.push(match);
       } else if (nameCounts[author.authorName] > 1) {
-        value = `${value} (${author.foreignAuthorId})`;
+        // Nothing to describe the record by, so fall back to the raw id
+        // rather than offer two options spelled the same way.
+        qualifiers.push(author.foreignAuthorId);
       }
 
       return {
         key: author.foreignAuthorId,
-        value
+        value: qualifiers.length ?
+          `${author.authorName} — ${qualifiers.join(', ')}` :
+          author.authorName
       };
     });
 

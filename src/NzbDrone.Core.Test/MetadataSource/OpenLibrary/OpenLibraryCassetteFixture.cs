@@ -169,6 +169,43 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
         }
 
+        // Ranking assertions against the captured responses. The unit-level
+        // fixture (OpenLibraryAuthorSearchMapperFixture) works from trimmed
+        // docs; these run the same scorer over the untouched JSON OL
+        // actually served, so a change in OL's own ordering or in the
+        // fields it returns shows up here rather than in a user's library.
+        [TestCase("search_author_tolkien_lastfirst.json", "Tolkien, J.R.R.", "OL26320A")]
+        [TestCase("search_author_sanderson.json", "Brandon Sanderson", "OL1394865A")]
+        [TestCase("search_author_sanderson.json", "Sanderson, Brandon", "OL1394865A")]
+        [TestCase("search_author_king.json", "Stephen King", "OL19981A")]
+        public void Author_search_cassette_should_rank_the_real_author_first(string fileName, string query, string expectedOlid)
+        {
+            var search = OpenLibraryFixtureLoader.Load<OpenLibraryAuthorSearchResource>(fileName);
+
+            var ranked = OpenLibrarySearchMapper.ReRankAndMapAuthors(search, query);
+
+            ranked.Should().NotBeEmpty();
+            ranked[0].Metadata.Value.ForeignAuthorId.Should().Be(expectedOlid);
+
+            // Nothing is filtered out — a stub record is demoted, never
+            // hidden, because OL's index lags and a genuinely new author
+            // can legitimately report zero works.
+            ranked.Should().HaveSameCount(search.Docs);
+        }
+
+        // Regression guard for the ordering this whole re-rank exists to fix.
+        // If this ever starts passing without the re-rank, OL fixed its own
+        // ranking and the scorer's justification is worth revisiting.
+        [Test]
+        public void Tolkien_lastfirst_cassette_should_document_ols_own_ordering_as_wrong()
+        {
+            var search = OpenLibraryFixtureLoader.Load<OpenLibraryAuthorSearchResource>("search_author_tolkien_lastfirst.json");
+
+            OpenLibrarySearchMapper.ToAuthorSummary(search.Docs[0])
+                                   .Metadata.Value.ForeignAuthorId
+                                   .Should().Be("OL12498774A", "OL ranks a 1-work title match above the real Tolkien");
+        }
+
         // ── /isbn/{isbn}.json shape ─────────────────────────────────
         public static IEnumerable IsbnCassettes() => EnumerateMatching("isbn_*.json");
 
