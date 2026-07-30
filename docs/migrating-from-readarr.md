@@ -117,6 +117,34 @@ the Librarr executable. Whichever recipe you picked above, the
 `--appdata` argument (or its absence) determines which folder
 Librarr opens.
 
+## If you only have the books, not the config folder
+
+Everything above assumes you have a Readarr data folder to carry across.
+If you don't — the DB was lost, you were never on Readarr, or you're
+coming from Calibre or a hand-managed shelf — the reidentify wizard has
+nothing to reidentify. Use **Library Import** instead:
+
+1. Add your books directory as a root folder
+   (Settings → Media Management → Root Folders).
+2. Go to **Library → Library Import** and pick that root folder.
+3. Each subfolder that isn't already an author appears as a row,
+   pre-matched against Open Library. Correct any bad guesses in the
+   search box, select the rows you want, and import.
+4. Librarr attaches each author to the folder already on disk, then
+   refreshes and scans it. Nothing is moved or renamed.
+
+The two paths are not alternatives to each other so much as answers to
+different starting points:
+
+| You have | Use |
+|---|---|
+| Readarr `config/` + `readarr.db` | The reidentify wizard above — preserves monitoring, history, profiles, quality decisions |
+| Books on disk only | Library Import — creates fresh author records and adopts the existing folders |
+| Both | Migrate the config folder first. Library Import afterwards will only list folders no author claims, so it's a safe way to catch anything the DB didn't know about |
+
+Library Import is also the tool for adding new shelves later — it always
+shows only what isn't already mapped.
+
 ## What changes
 
 | Area | Readarr | Librarr |

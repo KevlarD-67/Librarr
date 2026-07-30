@@ -7,7 +7,72 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
-_Nothing yet._
+Everything below is merged to `main` but **not yet published** — the
+release workflow builds and pushes images on `v*` tag push, so none of
+these fixes reach installed instances until the next tagged release.
+
+### Added
+
+- **Library Import wizard** (`/add/import`, `frontend/src/LibraryImport/`).
+  Walks the folders inside a root folder that no author occupies and pairs
+  each one with an Open Library author, then adds them in a single
+  request. The author is bound to the folder that already exists on disk
+  rather than one derived from the naming format, so existing files are
+  adopted instead of orphaned. Backed by
+  `RootFolderService.GetUnmappedFolders()` (surfaced as
+  `RootFolderResource.unmappedFolders`) and `POST /api/v1/author/import`.
+  Readarr never shipped this page — it was dropped when Readarr forked
+  from Lidarr, leaving `UnmappedFolder.cs` and `ImportArtistDefaults.cs`
+  as dead code.
+- **Rescan button on each root folder** (Settings → Media Management).
+  Triggers `RescanFoldersCommand` for that folder alone, so an existing
+  collection can be picked up without waiting for the scheduled task.
+- **Multi-arch docker images.** `linux/amd64`, `linux/arm64` and
+  `linux/arm/v7`, published as one manifest list to GHCR and Docker Hub.
+  Both `Dockerfile` build stages now pin `--platform=$BUILDPLATFORM` and
+  resolve the .NET RID from `TARGETARCH`/`TARGETVARIANT`, so the
+  cross-compile happens natively instead of under QEMU emulation.
+
+### Fixed
+
+- **Interactive search returned HTTP 500 for any book with no monitored
+  edition.** `ReleaseSearchService` used `SingleOrDefault` on the
+  monitored-edition set, which throws on both zero matches and more than
+  one. Measured at 42% of books in a freshly added library. Now prefers a
+  monitored edition, falls back to any edition, and finally to the book
+  title. *(`src/NzbDrone.Core/IndexerSearch/ReleaseSearchService.cs`.)*
+- **Cover fetches could be rejected by Open Library.** The covers API
+  meters requests keyed by ISBN but explicitly exempts CoverID and OLID
+  lookups, and a library refresh issues one ISBN-keyed request per
+  edition lacking a work-level cover. Only that form is now throttled —
+  throttling the exempt majority would slow every refresh for nothing.
+- **`HttpClient.DownloadFileAsync` accepted a `userAgent` and discarded
+  it.** Callers that asked to identify themselves were silently sending
+  the default. Now applied, along with the request rate limit.
+- **Docker images were never version-stamped**, so `RuntimeInfo`
+  classified every containerised install as a non-production build.
+
+### Changed
+
+- **Librarr now identifies itself honestly to Open Library, Wikidata and
+  Audnex** — a real User-Agent carrying the app name, version and a
+  contact URL, per each service's stated policy
+  (`MetadataUserAgent.cs`). The spoofed browser strings in
+  `GoodreadsProxy` are deliberately left alone and documented as such;
+  that proxy exists only for the legacy rollback path.
+- `.gitignore` tightened to cover local docker volumes, smoke-test
+  output, coverage results, test logs and `.env` files.
+
+### Documentation
+
+- `docs/ebooks-and-audiobooks.md` — what one instance can and cannot do
+  with both formats. The usual one-line summary ("single format per
+  instance") is not accurate: the real constraint is per-author, because
+  an author carries exactly one quality profile and that profile is a
+  single ordered ranking.
+- `distribution/docker/README.md` — corrected the claim that images are
+  not published anywhere, and documented the versioning and toolchain
+  caveats of `Dockerfile.prebuilt`.
 
 ## [1.0.0-beta] — 2026-05-19
 

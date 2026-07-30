@@ -55,6 +55,37 @@ If you already manually reidentified your library before upgrading, the
 migration detects the pre-populated `BookIdMapping` table and skips
 straight to setting the marker.
 
+## Importing an existing collection
+
+This is the *other* migration, and it's easy to confuse with the one
+above. The section above is for people with a Readarr **`config/`
+directory** — a database that already knows about their authors. This
+one is for people with a **folder of books and no database at all**,
+whether they're coming from Calibre, a manual shelf, or nothing.
+
+Two ways in, and they're complementary:
+
+**Library Import** (Library → Library Import, or `/add/import`) — pick
+the root folder holding your books. Every folder inside it that isn't
+already an author becomes a row, pre-matched against Open Library, with
+an editable search box if the guess is wrong. Select the ones you want
+and import. Each author is attached to the folder that's already on
+disk, so nothing gets moved or re-created.
+
+Use this when you want to see and correct the matches — which, with
+Open Library, you generally do. A search for a well-known author often
+returns several records that are identical in every visible field, so
+the wizard shows the OL id when names collide.
+
+**Rescan** (Settings → Media Management → Root Folders → the rescan
+button on a folder) — unattended. Reads tags and filenames and takes
+the best Open Library match per file. Good for a tidy, well-tagged
+library; anything it can't place lands in Unmapped Files.
+
+Importing the authors first makes the subsequent file matching much more
+reliable, because Librarr then searches that author's bibliography
+instead of all of Open Library.
+
 ## Major Features
 
 * Watches for better quality of the ebooks and audiobooks you have and
@@ -64,6 +95,9 @@ straight to setting the marker.
 * Cross-platform: Windows, Linux, macOS, Raspberry Pi.
 * Automatically detects new books.
 * Scans your existing library and downloads missing books.
+* **Library Import** — point Librarr at a folder of books you already
+  have and match each author folder against Open Library in one pass.
+  See [Importing an existing collection](#importing-an-existing-collection).
 * Failed-download handling: will try another release if one fails.
 * Manual search to pick any release or see why one was skipped.
 * Profiles for fine-grained quality / format preferences.
@@ -96,8 +130,13 @@ Caveats:
 
 - Field-validated on a single deployment so far. Field reports
   welcome.
-- The fork does not publish docker images to any registry yet — build
-  locally from [`distribution/docker/`](distribution/docker/).
+- **The published images are older than this branch.** Images are
+  pushed to GHCR and Docker Hub automatically on every `v*` tag (see
+  [`distribution/docker/`](distribution/docker/)), but the newest
+  published tag predates the multi-arch work — so it is `linux/amd64`
+  only, and none of the fixes listed under *Unreleased* in
+  [`CHANGELOG.md`](CHANGELOG.md) are in it. ARM users should build
+  locally until the next tagged release.
 - Several known follow-ups remain (duplicate-book-record dedupe,
   broader indexer coverage). Track progress in
   [`MASTER-PLAN.md`](MASTER-PLAN.md).
