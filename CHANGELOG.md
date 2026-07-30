@@ -7,7 +7,29 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
+### Added
+
+- **Per-format quality profiles.** An author can now carry a second,
+  optional quality profile that applies only to audiobooks
+  (`Author.AudiobookQualityProfileId`, migration 046, settable on the
+  author edit form and in the bulk editor). Leave it unset — 0, the
+  default for every existing row, so the migration needs no backfill —
+  and nothing changes: audiobooks are ranked by the same profile as
+  everything else. Set it and audiobook releases get their own ranking
+  and their own cutoff, which is what makes it possible to want both an
+  EPUB and an M4B of the same book instead of having them compete for
+  one slot. See `docs/ebooks-and-audiobooks.md`.
+
 ### Fixed
+
+- **Importing an audiobook could delete the ebook you already had.**
+  `UpgradeMediaFileService.UpgradeBookFile` walked *every* existing file
+  for a book, recycle-binned each one and deleted its row — so an
+  incoming M4B did not merely outrank an EPUB, it destroyed it. Existing
+  files are now filtered to the format of the incoming release before
+  anything is replaced, in the upgrade path and in every cutoff, upgrade,
+  queue, history and pending decision that walks the same list. This
+  applies whether or not an author has a second quality profile set.
 
 - **The Playwright smoke suite had never actually been run, and did not
   pass when it was.** Three separate faults, all only findable by running

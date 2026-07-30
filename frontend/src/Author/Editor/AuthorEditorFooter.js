@@ -35,6 +35,7 @@ class AuthorEditorFooter extends Component {
       monitored: NO_CHANGE,
       monitorNewItems: NO_CHANGE,
       qualityProfileId: NO_CHANGE,
+      audiobookQualityProfileId: NO_CHANGE,
       metadataProfileId: NO_CHANGE,
       rootFolderPath: NO_CHANGE,
       savingTags: false,
@@ -163,6 +164,7 @@ class AuthorEditorFooter extends Component {
       monitored,
       monitorNewItems,
       qualityProfileId,
+      audiobookQualityProfileId,
       metadataProfileId,
       rootFolderPath,
       savingTags,
@@ -222,6 +224,23 @@ class AuthorEditorFooter extends Component {
                 name="qualityProfileId"
                 value={qualityProfileId}
                 includeNoChange={true}
+                isDisabled={!selectedCount}
+                onChange={this.onInputChange}
+              />
+            </div>
+
+            <div className={styles.inputContainer}>
+              <AuthorEditorFooterLabel
+                label={translate('AudiobookQualityProfile')}
+                isSaving={isSaving && audiobookQualityProfileId !== NO_CHANGE}
+              />
+
+              <QualityProfileSelectInputConnector
+                name="audiobookQualityProfileId"
+                value={audiobookQualityProfileId}
+                includeNoChange={true}
+                includeNone={true}
+                noneLabel={translate('AudiobookQualityProfileNone')}
                 isDisabled={!selectedCount}
                 onChange={this.onInputChange}
               />

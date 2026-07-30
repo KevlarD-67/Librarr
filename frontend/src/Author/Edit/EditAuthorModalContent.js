@@ -76,6 +76,7 @@ class EditAuthorModalContent extends Component {
       monitored,
       monitorNewItems,
       qualityProfileId,
+      audiobookQualityProfileId,
       metadataProfileId,
       path,
       tags
@@ -137,6 +138,22 @@ class EditAuthorModalContent extends Component {
                 type={inputTypes.QUALITY_PROFILE_SELECT}
                 name="qualityProfileId"
                 {...qualityProfileId}
+                onChange={onInputChange}
+              />
+            </FormGroup>
+
+            <FormGroup>
+              <FormLabel>
+                {translate('AudiobookQualityProfile')}
+              </FormLabel>
+
+              <FormInputGroup
+                type={inputTypes.QUALITY_PROFILE_SELECT}
+                name="audiobookQualityProfileId"
+                helpText={translate('AudiobookQualityProfileHelpText')}
+                includeNone={true}
+                noneLabel={translate('AudiobookQualityProfileNone')}
+                {...audiobookQualityProfileId}
                 onChange={onInputChange}
               />
             </FormGroup>
