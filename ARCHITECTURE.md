@@ -4,8 +4,9 @@
 > open challenges. Static analysis only — no runtime/operational notes.
 > File-and-line citations are accurate against the tree at the time of writing.
 >
-> **Snapshot:** describes Librarr at the `1.0.0-beta` release (`main`,
-> 2026-05-19). Inherits its codebase from upstream `Readarr/Readarr` at
+> **Snapshot:** describes Librarr at the `1.1.0-beta` release (`main`,
+> 2026-07-30). Version-, count- and pin-bearing lines were re-verified
+> against the tree on 2026-07-30; treat anything older as suspect. Inherits its codebase from upstream `Readarr/Readarr` at
 > `develop` HEAD `0b79d300` ("Retirement announcement", 2025-06-27); last
 > upstream tagged release was `v0.4.18.2805` (commit `7cc02f95`,
 > 2025-06-10). The upstream repository is archived on GitHub.
@@ -169,7 +170,7 @@ all of Open Library to that author's bibliography.
 
 ### CI / packaging
 
-- `azure-pipelines.yml:22` — `majorVersion: '1.0.0-beta'`.
+- `azure-pipelines.yml:22` — `majorVersion: '1.1.0-beta'`.
 - `distribution/docker/Dockerfile` — self-contained multi-stage build
   (Phase 9b). Compiles backend + frontend inside the image, runs on
   `aspnet:6.0-alpine`. Build command + run shape documented in
@@ -230,7 +231,7 @@ The architecture is **forked from Sonarr** and shows it in two visible ways:
 
    The ruleset was forked from Radarr without retitling.
 
-The product currently versions itself at `1.0.0-beta`
+The product currently versions itself at `1.1.0-beta`
 (`azure-pipelines.yml:22`). The `AssemblyVersion 10.0.0.*` in
 `Directory.Build.props:77` is the historical Readarr placeholder the CI
 overwrites at build time — not the shipping version, and not bumped
@@ -524,7 +525,8 @@ Instead, `NzbDrone.Core/Datastore/` is a hand-rolled mini-ORM on top of
   - `Servarr.FluentMigrator.Runner` 3.3.2.9
     (`Directory.Packages.props:12-14`).
   - Migration classes live in `Datastore/Migration/0xx_*.cs`, numbered.
-  - There are 41 migrations as of writing — a working schema-evolution
+  - There are 47 migrations as of 2026-07-30 (latest
+    `046_author_audiobook_quality_profile`) — a working schema-evolution
     discipline.
 - SQLite uses a forked `System.Data.SQLite.Core.Servarr` build
   (`Directory.Packages.props:52`) — necessary because the official
@@ -640,7 +642,7 @@ NLog 5.1.4 (`Directory.Packages.props:34`). Targets:
 - Console / file (rotated).
 - `DatabaseTarget` — writes structured log rows to the database for the Logs
   page in the UI.
-- Sentry sink (Sentry 3.31.0).
+- Sentry sink (Sentry 4.0.2).
 - Syslog target (`NLog.Targets.Syslog 7.0.0`).
 
 `ReconfigureLogging` allows the UI to change log level at runtime (in
@@ -683,16 +685,29 @@ configured via `src/coverlet.runsettings`. Postgres-mode runs use
 
 ### 5.1 Tech stack
 
-A **React 17 + Redux 4 SPA**, JavaScript-first with an in-flight TypeScript
-migration. All metadata is in the **root** `package.json` (no nested
-`frontend/package.json` exists). Key pins from `package.json:27-88`:
+A **React 18 + Redux 4 SPA**, JavaScript-first with a barely-started
+TypeScript migration. All metadata is in the **root** `package.json` (no
+nested `frontend/package.json` exists). Versions verified against
+`package.json` on 2026-07-30:
 
 | Concern      | Package & version                                                            |
 |--------------|------------------------------------------------------------------------------|
-| Framework    | `react 17.0.2`, `react-dom 17.0.2`                                           |
+| Framework    | `react 18.3.1`, `react-dom 18.3.1` — mounted with `createRoot` (`frontend/src/bootstrap.tsx:3,18`), not legacy `ReactDOM.render` |
 | Router       | `react-router 5.2.0`, `react-router-dom 5.2.0`, `history 4.10.1`             |
-| Redux        | `redux 4.1.0`, `react-redux 7.2.4`, `redux-actions 2.6.5`, `redux-thunk 2.3.0`, `redux-batched-actions 0.5.0`, `redux-localstorage 0.4.1`, `reselect 4.1.8`, `connected-react-router 6.9.3` |
-| HTTP         | `jquery 3.7.0` (only inside `Utilities/createAjaxRequest.js`)                |
+| Redux        | `redux 4.2.1`, `react-redux 7.2.4`, `redux-actions 2.6.5`, `redux-thunk 2.4.2`, `redux-batched-actions 0.5.0`, `redux-localstorage 0.4.1`, `reselect 4.1.8`, `connected-react-router 6.9.3` |
+| HTTP         | `jquery 3.7.1` (only inside `Utilities/createAjaxRequest.js`)                |
+
+Two caveats that are easy to get wrong:
+
+- **React 18 is real, but the ecosystem around it is not caught up.**
+  `react-redux` is still 7.2.4, which predates React 18 and does not use
+  `useSyncExternalStore`. Combined with legacy `createStore` and
+  `connected-react-router` 6.x, the app is on React 18 without any of the
+  concurrent features. Upgrading React was the easy half.
+- **The TypeScript migration is ~6% done, not ~29%.** Any count of `.ts`
+  files that does not exclude `*.css.d.ts` is wrong by an order of
+  magnitude: there are 353 generated CSS declaration files against just
+  32 hand-written `.ts` and 36 `.tsx`, versus 1004 `.js`.
 | Realtime     | `@microsoft/signalr 6.0.25`                                                  |
 | Types        | `typescript 5.1.6`, `prop-types 15.8.1` — coexist                            |
 | Icons        | `@fortawesome/*` (free)                                                      |
@@ -776,19 +791,24 @@ frontend/src/
   `Foo/FooConnector.js`.
 - **Class components dominate.** Most pages and complex components are class
   components with `constructor`/`componentDidMount`/`componentWillUnmount`.
-  Newer code uses hooks — there are ~151 hook callsites
+  Newer code uses hooks — there are 136 hook callsites across just 28 files
   (`useState`/`useEffect`/`useCallback`/`useMemo`/…) tree-wide, so adoption has
   started but is partial.
 - **PropTypes for `.js`, TS types for `.ts/.tsx`.** ESLint enforces
   `react/prop-types: 2` only on the JS side and turns it `off` on TS files
   (`frontend/.eslintrc.js:317,365`). Both worlds coexist by design while the
   migration is in progress.
-- **File extensions are a migration signal.** Counts of `frontend/src/**`:
-  - `.js`: ~985
+- **File extensions are a migration signal — but only if you exclude the
+  generated ones.** Counts of `frontend/src/**` on 2026-07-30:
+  - `.js`: 1004
   - `.jsx`: 0 (everyone uses `.js` with JSX inside)
-  - `.ts`: ~375
-  - `.tsx`: ~33
-  ~29% TS by file count.
+  - `.ts`: 32 hand-written, **plus 353 generated `*.css.d.ts`**
+  - `.tsx`: 36
+
+  **~6% TS by file count**, not the ~29% previously recorded here. The
+  old figure counted the CSS Modules declaration files — which are emitted
+  by the build, not written by anyone — as migrated TypeScript, making the
+  migration look five times further along than it is.
 
 ### 5.4 State management
 
@@ -892,7 +912,7 @@ Setup → Build_Backend (Linux | Mac | Windows matrix)
 
 Notable variables (`azure-pipelines.yml:6-23`):
 
-- `majorVersion: '1.0.0-beta'` — the *real* shipping version
+- `majorVersion: '1.1.0-beta'` — the *real* shipping version
   (`azure-pipelines.yml:22`).
 - `minorVersion: $[counter('minorVersion', 1)]` — auto-incremented.
 - `dotnetVersion: '6.0.427'` — .NET 6, not 8.
@@ -963,7 +983,7 @@ Package list (highlights from `Directory.Packages.props`):
 - Polly 8.3.1.
 - FluentValidation 9.5.4.
 - SixLabors.ImageSharp 3.1.4.
-- Sentry 3.31.0 (.NET) — older than the frontend's `@sentry/browser 7.51.2`.
+- Sentry 4.0.2 (.NET).
 - Selenium 3.141.0 + ChromeDriver 91.0.4472.10100 — several years old.
 
 ### 6.4 Packaging & distribution
@@ -1119,7 +1139,7 @@ Cited so future cleanup can be precise.
 - **JS ↔ TS coexist.** ~985 `.js` files vs ~375 `.ts` + 36 `.tsx`.
   PropTypes is enforced on the JS side (`eslintrc.js:317`) and turned off on
   the TS side (`eslintrc.js:365`). Some files mix both.
-- **Class ↔ hooks coexist.** ~151 hook callsites alongside a much larger
+- **Class ↔ hooks coexist.** 136 hook callsites across 28 files, alongside a much larger
   fleet of class components. `react-hooks` is fully linted, so new code is
   expected to use hooks.
 - **Two thunk patterns coexist.** `redux-thunk 2.3.0` is declared in

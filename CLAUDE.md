@@ -8,7 +8,7 @@ Project memory for Claude sessions working in this repo.
 continuation of the archived Readarr (Servarr-family sibling of Sonarr,
 Radarr, Lidarr). Forked from Readarr at upstream `develop` HEAD
 `0b79d300` ("Retirement announcement", 2025-06-27). Currently at
-**`1.0.0-beta`** — engineering gate cleared, see
+**`1.1.0-beta`** — engineering gate cleared, see
 [`CHANGELOG.md`](CHANGELOG.md). The previous upstream tagged release was
 `v0.4.18.2805` (commit `7cc02f95`, 2025-06-10).
 
@@ -63,23 +63,45 @@ dotnet test src/NzbDrone.Core.Test/ --filter "FullyQualifiedName~MyClassTests"
 CI uses the same scripts. **Note:** StyleCop only enabled on the Linux CI
 leg (`azure-pipelines.yml:79`); Mac/Windows skip it.
 
-## Stack (develop HEAD versions)
+## Stack (verified 2026-07-30 — re-check before trusting)
 
-- **Backend:** .NET 6 (`dotnetVersion: '6.0.427'`), ASP.NET Core, **DryIoc
-  5.4.3** DI (`src/NzbDrone.Host/Bootstrap.cs:9-10,90`), custom Dapper-based
-  ORM in `NzbDrone.Core/Datastore/`, Servarr-forked FluentMigrator
-  (41 migrations), dual **SQLite + PostgreSQL**, NLog logging. Sentry 3.31
-  for error reporting. Shipping version `1.0.0-beta`
-  (`azure-pipelines.yml:22`). `Directory.Build.props:77`
-  `AssemblyVersion 10.0.0.*` is the historical Readarr placeholder
-  the CI overwrites at build time; not the shipping version.
-- **Frontend:** React 17 + Redux 4 (**legacy `createStore`**, not RTK),
-  Webpack 5, CSS Modules via PostCSS, `@microsoft/signalr`. Partial
-  JS→TS migration (~985 `.js` / 375 `.ts` / 36 `.tsx` — ~29% TS).
-  ~151 hook callsites alongside dominant class-component style.
-- **Tests:** NUnit + Moq + FluentAssertions. Selenium 3.141 + ChromeDriver
-  91 in `NzbDrone.Automation.Test` (years out of date — treat that suite
-  as historical).
+Every figure below was counted, not remembered. The previous version of
+this section had drifted badly (see the TypeScript note), and a precise
+number that is wrong is worse than no number, because it gets trusted.
+
+- **Backend:** .NET 6 (`dotnetVersion: '6.0.427'`, `azure-pipelines.yml:28`),
+  ASP.NET Core, **DryIoc 5.4.3** DI (`src/NzbDrone.Host/Bootstrap.cs:9-10,90`),
+  custom Dapper-based ORM in `NzbDrone.Core/Datastore/`, Servarr-forked
+  FluentMigrator (`Servarr.FluentMigrator.Runner 3.3.2.9`; **47 migrations**,
+  latest `046_author_audiobook_quality_profile`), dual **SQLite +
+  PostgreSQL**, NLog logging, **Sentry 4.0.2**. Shipping version
+  `1.1.0-beta` (`azure-pipelines.yml:22`). `Directory.Build.props:77`
+  `AssemblyVersion 10.0.0.*` is the historical Readarr placeholder the CI
+  overwrites at build time; not the shipping version.
+
+  **.NET 6 has been out of support since 2024-11-12.** The move to
+  .NET 10 LTS is tracked work, not a someday — Sonarr's `v5-develop` is
+  already on `net10.0` and dropped the Servarr FluentMigrator fork for
+  upstream FluentMigrator 8.0.1, which is the reference path.
+- **Frontend:** **React 18.3.1** (real `createRoot` root API —
+  `frontend/src/bootstrap.tsx:3,18` — not legacy mode) + Redux 4.2.1 with
+  **legacy `createStore`**, not RTK. `react-redux` is still 7.2.4. Webpack 5,
+  CSS Modules via PostCSS, `@microsoft/signalr`.
+
+  **TypeScript migration is ~6% done, not ~29%.** The old figure counted
+  353 auto-generated `.css.d.ts` files as hand-written TypeScript. Actual
+  hand-written source: **1004 `.js` / 32 `.ts` / 36 `.tsx`**. Hooks appear
+  136 times across just 28 files; the codebase is still overwhelmingly
+  class components.
+- **Tests:** NUnit + Moq + FluentAssertions; **2764 passing** in
+  `NzbDrone.Core.Test`. Selenium + ChromeDriver in
+  `NzbDrone.Automation.Test` is years out of date — treat as historical;
+  `NzbDrone.Playwright.Test` is the live smoke suite
+  (opt in with `READARR_RUN_PLAYWRIGHT=1`). `NzbDrone.Integration.Test`
+  needs `READARR_RUN_INTEGRATION=1` and real network.
+
+  **There is no frontend test infrastructure at all** — no jest, vitest,
+  or testing-library, and no test file anywhere under `frontend/`.
 
 ## Conventions
 
