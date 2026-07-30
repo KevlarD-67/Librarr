@@ -140,12 +140,14 @@ deferred-modernization doc for the assessment per item.
   visual-regression coverage remain out of scope and still want the
   cassette work below.
 
-- [ ] **Unblock the Playwright suite** — it is written, compiles, and
-  cannot be executed. `Microsoft.Playwright` is pinned at 1.40.0 and
-  that release's Chromium build is no longer served by the CDN, so
-  the browser install hangs rather than failing. Needs a version bump,
-  which is complicated by a lib-vs-driver revision skew in the 1.5x
-  packages. Full detail, including the version table, is in
+- [x] **Playwright suite actually runs.** Eight tests green on the
+  pinned 1.40.0, four consecutive clean runs, ~3s. Getting there fixed
+  three things: `add_author_page` matched two elements on "Add New" and
+  had presumably never passed; `library_import_page` clicked a sidebar
+  child without expanding its section first; and the per-fixture browser
+  lifecycle raced with `NzbDroneRunner.KillAll()`, which kills every
+  Readarr by name — the browser and instance now live in `AssemblyGate`,
+  one per assembly. Notes in
   [`src/NzbDrone.Playwright.Test/README.md`](../src/NzbDrone.Playwright.Test/README.md).
 
 - [ ] **OL bulk-data dump fallback**. Fork position + trigger

@@ -57,38 +57,53 @@ Screenshots land in the working directory as
 `{test_name}_test_screenshot.png`. They're per-run artefacts —
 `.gitignore` excludes them from the repo.
 
-## Known blocker: the browser bundle can no longer be downloaded
+## First-run friction
 
-**As of 2026-07-30 this suite cannot actually be run**, on any machine,
-for a reason that has nothing to do with the tests. `Microsoft.Playwright`
-is pinned at **1.40.0** (November 2023), whose driver asks the CDN for
-`chromium-1091`. That build is no longer served — the request hangs
-indefinitely rather than 404ing, which is why the symptom looks like a
-slow download instead of a missing artifact.
+The suite runs green on the pinned `Microsoft.Playwright` **1.40.0**;
+verified 2026-07-30, eight tests, four consecutive clean runs.
 
-Bumping the pin is the fix, but it is not a one-line change, because
-the 1.5x packages ship a node driver newer than their own .NET pin:
+The one thing that will make you think it's broken: 1.40.0 asks the CDN
+for `chromium-1091`, a build from late 2023, and that download is
+*extremely* slow — tens of minutes, with no progress output for long
+stretches. It does complete. Don't interrupt it, and don't conclude the
+artifact is gone; a partially-downloaded browser directory looks like a
+present-but-broken install and produces
+`Executable doesn't exist at .../chromium-1091/...` on the next run.
+If that happens, delete the directory under `~/Library/Caches/ms-playwright`
+(macOS) or `~/.cache/ms-playwright` (Linux) and re-run the installer.
+
+If you do bump the pin, be aware the 1.5x packages ship a node driver
+one revision ahead of their own .NET assembly, so `install` and
+`dotnet test` disagree about which browser to use:
 
 | `Microsoft.Playwright` | .NET lib launches | bundled driver installs |
 |---|---|---|
 | 1.54.0 | `chromium_headless_shell-1181` | 1187 |
 | 1.55.0 | `chromium_headless_shell-1187` | 1194 |
 
-So `install` followed by `dotnet test` mismatches by one revision on
-both. Pairing lib 1.55.0 with the 1.54.0 driver lines both up on 1187 —
-but `chromium-headless-shell` specifically stalls on download where the
-full `chromium` build fetches in seconds, so that pairing is unverified.
-Whoever picks this up should try a current release (1.6x) first and
-confirm `PlaywrightTestBase` still compiles against it; the API surface
-this suite uses is small and stable.
+Check both before assuming a bump worked.
 
-`scripts/playwright-install.sh` has been fixed separately — it used to
-look under `src/NzbDrone.Playwright.Test/bin`, which this repo never
-writes to (`Directory.Build.props` redirects output to `_tests/`), and
-it required PowerShell to be installed. It now finds the CLI under
-`_tests/` and drives Playwright's own bundled Node directly. That fix is
-necessary but not sufficient: the script runs correctly and still cannot
-fetch 1.40.0's browsers.
+`scripts/playwright-install.sh` used to look under
+`src/NzbDrone.Playwright.Test/bin`, which this repo never writes to
+(`Directory.Build.props` redirects output to `_tests/`), and it required
+PowerShell. It now finds the CLI under `_tests/` and drives Playwright's
+own bundled Node directly.
+
+## One instance per assembly
+
+The browser and the Librarr process are owned by `AssemblyGate`, not by
+`PlaywrightTestBase`, and that is deliberate. `NzbDroneRunner.KillAll()`
+kills every Readarr process by name rather than only its own, and every
+fixture wants port 8787 — so with a per-fixture lifecycle, one fixture's
+teardown shot down another fixture's instance and the suite failed
+intermittently with `TargetClosedException` raised from `OneTimeSetUp`.
+Booting once per assembly removes the race by construction, and takes
+the suite from ~35s to ~3s.
+
+The consequence to keep in mind when adding tests: **every test shares
+one page and one database.** Tests must navigate to where they need to
+be rather than assuming a starting location, and must not depend on the
+library being empty.
 
 ## Why a separate project (not extending Automation.Test)
 

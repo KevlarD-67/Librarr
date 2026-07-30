@@ -7,7 +7,21 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **The Playwright smoke suite had never actually been run, and did not
+  pass when it was.** Three separate faults, all only findable by running
+  it: `add_author_page` matched two elements on `"Add New"` (the sidebar
+  link and the empty-index button) and failed strict mode; the new
+  `library_import_page` clicked a sidebar child link without expanding
+  its section first, so it waited forever on an element that is in the
+  DOM but not visible; and the per-fixture browser lifecycle raced with
+  `NzbDroneRunner.KillAll()`, which kills *every* Readarr process by name
+  rather than its own — one fixture's teardown shot down another's
+  instance, surfacing as an intermittent `TargetClosedException` out of
+  `OneTimeSetUp`. The browser and the Librarr instance now live in
+  `AssemblyGate`, one per assembly, which removes the race by
+  construction and takes the suite from ~35s to ~3s.
 
 ## [1.1.0-beta] — 2026-07-30
 

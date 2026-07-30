@@ -82,7 +82,10 @@ namespace NzbDrone.Playwright.Test
         {
             await _page.LibraryNavIcon.ClickAsync();
             await _page.WaitForNoSpinner();
-            await Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Add New" }).ClickAsync();
+
+            // Exact, or this also matches the "Add New Author" button that the
+            // empty author index renders — two elements, strict mode violation.
+            await Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Add New", Exact = true }).ClickAsync();
             await _page.WaitForNoSpinner();
 
             var imageName = MethodBase.GetCurrentMethod().Name;
@@ -99,6 +102,13 @@ namespace NzbDrone.Playwright.Test
         [Test]
         public async Task library_import_page()
         {
+            // The sidebar's child links are rendered into the DOM whether or
+            // not their section is expanded, but they're only *visible* once
+            // it is — so clicking one directly waits forever on actionability.
+            // Expand Library first, exactly as add_author_page does.
+            await _page.LibraryNavIcon.ClickAsync();
+            await _page.WaitForNoSpinner();
+
             await _page.LibraryImportNavIcon.ClickAsync();
             await _page.WaitForNoSpinner();
 
