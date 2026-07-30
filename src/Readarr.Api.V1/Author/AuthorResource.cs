@@ -26,6 +26,11 @@ namespace Readarr.Api.V1.Author
         public string TitleSlug { get; set; }
         public string Overview { get; set; }
         public string Disambiguation { get; set; }
+
+        // Search-result only; zero/null for anything loaded from the
+        // database. See AuthorMetadata for why these aren't persisted.
+        public int WorkCount { get; set; }
+        public string TopWork { get; set; }
         public List<Links> Links { get; set; }
 
         public Book NextBook { get; set; }
@@ -83,6 +88,8 @@ namespace Readarr.Api.V1.Author
                 Status = model.Metadata.Value.Status,
                 Overview = model.Metadata.Value.Overview,
                 Disambiguation = model.Metadata.Value.Disambiguation,
+                WorkCount = model.Metadata.Value.WorkCount,
+                TopWork = model.Metadata.Value.TopWork,
 
                 Images = model.Metadata.Value.Images.JsonClone(),
 

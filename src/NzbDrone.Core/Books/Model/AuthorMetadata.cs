@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Equ;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.Books
@@ -34,6 +35,27 @@ namespace NzbDrone.Core.Books
         public List<Links> Links { get; set; }
         public List<string> Genres { get; set; }
         public Ratings Ratings { get; set; }
+
+        // Search-result only, never persisted (TableMapping ignores both).
+        // OpenLibrary's /search/authors.json hands back a work count and a
+        // best-known title per record; they're the only thing that tells
+        // apart the several same-named records OL returns for most authors.
+        //
+        // Deliberately NOT folded into Disambiguation, which FileNameBuilder
+        // exposes as the `{Author Disambiguation}` token — a synthesized
+        // string there would leak into an author folder name.
+        //
+        // [MemberwiseEqualityIgnore] is load-bearing, the same way it is on
+        // Author.AddOptions. AuthorMetadataRepository.UpsertMany decides
+        // whether a row is dirty with `!meta.Equals(existing)`, and `existing`
+        // has been through the database — so a property that can never round
+        // trip would make every author fetched from search compare unequal to
+        // its own stored row, and be rewritten on every upsert forever.
+        [MemberwiseEqualityIgnore]
+        public int WorkCount { get; set; }
+
+        [MemberwiseEqualityIgnore]
+        public string TopWork { get; set; }
 
         public override string ToString()
         {

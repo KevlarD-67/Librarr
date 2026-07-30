@@ -222,18 +222,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     return new List<Author>();
                 }
 
-                var result = new List<Author>();
-                if (resp?.Resource?.Docs == null)
-                {
-                    return result;
-                }
-
-                foreach (var doc in resp.Resource.Docs)
-                {
-                    result.Add(OpenLibrarySearchMapper.ToAuthorSummary(doc));
-                }
-
-                return result;
+                return OpenLibrarySearchMapper.ReRankAndMapAuthors(resp?.Resource, title);
             });
         }
 
@@ -403,8 +392,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 if (!string.IsNullOrWhiteSpace(cleanName))
                 {
                     // First write wins for /search/authors.json hits — they
-                    // arrive in OL's own ranking order. We may overwrite
-                    // with a book-synthesized hit later.
+                    // arrive already re-ranked by SearchForNewAuthor, so the
+                    // first one under a given CleanName is the best-scoring
+                    // record rather than whichever OL happened to list first.
+                    // We may still overwrite with a book-synthesized hit later.
                     if (!authorByCleanName.ContainsKey(cleanName))
                     {
                         authorByCleanName[cleanName] = author;

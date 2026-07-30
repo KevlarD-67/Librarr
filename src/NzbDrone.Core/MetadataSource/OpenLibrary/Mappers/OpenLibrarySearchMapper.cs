@@ -26,6 +26,32 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             return ranked.Select(x => ToBook(x.Doc)).ToList();
         }
 
+        // OL's author relevance ranking is keyword-soup in the same way its
+        // book ranking is, and it degrades badly on the folder-name shapes
+        // the Library Import wizard feeds it. Verified against live OL:
+        // "Tolkien, J.R.R." — an ordinary Calibre folder convention — ranks
+        // a 1-work record titled "Wheeler, R.E.M. And Wheeler, T.V.
+        // (Tolkien, J..." above the real 355-work J.R.R. Tolkien. The wizard
+        // auto-selects the first result, so that ordering is what actually
+        // gets imported.
+        //
+        // Re-rank on name match first, with work count only as a bounded
+        // tiebreak — sorting on work count alone would bury a genuinely
+        // obscure author under a famous unrelated one. OrderByDescending is
+        // stable, so records that tie keep OL's own ordering.
+        public static List<Author> ReRankAndMapAuthors(OpenLibraryAuthorSearchResource resource, string query)
+        {
+            if (resource?.Docs == null || resource.Docs.Count == 0)
+            {
+                return new List<Author>();
+            }
+
+            return resource.Docs
+                .OrderByDescending(d => ScoreAuthor(d, query))
+                .Select(ToAuthorSummary)
+                .ToList();
+        }
+
         public static Author ToAuthorSummary(OpenLibraryAuthorSearchDoc doc)
         {
             var key = ExtractKey(doc.Key);
@@ -45,7 +71,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                     TitleSlug = key,
                     Name = doc.Name,
                     Born = OpenLibraryDateParser.Parse(doc.BirthDate),
-                    Images = OpenLibraryCoverUrls.ForAuthorByOlid(key)
+                    Images = OpenLibraryCoverUrls.ForAuthorByOlid(key),
+
+                    // Transient — see AuthorMetadata. A search for a
+                    // well-known author routinely returns several records
+                    // whose every mapped field is identical, and these two
+                    // are the only way to tell them apart: OL carries three
+                    // "Stephen King" records at 606, 48 and 7 works, the
+                    // last of which wrote Principles of Macroeconomics.
+                    WorkCount = doc.WorkCount,
+                    TopWork = doc.TopWork
                 },
                 CleanName = Parser.Parser.CleanAuthorName(doc.Name)
             };
@@ -168,6 +203,54 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             score += System.Math.Min(doc.EditionCount, 50);
 
             return score;
+        }
+
+        // Author-name variant of Score(). Deliberately a separate scorer:
+        // the book one is tuned against titles and drops tokens of two
+        // characters or fewer, which would throw away real surnames ("Ng",
+        // "Wu") and the "Le" of "Le Guin". Single characters stay dropped —
+        // matching on the "J" of "J.R.R." is pure noise.
+        private static int ScoreAuthor(OpenLibraryAuthorSearchDoc doc, string query)
+        {
+            var score = 0;
+
+            var queryTokens = AuthorTokens(query).ToList();
+
+            if (queryTokens.Any() && doc.Name.IsNotNullOrWhiteSpace())
+            {
+                score += queryTokens.Intersect(AuthorTokens(doc.Name)).Count() * 10;
+            }
+
+            // Exact hit on the primary name or on any alternate. OL lists
+            // "Sanderson, Brandon" as an alternate of "Brandon Sanderson",
+            // which is the shape a library folder tends to have.
+            if (MatchesExactly(doc.Name, query) ||
+                (doc.AlternateNames != null && doc.AlternateNames.Any(n => MatchesExactly(n, query))))
+            {
+                score += 50;
+            }
+
+            // Bounded, so it breaks ties between name-equivalent records
+            // without ever outweighing the name match itself. Same shape as
+            // the EditionCount tiebreak in Score() above.
+            score += System.Math.Min(doc.WorkCount, 50);
+
+            return score;
+        }
+
+        private static bool MatchesExactly(string candidate, string query)
+        {
+            return candidate.IsNotNullOrWhiteSpace() &&
+                   query.IsNotNullOrWhiteSpace() &&
+                   string.Equals(candidate.Trim(), query.Trim(), System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static IEnumerable<string> AuthorTokens(string s)
+        {
+            return (s ?? string.Empty)
+                .ToLowerInvariant()
+                .Split(new[] { ' ', '-', ':', ',', '.', '(', ')' }, System.StringSplitOptions.RemoveEmptyEntries)
+                .Where(t => t.Length > 1);
         }
 
         private static IEnumerable<string> Tokens(string s)
