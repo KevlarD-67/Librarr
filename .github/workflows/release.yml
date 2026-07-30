@@ -236,10 +236,33 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.variables.outputs.version }}"
+
+          # Mark anything that isn't a plain x.y.z as a prerelease, or GitHub
+          # serves a beta as "Latest" and every tool that reads
+          # /releases/latest picks it up as stable.
+          PRERELEASE=""
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            PRERELEASE="--prerelease"
+          fi
+
+          # Windows is deliberately absent from the asset set: the
+          # net6.0-windows TFM can only be published from a Windows runner,
+          # and build.sh skips the package rather than ship one missing
+          # Readarr.Windows.dll. Say so on the release page instead of
+          # leaving users to notice the gap themselves.
+          # Built with printf rather than a multi-line string literal: every
+          # line inside a `run: |` block must stay indented, and a bare line
+          # at column 0 silently ends the YAML block scalar.
+          printf '%s\n' \
+            'Verify downloads against `SHA256SUMS` before installing. Upgrading from Readarr: see `docs/migrating-from-readarr.md`.' \
+            '' \
+            '**No Windows build in this release.** The Windows package needs the `net6.0-windows` target framework, which only publishes from a Windows runner; CI is Linux-only, and `build.sh` skips the package rather than ship one that is missing `Readarr.Windows.dll`. Windows users should run the Docker image or build from source until a Windows leg is added to the release matrix.' \
+            > _release_notes.md
+
           gh release create "v${VERSION}" \
             --title "Librarr ${VERSION}" \
-            --notes "Auto-generated release. See docs/migrating-from-readarr.md for the upgrade walkthrough. Verify checksums against SHA256SUMS before installing." \
-            --draft \
+            --notes-file _release_notes.md \
+            --draft $PRERELEASE \
             _release/*.tar.gz _release/*.zip _release/SHA256SUMS
 
   docker-multiarch:
