@@ -84,7 +84,11 @@ namespace NzbDrone.Core.Housekeeping.Housekeepers
                     return false;
                 }
 
-                imageStream.Read(buffer, 0, buffer.Length);
+                // ReadExactly: a short Read would leave the tail of the buffer
+                // zeroed, and zeros never contain "html", so a bad cover would
+                // be judged valid. The length check above guarantees the bytes
+                // are there.
+                imageStream.ReadExactly(buffer, 0, buffer.Length);
             }
 
             var text = System.Text.Encoding.Default.GetString(buffer);

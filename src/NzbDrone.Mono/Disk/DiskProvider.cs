@@ -397,8 +397,18 @@ namespace NzbDrone.Mono.Disk
                             srcStream.Position = srcInfo.Length - checkLength;
                             dstStream.Position = dstInfo.Length - checkLength;
 
-                            srcStream.Read(srcData, 0, checkLength);
-                            dstStream.Read(dstData, 0, checkLength);
+                            // ReadExactly, not Read. This block decides whether
+                            // a copy completed by comparing the last checkLength
+                            // bytes of each file, and Read is free to return
+                            // fewer bytes than asked for. A short read leaves
+                            // the tail of both buffers zero-filled — and two
+                            // zero-filled tails compare equal, so a genuinely
+                            // incomplete copy could be judged identical and the
+                            // original UnauthorizedAccess error swallowed.
+                            // Both positions were just set to Length -
+                            // checkLength, so the bytes are guaranteed present.
+                            srcStream.ReadExactly(srcData, 0, checkLength);
+                            dstStream.ReadExactly(dstData, 0, checkLength);
                         }
 
                         for (var i = 0; i < checkLength; i++)

@@ -67,7 +67,14 @@ namespace NzbDrone.Common.Http
             _httpDispatcher = httpDispatcher;
             _logger = logger;
 
-            ServicePointManager.DefaultConnectionLimit = 12;
+            // ServicePointManager.DefaultConnectionLimit = 12 used to live here.
+            // It was already doing nothing: every request goes through
+            // ManagedHttpDispatcher, which builds a SocketsHttpHandler, and
+            // ServicePointManager settings have never applied to those. The
+            // limit it was trying to express is set for real — same value of
+            // 12 — at ManagedHttpDispatcher.CreateHttpClient
+            // (MaxConnectionsPerServer). .NET 10 obsoletes the API and the
+            // strict build turns that into an error, which is what surfaced it.
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
         }
 

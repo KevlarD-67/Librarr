@@ -282,6 +282,36 @@ namespace NzbDrone.Core.Datastore
             ParseEnumerableContains(expression);
         }
 
+        // Strip implicit conversion nodes (e.g. the array-to-ReadOnlySpan one
+        // the C# 13 MemoryExtensions.Contains overload introduces) so callers
+        // see the original collection expression.
+        private static Expression Unwrap(Expression expression)
+        {
+            while (true)
+            {
+                if (expression is UnaryExpression unary &&
+                    (unary.NodeType == ExpressionType.Convert || unary.NodeType == ExpressionType.ConvertChecked))
+                {
+                    expression = unary.Operand;
+                    continue;
+                }
+
+                // The array-to-ReadOnlySpan conversion is not a Convert node —
+                // it is a call to ReadOnlySpan<T>.op_Implicit, so it arrives as
+                // a MethodCallExpression and slips straight past the check
+                // above.
+                if (expression is MethodCallExpression call &&
+                    call.Method.Name == "op_Implicit" &&
+                    call.Arguments.Count == 1)
+                {
+                    expression = call.Arguments[0];
+                    continue;
+                }
+
+                return expression;
+            }
+        }
+
         private void ParseEnumerableContains(MethodCallExpression body)
         {
             // Fish out the list and the item to compare
@@ -296,14 +326,43 @@ namespace NzbDrone.Core.Datastore
             }
             else
             {
-                // Static method
-                // Must be Enumerable.Contains(source, item)
-                if (body.Method.DeclaringType != typeof(Enumerable) || body.Arguments.Count != 2)
+                // Static method. Two shapes reach here:
+                //
+                //   Enumerable.Contains(source, item)      — LINQ, any IEnumerable
+                //   MemoryExtensions.Contains(span, item)  — arrays, since C# 13
+                //
+                // The second one is new. C# 13's first-class span support gives
+                // the implicit array-to-ReadOnlySpan conversion priority in
+                // overload resolution, so `someArray.Contains(x)` inside a
+                // repository predicate silently stopped binding to Enumerable
+                // and started binding to MemoryExtensions. Rejecting it threw
+                // "Unexpected form of Enumerable.Contains" at query-build time
+                // for every array-based IN clause — caught by
+                // WhereBuilder{Sqlite,Postgres}Fixture.enum_in_array, which is
+                // the only reason this was found before it shipped.
+                var isLinq = body.Method.DeclaringType == typeof(Enumerable) && body.Arguments.Count == 2;
+
+                // MemoryExtensions.Contains comes in two shapes:
+                //   (span, value)
+                //   (span, value, comparer)
+                // The compiler picks either depending on the element type, and
+                // passes a null comparer to mean "default". A non-null comparer
+                // has no SQL equivalent, so only the null form is translatable.
+                var isSpan = body.Method.DeclaringType == typeof(MemoryExtensions) &&
+                             (body.Arguments.Count == 2 ||
+                              (body.Arguments.Count == 3 &&
+                               body.Arguments[2] is ConstantExpression { Value: null }));
+
+                if (!isLinq && !isSpan)
                 {
-                    throw new NotSupportedException("Unexpected form of Enumerable.Contains");
+                    throw new NotSupportedException(
+                        $"Unexpected form of Enumerable.Contains: declaringType={body.Method.DeclaringType?.FullName}, " +
+                        $"argCount={body.Arguments.Count}, argTypes={string.Join(", ", body.Arguments.Select(a => a.Type.Name))}");
                 }
 
-                list = body.Arguments[0];
+                // The span overload wraps the array in a conversion node; the
+                // rest of this method wants the underlying array expression.
+                list = Unwrap(body.Arguments[0]);
                 item = body.Arguments[1];
             }
 

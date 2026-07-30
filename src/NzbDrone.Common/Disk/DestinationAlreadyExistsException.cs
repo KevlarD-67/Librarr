@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Runtime.Serialization;
 
 namespace NzbDrone.Common.Disk
 {
@@ -25,9 +24,11 @@ namespace NzbDrone.Common.Disk
         {
         }
 
-        protected DestinationAlreadyExistsException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-        }
+        // The protected (SerializationInfo, StreamingContext) constructor was
+        // removed for .NET 10. It existed only so BinaryFormatter could
+        // round-trip this exception across an AppDomain boundary — a scenario
+        // that no longer exists, since BinaryFormatter itself has been removed
+        // from the runtime. Nothing in the codebase called it; only the
+        // formatter did, by reflection.
     }
 }
