@@ -40,7 +40,10 @@ priority; nothing here is a hard commitment.
   default `Dockerfile` is a 3-stage build (`sdk:6.0-alpine` →
   `node:20-alpine` → `aspnet:6.0-alpine` runtime). Compiles inside
   the image — no local toolchain needed. Runtime smoke (`docker build
-  && docker run`) still pending and called out in the file header.
+  && docker run`) has since been done, on x86_64 both locally and on a
+  real server. The `linux/arm64` and `linux/arm/v7` legs of the
+  multi-arch manifest are still cross-compiled-but-never-executed —
+  no ARM hardware has run this image.
 
 ## Soon (1.0.0 stable)
 
@@ -94,8 +97,19 @@ deferred per the v1.0.0 release checklist (`docs/release-checklist.md`),
 and none are safely-completable in an offline LLM session. See the
 deferred-modernization doc for the assessment per item.
 
-- [ ] **.NET 8 LTS upgrade**. Blocked on Servarr-forked NuGet packages
-  (no `net8.0` builds exist for them yet).
+- [ ] **.NET 8 LTS upgrade**. The reason recorded here previously — that
+  the Servarr-forked NuGet packages have no `net8.0` build — is wrong.
+  `Servarr.FluentMigrator.Runner{,.SQLite,.Postgres}` and
+  `System.Data.SQLite.Core.Servarr` all ship `netstandard2.0`
+  alongside `net461`, and `netstandard2.0` is consumable from `net8.0`
+  unchanged; no framework-specific build is needed. The actual cost is
+  `TreatWarningsAsErrors` + `EnforceCodeStyleInBuild` meeting three
+  framework versions' worth of new and changed analyzers at once,
+  across a codebase that currently builds clean only because it is
+  pinned to the analyzers that shipped with .NET 6. That is a triage
+  job, not a `TargetFramework` edit. Worth doing — .NET 6 went out of
+  support in November 2024 — but it wants its own branch and its own
+  session.
 
 - [ ] **Nullable enable**. Several-thousand-error build without
   per-file human triage; not a single-session task.
@@ -111,8 +125,23 @@ deferred-modernization doc for the assessment per item.
   with breaking API changes. Not blocking; surface for a future
   visual-regression pass once Playwright has interaction coverage.
 
-- [ ] **Selenium → Playwright**. Quarantined since Phase 1; port
-  after the cassette work below so a regression suite exists at all.
+- [x] **Selenium → Playwright**. Landed as
+  `src/NzbDrone.Playwright.Test/`. Seven page-load smokes (the six
+  ported from the Selenium suite, plus Library Import), each asserting
+  a page-specific DOM anchor, with the base class failing any test
+  that leaves an error in the UI's `#errors` panel. Opt-in behind
+  `READARR_RUN_PLAYWRIGHT=1` because it needs a built backend, a built
+  frontend, and a ~250 MB browser bundle on disk. Interaction and
+  visual-regression coverage remain out of scope and still want the
+  cassette work below.
+
+- [ ] **Unblock the Playwright suite** — it is written, compiles, and
+  cannot be executed. `Microsoft.Playwright` is pinned at 1.40.0 and
+  that release's Chromium build is no longer served by the CDN, so
+  the browser install hangs rather than failing. Needs a version bump,
+  which is complicated by a lib-vs-driver revision skew in the 1.5x
+  packages. Full detail, including the version table, is in
+  [`src/NzbDrone.Playwright.Test/README.md`](../src/NzbDrone.Playwright.Test/README.md).
 
 - [ ] **OL bulk-data dump fallback**. Fork position + trigger
   conditions to revisit are in [`docs/ol-bulk-data.md`](ol-bulk-data.md).

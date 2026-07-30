@@ -35,6 +35,34 @@ these fixes reach installed instances until the next tagged release.
 
 ### Fixed
 
+- **Author search returned OpenLibrary's ranking unchanged, which is wrong
+  for folder names.** `/author/lookup` passed OL's `/search/authors.json`
+  order straight through, and the Library Import wizard auto-selects the
+  first result — so whatever OL ranked first is what got imported. Searching
+  `Tolkien, J.R.R.` (an ordinary Calibre folder convention) put a 1-work
+  archaeology report ahead of the real 355-work J.R.R. Tolkien, purely
+  because the report's title contains `(Tolkien, J`. Results are now
+  re-ranked on name match, with OL's work count as a bounded tiebreak so a
+  prolific unrelated author can never displace an exact match. Nothing is
+  filtered out — a stub record is demoted, never hidden, because OL's index
+  lags and a genuinely new author can legitimately report zero works.
+  *(`OpenLibrarySearchMapper.ReRankAndMapAuthors`.)*
+- **Same-named authors were impossible to tell apart.** OL routinely returns
+  several records per author that are identical in every field Librarr
+  mapped — three "Stephen King" records at 606, 48 and 7 works, the last of
+  whom wrote *Principles of Macroeconomics*. The work count and best-known
+  title were already in OL's response and already parsed; they were simply
+  discarded by the mapper. They now reach the UI, so the wizard's dropdown
+  reads `Stephen King — 606 work(s), Carrie` instead of three identical
+  rows. Carried as transient fields — never persisted, and excluded from
+  entity equality so they can't make an author look permanently dirty to
+  `AuthorMetadataRepository.UpsertMany`.
+- **`scripts/playwright-install.sh` could never work in this repo.** It
+  looked for the Playwright CLI under `src/NzbDrone.Playwright.Test/bin`,
+  which nothing writes to — `Directory.Build.props` redirects all test
+  output to `_tests/` — and it shelled out to `pwsh`, requiring PowerShell
+  on a Linux or macOS dev box. It now locates the CLI under `_tests/` and
+  drives Playwright's own bundled Node directly.
 - **Interactive search returned HTTP 500 for any book with no monitored
   edition.** `ReleaseSearchService` used `SingleOrDefault` on the
   monitored-edition set, which throws on both zero matches and more than
@@ -73,6 +101,15 @@ these fixes reach installed instances until the next tagged release.
 - `distribution/docker/README.md` — corrected the claim that images are
   not published anywhere, and documented the versioning and toolchain
   caveats of `Dockerfile.prebuilt`.
+- `docs/roadmap.md` — two entries were recording things that aren't true.
+  The .NET 8 upgrade was listed as blocked on the Servarr-forked NuGet
+  packages having no `net8.0` build; they all ship `netstandard2.0`, which
+  `net8.0` consumes unchanged. The real cost is triaging three frameworks'
+  worth of analyzer changes under `TreatWarningsAsErrors`. Selenium →
+  Playwright was listed as quarantined, but the suite has shipped.
+- `src/NzbDrone.Playwright.Test/README.md` — documented why the suite
+  cannot currently be executed (the pinned 1.40.0 browser build is no
+  longer served) and what a version bump has to contend with.
 
 ## [1.0.0-beta] — 2026-05-19
 
