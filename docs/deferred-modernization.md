@@ -164,7 +164,7 @@ first, and `react-dnd@14`, `react-virtualized@9`, `react-popper@1` and
 `react-redux@7.2.4` are all still on their pre-18 pins. They are
 follow-up work, not a precondition.
 
-## .NET 8 LTS + Nullable enable — RE-TARGETED to .NET 10 (2026-07-30)
+## .NET 10 LTS — DONE (2026-07-30) + Nullable enable (still deferred)
 
 **The target was wrong and the blocker was overstated. Both corrected
 below.**
@@ -194,7 +194,42 @@ So: the FluentMigrator fork is *dropped* for upstream, the SQLite fork is
 Mono.Posix's fork was updated rather than abandoned. Nothing here fails
 at restore for want of a successor.
 
-### Where the real work is
+### What it actually cost, once done
+
+**The SQLite provider swap was not needed.** `System.Data.SQLite.Core.Servarr
+1.0.115.5-18` restores and runs fine on .NET 10, as do
+`Servarr.FluentMigrator.Runner 3.3.2.9`, `TagLibSharp-Lidarr 2.2.0.19` and
+`Mono.Posix.NETStandard ...-servarr22`. All 47 migrations apply to a fresh
+database and an existing one upgrades in place. The prediction below was
+wrong in a useful direction — it named the hardest-looking thing, and that
+thing turned out to be a non-issue.
+
+The compile-time triage was ~11 unique issues, not thousands: obsolete
+`ServicePointManager` (already a no-op), four formatter-based serialization
+constructors, three `X509Certificate2` loads, `ForwardedHeadersOptions.KnownNetworks`,
+`ISystemClock` on three auth handlers, two `IHeaderDictionary.Add` calls,
+and three `CA2022` inexact reads — of which the `DiskProvider` copy-verification
+one was a real latent bug.
+
+**The expensive part was nothing anyone predicted:** ASP.NET Core 10 stopped
+inferring `[FromBody]` for complex parameters on controllers that opt in via
+`IApiBehaviorMetadata`. Every write endpoint silently bound an all-default
+model and failed validation — the app could read but not write. 39 actions
+needed explicit `[FromBody]`/`[FromQuery]`. Only a running instance caught
+it; the 2764 unit tests were all green at the time.
+
+Two further breakages only a test run would find:
+
+* `WhereBuilder{Sqlite,Postgres}` rejected `array.Contains(x)` because C# 13
+  binds it to `MemoryExtensions` (first-class spans) instead of `Enumerable`,
+  in two overload shapes, wrapped in an `op_Implicit` call rather than a
+  `Convert` node.
+* `TimeSpan.FromSeconds` gained a `long` overload that throws
+  `ArgumentOutOfRangeException` where the `double` one throws
+  `OverflowException`, silently disabling a fallback in the Transmission
+  client.
+
+### Original prediction, kept for the record
 
 Not the TFM bump — the **SQLite provider swap**.
 `System.Data.SQLite` is referenced across 22 files, and the coupling is

@@ -78,7 +78,15 @@ namespace NzbDrone.Core.Download.Clients.Transmission
                 {
                     try
                     {
-                        item.RemainingTime = TimeSpan.FromSeconds(torrent.Eta);
+                        // The (double) cast is load-bearing. .NET 10 added a
+                        // TimeSpan.FromSeconds(long) overload, and torrent.Eta
+                        // is a long, so it now wins overload resolution — but
+                        // it throws ArgumentOutOfRangeException where the double
+                        // overload throws OverflowException. That silently
+                        // stopped the catch below from matching, so the
+                        // millisecond fallback never ran and an out-of-range ETA
+                        // propagated as an unhandled exception instead.
+                        item.RemainingTime = TimeSpan.FromSeconds((double)torrent.Eta);
                     }
                     catch (OverflowException)
                     {

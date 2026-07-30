@@ -73,7 +73,12 @@ namespace Readarr.Api.V1.Config
             X509Certificate2 cert;
             try
             {
-                cert = new X509Certificate2(resource.SslCertPath, resource.SslCertPassword, X509KeyStorageFlags.DefaultKeySet);
+                // X509CertificateLoader replaces the obsolete constructor in
+                // .NET 10. LoadPkcs12FromFile is the direct equivalent for a
+                // password-protected PFX, which is what the SSL cert setting
+                // has always expected; unlike the old constructor it will not
+                // silently guess at other formats.
+                cert = X509CertificateLoader.LoadPkcs12FromFile(resource.SslCertPath, resource.SslCertPassword, X509KeyStorageFlags.DefaultKeySet);
             }
             catch
             {
@@ -121,7 +126,7 @@ namespace Readarr.Api.V1.Config
         }
 
         [RestPutById]
-        public ActionResult<HostConfigResource> SaveHostConfig(HostConfigResource resource)
+        public ActionResult<HostConfigResource> SaveHostConfig([FromBody] HostConfigResource resource)
         {
             var dictionary = resource.GetType()
                                      .GetProperties(BindingFlags.Instance | BindingFlags.Public)

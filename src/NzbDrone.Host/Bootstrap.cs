@@ -269,7 +269,11 @@ namespace NzbDrone.Host
 
             try
             {
-                certificate = new X509Certificate2(cert, password, X509KeyStorageFlags.DefaultKeySet);
+                // X509CertificateLoader replaces the obsolete constructor in
+                // .NET 10. It still throws CryptographicException for the two
+                // HResults handled below (file-not-found and bad password),
+                // so the error mapping underneath is unaffected.
+                certificate = X509CertificateLoader.LoadPkcs12FromFile(cert, password, X509KeyStorageFlags.DefaultKeySet);
             }
             catch (CryptographicException ex)
             {

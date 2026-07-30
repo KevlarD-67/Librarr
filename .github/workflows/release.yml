@@ -36,7 +36,7 @@ on:
         required: true
 
 env:
-  DOTNET_VERSION: '6.0.x'
+  DOTNET_VERSION: '10.0.x'
   NODE_VERSION: '20.x'
 
 permissions:
@@ -169,7 +169,7 @@ jobs:
         # the UI before tarballing.
         shell: bash
         run: |
-          for rid_dir in _artifacts/*/net6.0/Readarr; do
+          for rid_dir in _artifacts/*/net10.0/Readarr; do
             [ -d "$rid_dir" ] || continue
             mkdir -p "$rid_dir/UI"
             cp -r _output/UI/* "$rid_dir/UI/"
@@ -186,9 +186,9 @@ jobs:
           for rid in linux-x64 linux-musl-x64 linux-arm linux-musl-arm \
                      linux-arm64 linux-musl-arm64 linux-x86 \
                      osx-x64 osx-arm64 freebsd-x64; do
-            src="_artifacts/${rid}/net6.0/Readarr"
+            src="_artifacts/${rid}/net10.0/Readarr"
             if [ -d "$src" ]; then
-              tar -C "_artifacts/${rid}/net6.0" -czf "_release/Librarr.${VERSION}.${rid}.tar.gz" Readarr
+              tar -C "_artifacts/${rid}/net10.0" -czf "_release/Librarr.${VERSION}.${rid}.tar.gz" Readarr
               echo "  packaged ${rid}"
             else
               echo "  WARN: missing ${src}, skipping ${rid}"
@@ -197,9 +197,9 @@ jobs:
 
           # zip targets — Windows.
           for rid in win-x64 win-x86; do
-            src="_artifacts/${rid}/net6.0/Readarr"
+            src="_artifacts/${rid}/net10.0/Readarr"
             if [ -d "$src" ]; then
-              (cd "_artifacts/${rid}/net6.0" && zip -qr "$GITHUB_WORKSPACE/_release/Librarr.${VERSION}.${rid}.zip" Readarr)
+              (cd "_artifacts/${rid}/net10.0" && zip -qr "$GITHUB_WORKSPACE/_release/Librarr.${VERSION}.${rid}.zip" Readarr)
               echo "  packaged ${rid}"
             else
               echo "  WARN: missing ${src}, skipping ${rid}"
@@ -208,7 +208,7 @@ jobs:
 
           # macOS .app bundle variants (zip — preserves the bundle dir).
           for rid in osx-x64-app osx-arm64-app; do
-            src="_artifacts/${rid}/net6.0"
+            src="_artifacts/${rid}/net10.0"
             if [ -d "$src" ]; then
               (cd "$src" && zip -qr "$GITHUB_WORKSPACE/_release/Librarr.${VERSION}.${rid}.zip" Readarr.app)
               echo "  packaged ${rid}"
@@ -246,7 +246,7 @@ jobs:
           fi
 
           # Windows is deliberately absent from the asset set: the
-          # net6.0-windows TFM can only be published from a Windows runner,
+          # net10.0-windows TFM can only be published from a Windows runner,
           # and build.sh skips the package rather than ship one missing
           # Readarr.Windows.dll. Say so on the release page instead of
           # leaving users to notice the gap themselves.
@@ -256,7 +256,7 @@ jobs:
           printf '%s\n' \
             'Verify downloads against `SHA256SUMS` before installing. Upgrading from Readarr: see `docs/migrating-from-readarr.md`.' \
             '' \
-            '**No Windows build in this release.** The Windows package needs the `net6.0-windows` target framework, which only publishes from a Windows runner; CI is Linux-only, and `build.sh` skips the package rather than ship one that is missing `Readarr.Windows.dll`. Windows users should run the Docker image or build from source until a Windows leg is added to the release matrix.' \
+            '**No Windows build in this release.** The Windows package needs the `net10.0-windows` target framework, which only publishes from a Windows runner; CI is Linux-only, and `build.sh` skips the package rather than ship one that is missing `Readarr.Windows.dll`. Windows users should run the Docker image or build from source until a Windows leg is added to the release matrix.' \
             > _release_notes.md
 
           gh release create "v${VERSION}" \

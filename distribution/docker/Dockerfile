@@ -10,7 +10,7 @@
 # Stages:
 #   1. backend-build  → dotnet publish for the target arch's musl RID
 #   2. frontend-build → yarn install + yarn build → _output/UI
-#   3. runtime        → aspnet:6.0-alpine, copies from 1 + 2
+#   3. runtime        → aspnet:10.0-alpine, copies from 1 + 2
 #
 # Multi-arch: supports linux/amd64, linux/arm64 and linux/arm/v7. Both
 # build stages are pinned to $BUILDPLATFORM and CROSS-compile — .NET
@@ -35,7 +35,7 @@
 # ────────────────────────────────────────────────────────────────────
 # Stage 1 — backend build
 # ────────────────────────────────────────────────────────────────────
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS backend-build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS backend-build
 
 ARG LIBRARR_VERSION=1.0.0-beta.0
 
@@ -111,7 +111,7 @@ COPY src/ ./src/
 RUN dotnet restore src/Readarr.sln -p:Configuration=Release -p:Platform=Posix -r "$(cat /rid)"
 RUN dotnet publish src/NzbDrone.Console/Readarr.Console.csproj \
         -c Release \
-        -f net6.0 \
+        -f net10.0 \
         -r "$(cat /rid)" \
         --no-restore \
         --self-contained false \
@@ -128,7 +128,7 @@ RUN dotnet publish src/NzbDrone.Console/Readarr.Console.csproj \
 # publish loop in build.sh's PublishAllRids target.
 RUN dotnet publish src/NzbDrone.Mono/Readarr.Mono.csproj \
         -c Release \
-        -f net6.0 \
+        -f net10.0 \
         -r "$(cat /rid)" \
         --no-restore \
         --self-contained false \
@@ -164,7 +164,7 @@ RUN yarn run build --env production
 # ────────────────────────────────────────────────────────────────────
 # Stage 3 — runtime image
 # ────────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:6.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 LABEL org.opencontainers.image.title="Librarr" \
       org.opencontainers.image.description="Librarr — OpenLibrary continuation of the archived Readarr ebook manager" \
