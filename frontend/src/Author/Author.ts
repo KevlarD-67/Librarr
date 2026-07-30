@@ -9,6 +9,10 @@ interface Author extends ModelBase {
   overview: string;
   path: string;
   qualityProfileId: number;
+
+  // 0 means this author has no separate audiobook profile; audiobooks are
+  // ranked by qualityProfileId like everything else.
+  audiobookQualityProfileId: number;
   metadataProfileId: number;
   rootFolderPath: string;
   sortName: string;

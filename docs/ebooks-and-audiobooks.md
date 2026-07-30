@@ -138,8 +138,8 @@ so they want to land as one reviewed branch, not trickled onto `main`.
 
 ### What implementing it changed (2026-07-30)
 
-Steps 1-4 are done. Step 5 is not. Two things the plan above got wrong, both
-found by reading the code rather than by testing:
+All five steps are done. Three things the plan above got wrong — the first two
+found by reading the code, the third only by opening a browser:
 
 **Resolving a different profile is only half of it.** Point 4 above assumed
 cutoff and upgrade "fall out of step 3". They do not. Every one of those
@@ -165,3 +165,23 @@ decision specifications where a throw doesn't reject one release, it takes
 down the decision for the whole batch — so an unknown or missing quality
 resolves to the ebook profile, reproducing the old single-profile behaviour
 rather than failing.
+
+**The UI's hazard is "unset" being falsy.** Step 5 was written up as "an
+optional second picker", as though it were only markup.
+`QualityProfileSelectInputConnector.componentDidMount` force-selects the first
+profile whenever `!value` — and 0, our "no separate profile" sentinel, is
+falsy. Today that happens to be harmless: `includeNone` unshifts the None
+option to the front of the list, so the "first numeric option" the fallback
+reaches for *is* None, and it re-selects 0. Verified in a browser, with the
+guard deliberately disabled, that a plain Save still persists 0. That is luck
+rather than design — push the None option to the end, the way
+`MetadataProfileSelectInputConnector` does, and merely opening an author's edit
+form would start silently converting single-format authors to dual-format. The
+explicit `value === 0` guard is there so the correctness doesn't depend on
+option ordering.
+
+Root-folder defaults were dropped from step 5 on purpose. The bulk editor
+covers the case that actually matters — assigning an audiobook profile across
+an existing library — for a nullable field on `AuthorEditorResource` and one
+`if`. A root-folder default only helps authors added *after* it is set, and
+costs a migration plus settings UI plus add-flow wiring. Filed separately.

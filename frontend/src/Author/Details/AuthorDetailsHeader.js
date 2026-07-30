@@ -66,6 +66,7 @@ class AuthorDetailsHeader extends Component {
       path,
       statistics,
       qualityProfileId,
+      audiobookQualityProfileId,
       monitored,
       status,
       overview,
@@ -221,6 +222,29 @@ class AuthorDetailsHeader extends Component {
                 </span>
               </Label>
 
+              {
+                // Only for authors that actually have one. Showing "None" on
+                // every single-format author would be noise on a page that is
+                // already dense with labels.
+                audiobookQualityProfileId > 0 &&
+                  <Label
+                    className={styles.detailsLabel}
+                    title={translate('AudiobookQualityProfile')}
+                    size={sizes.LARGE}
+                  >
+                    <Icon
+                      name={icons.PROFILE}
+                      size={17}
+                    />
+
+                    <span className={styles.qualityProfileName}>
+                      <QualityProfileName
+                        qualityProfileId={audiobookQualityProfileId}
+                      />
+                    </span>
+                  </Label>
+              }
+
               <Label
                 className={styles.detailsLabel}
                 size={sizes.LARGE}
@@ -324,6 +348,7 @@ AuthorDetailsHeader.propTypes = {
   path: PropTypes.string.isRequired,
   statistics: PropTypes.object.isRequired,
   qualityProfileId: PropTypes.number.isRequired,
+  audiobookQualityProfileId: PropTypes.number,
   monitored: PropTypes.bool.isRequired,
   status: PropTypes.string.isRequired,
   overview: PropTypes.string,

@@ -3,12 +3,20 @@ using NUnit.Framework;
 
 namespace NzbDrone.Integration.Test
 {
-    // Assembly-wide gate for the integration suite. Every fixture here boots
-    // a real Readarr instance and calls /author/lookup during setup, which
-    // hits api.bookinfo.club — retired upstream on 2025-06-27. Until the
-    // suite is repointed at OpenLibrary or stubbed against recorded
-    // cassettes, every test fails its setup. Run manually with
-    // READARR_RUN_INTEGRATION=1 against a populated metadata source.
+    // Assembly-wide gate for the integration suite. Every fixture here boots a
+    // real Readarr instance and calls /author/lookup during setup.
+    //
+    // That used to hit api.bookinfo.club, retired upstream on 2025-06-27, and
+    // this gate was written on the assumption that every test therefore failed
+    // its setup. That is no longer true: the OpenLibrary cutover landed, and
+    // AuthorEditorFixture has been confirmed passing against live OL. Several
+    // fixtures still carry a stale
+    // [Ignore("Waiting for metadata to be back again")] from that era — see
+    // AuthorFixture, AuthorLookupFixture, CalendarFixture, BlocklistFixture.
+    //
+    // The gate stays because the reason it is useful survives the fix: these
+    // tests need the network and a couple of minutes, so they should not run
+    // on a bare `dotnet test`. Opt in with READARR_RUN_INTEGRATION=1.
     [SetUpFixture]
     public class AssemblyGate
     {

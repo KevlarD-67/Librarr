@@ -44,6 +44,11 @@ namespace Readarr.Api.V1.Author
                     author.QualityProfileId = resource.QualityProfileId.Value;
                 }
 
+                if (resource.AudiobookQualityProfileId.HasValue)
+                {
+                    author.AudiobookQualityProfileId = resource.AudiobookQualityProfileId.Value;
+                }
+
                 if (resource.MetadataProfileId.HasValue)
                 {
                     author.MetadataProfileId = resource.MetadataProfileId.Value;
