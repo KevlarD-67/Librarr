@@ -62,7 +62,14 @@ namespace NzbDrone.Playwright.Test.PageModel
         // Navigation icons. Selenium used By.LinkText; Playwright's role
         // selector matches the same nav-link semantics across the React
         // sidebar.
-        public ILocator LibraryNavIcon => _page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Library" });
+        // Exact, unlike the others. Playwright's Name match is a
+        // case-insensitive substring by default, and the sidebar's Library
+        // section now has a "Library Import" child rendered into the DOM
+        // whether or not the section is expanded — so a loose "Library"
+        // matches two links and every Click on it fails strict mode.
+        public ILocator LibraryNavIcon => _page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Library", Exact = true });
+
+        public ILocator LibraryImportNavIcon => _page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Library Import", Exact = true });
 
         public ILocator CalendarNavIcon => _page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Calendar" });
 

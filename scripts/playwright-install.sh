@@ -27,24 +27,42 @@ esac
 echo "Restoring Playwright test project so the CLI is on disk..."
 dotnet restore "$project"
 
+# Build output does NOT land under the project's own bin/ — Directory.Build.props
+# redirects every test project to _tests/. Search there, and keep bin/ as a
+# fallback for anyone building with those props overridden.
+find_cli() {
+    find "$repo_root/_tests" "$repo_root/src/NzbDrone.Playwright.Test/bin" \
+         -path "*/.playwright/package/cli.js" -print -quit 2>/dev/null || true
+}
+
 echo "Locating the Playwright entry point..."
-playwright_dll=$(find "$repo_root/src/NzbDrone.Playwright.Test/bin" -name "playwright.ps1" -print -quit 2>/dev/null || true)
-if [[ -z "$playwright_dll" ]]; then
-    # The .ps1 wrapper isn't generated until at least one build runs.
-    echo "Triggering a build so Playwright drops its CLI wrapper..."
+playwright_cli=$(find_cli)
+if [[ -z "$playwright_cli" ]]; then
+    # The bundle isn't laid down until at least one build runs.
+    echo "Triggering a build so Playwright drops its CLI..."
     dotnet build "$project" -nologo --verbosity quiet
-    playwright_dll=$(find "$repo_root/src/NzbDrone.Playwright.Test/bin" -name "playwright.ps1" -print -quit 2>/dev/null || true)
+    playwright_cli=$(find_cli)
 fi
 
-if [[ -z "$playwright_dll" ]]; then
-    echo "error: playwright.ps1 still not found under bin/. Inspect the build output." >&2
+if [[ -z "$playwright_cli" ]]; then
+    echo "error: .playwright/package/cli.js not found under _tests/ or bin/. Inspect the build output." >&2
     exit 1
 fi
 
-playwright_dir=$(dirname "$playwright_dll")
+# Drive the Node CLI directly rather than the playwright.ps1 wrapper: that
+# wrapper needs PowerShell, which is not a reasonable thing to require on a
+# Linux or macOS dev box. Playwright ships its own Node alongside the CLI, so
+# prefer that and fall back to whatever node is on PATH.
+bundled_node=$(find "$(dirname "$playwright_cli")/../node" -maxdepth 2 -name node -type f -print -quit 2>/dev/null || true)
+node_bin="${bundled_node:-$(command -v node || true)}"
+
+if [[ -z "$node_bin" ]]; then
+    echo "error: no node binary found (neither bundled nor on PATH)." >&2
+    exit 1
+fi
 
 echo "Installing Chromium..."
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$playwright_dir/playwright.ps1" install chromium
+"$node_bin" "$playwright_cli" install chromium
 
 echo
 echo "Done. You can now run:"

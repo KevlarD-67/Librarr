@@ -90,5 +90,22 @@ namespace NzbDrone.Playwright.Test
 
             (await Page.Locator("input[class*='AddNewItem-searchInput']").CountAsync()).Should().BeGreaterThan(0);
         }
+
+        // The wizard's own smoke. Worth having beyond "does the route
+        // resolve": LibraryImportSelectFolder mounts EditRootFolderModalConnector
+        // eagerly, so a broken import or a Redux slice that isn't registered
+        // shows up here as a page error via the base class TearDown rather
+        // than as a blank panel nobody notices.
+        [Test]
+        public async Task library_import_page()
+        {
+            await _page.LibraryImportNavIcon.ClickAsync();
+            await _page.WaitForNoSpinner();
+
+            var imageName = MethodBase.GetCurrentMethod().Name;
+            await TakeScreenshot(imageName);
+
+            (await Page.Locator("div[class*='LibraryImportSelectFolder']").CountAsync()).Should().BeGreaterThan(0);
+        }
     }
 }
