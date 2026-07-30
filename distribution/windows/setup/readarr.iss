@@ -6,27 +6,61 @@
 #define AppURL "https://github.com/Rorqualx/Librarr"
 #define ForumsURL "https://github.com/Rorqualx/Librarr/discussions"
 #define AppExeName "Readarr.exe"
-#define BaseVersion GetEnv('MAJORVERSION')
-#define BuildNumber GetEnv('MINORVERSION')
+
+; Version handling, reworked for the GitHub Actions release pipeline.
+;
+; The old script read MAJORVERSION and MINORVERSION, which only ever
+; existed because Azure Pipelines exported its `majorVersion` /
+; `minorVersion` variables into the environment. Nothing in GitHub Actions
+; sets them, so both resolved to empty and `AppVersion=` alone is enough to
+; make ISCC bail out.
+;
+; The deeper problem is VersionInfoVersion: it has to be a numeric dotted
+; version, and the old script fed it `{BaseVersion}.{BuildNumber}`. Under
+; the Librarr 1.x line that is "1.1.0-beta.3", which ISCC rejects outright
+; ("Value of [Setup] section directive VersionInfoVersion is invalid").
+; So derive everything from the single READARRVERSION the rest of the build
+; already uses, and strip any prerelease suffix for the numeric field only.
 #define BuildVersion GetEnv('READARRVERSION')
+#if BuildVersion == ""
+  ; Matches the Directory.Build.props placeholder a plain local build gets.
+  #define BuildVersion "10.0.0.0"
+#endif
+#define NumericVersion BuildVersion
+#if Pos("-", NumericVersion) > 0
+  #define NumericVersion Copy(NumericVersion, 1, Pos("-", NumericVersion) - 1)
+#endif
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
-; Fresh GUID for Librarr so the fork's installer is independent of stock
-; Readarr installs (users can keep both, or migrate via the in-app wizard).
+; Fresh GUID so Windows tracks a Librarr install separately from a stock
+; Readarr one. Note that this does NOT make the two co-installable: both
+; register the same Windows service name (ServiceProvider.SERVICE_NAME is
+; still "Readarr"), and PrepareToInstall below stops and deletes it. The
+; supported path is migration, not coexistence.
 AppId={{FA3F8C19-9179-4676-B7A9-B8F9B411711A}
 AppName={#AppName}
-AppVersion={#BaseVersion}
+AppVersion={#BuildVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#ForumsURL}
 AppUpdatesURL={#AppURL}
-DefaultDirName={commonappdata}\Readarr
+; \Librarr, not the inherited \Readarr. Two reasons, both concrete:
+; AppFolderInfo.cs:36 already resolves AppDataFolder to
+; %ProgramData%\Librarr, so installing into \Readarr scattered the
+; binaries away from the data the app actually uses; and [InstallDelete]
+; below wipes {app}\bin, which under the old path would have deleted a
+; stock Readarr installation's binaries out from under it.
+DefaultDirName={commonappdata}\Librarr
 DisableDirPage=yes
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=Readarr.{#BuildVersion}.{#Runtime}
+; Matches the naming of every other release asset, with "-installer" to
+; separate it from the portable Librarr.<version>.win-x64.zip that ships
+; alongside it -- both land in the same release and .exe vs .zip alone is
+; not an obvious enough distinction.
+OutputBaseFilename=Librarr.{#BuildVersion}.{#Runtime}-installer
 SolidCompression=yes
 AppCopyright=GNU General Public License v3
 AllowUNCPath=False
@@ -35,7 +69,7 @@ DisableReadyPage=True
 CompressionThreads=2
 Compression=lzma2/normal
 AppContact={#ForumsURL}
-VersionInfoVersion={#BaseVersion}.{#BuildNumber}
+VersionInfoVersion={#NumericVersion}
 SetupLogging=yes
 OutputDir=output
 WizardStyle=modern

@@ -9,6 +9,23 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Added
 
+- **Windows installers, and optional Authenticode signing.** The release
+  pipeline now builds `Librarr.<version>.win-x64-installer.exe` and its
+  x86 twin with Inno Setup, alongside the portable zips, and attaches
+  both to the draft release with checksums. Signing is opt-in: set the
+  `WINDOWS_CERT_PFX` and `WINDOWS_CERT_PASSWORD` repository secrets and
+  `distribution/windows/sign.ps1` signs the first-party binaries before
+  they are packaged and the installer after it is built, RFC3161
+  timestamp included. With no certificate configured it says so and
+  exits 0, so a fork without one still gets a complete release — see
+  `docs/release-checklist.md`.
+
+  The installer now targets `%ProgramData%\Librarr`. Inherited from
+  Readarr, it targeted `%ProgramData%\Readarr` — which is neither where
+  `AppFolderInfo` puts Librarr's data nor an empty directory on a
+  machine with Readarr installed, and `[InstallDelete]` wipes
+  `{app}\bin` on every install.
+
 - **Per-format quality profiles.** An author can now carry a second,
   optional quality profile that applies only to audiobooks
   (`Author.AudiobookQualityProfileId`, migration 046, settable on the
@@ -21,6 +38,17 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   one slot. See `docs/ebooks-and-audiobooks.md`.
 
 ### Fixed
+
+- **`build.sh --installer` could not have worked for anyone.** It fetched
+  Inno Setup from `files.jrsoftware.org/is/6/innosetup-6.2.0.exe`;
+  jrsoftware has since moved binary distribution to GitHub Releases and
+  that path now 404s for every version. Because the download used
+  `curl -s` with no `-f`, curl cheerfully saved the 404 page as
+  `innosetup.exe` and the next line ran the HTML through the shell,
+  reporting `syntax error near unexpected token 'newline'`. It now pins
+  a live URL, prefers an Inno Setup already installed on the machine
+  (which GitHub's windows runners have), and fails on the download
+  rather than several steps later.
 
 - **Importing an audiobook could delete the ebook you already had.**
   `UpgradeMediaFileService.UpgradeBookFile` walked *every* existing file

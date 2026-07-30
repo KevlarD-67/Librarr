@@ -4,8 +4,13 @@
 #   * Per-RID tarballs / zips for all 12 platforms the project targets
 #     (mirrors azure-pipelines.yml:266-373).
 #   * SHA256SUMS file aggregating the archive checksums.
-#   * A draft GitHub release with the tarballs + zips + SHA256SUMS
-#     attached. Draft so the user reviews release notes before publish.
+#   * Windows installers (win-x64 / win-x86) built with Inno Setup from
+#     distribution/windows/setup/readarr.iss.
+#   * Authenticode signatures on the Windows binaries and installers,
+#     when the WINDOWS_CERT_PFX + WINDOWS_CERT_PASSWORD secrets are set.
+#     Without them everything still builds, just unsigned.
+#   * A draft GitHub release with the tarballs + zips + installers +
+#     SHA256SUMS attached. Draft so the user reviews notes before publish.
 #   * Multi-arch Docker manifest (linux/amd64, linux/arm64, linux/arm/v7)
 #     built from distribution/docker/Dockerfile, pushed to:
 #       - ghcr.io/<owner>/librarr            (workflow GITHUB_TOKEN)
@@ -14,8 +19,6 @@
 #     tags, :latest only on non-prerelease tags.
 #
 # Explicitly out of scope (TODO with required secrets noted inline):
-#   * Windows installer (.exe) via Inno Setup
-#   * Authenticode signing of the Windows binaries
 #   * macOS .app notarization via notarytool
 #   * Sentry source-map upload (azure-pipelines.yml:377-393)
 #
@@ -180,6 +183,22 @@ jobs:
             echo "  ${rid} OK"
           done
 
+      # Before the upload, so the signed binaries are what both the portable
+      # zips (built in `package`) and the installer (built in `installer`)
+      # end up containing. Signing later would mean signing them twice or
+      # shipping one of the two unsigned.
+      #
+      # No certificate configured => the script says so and exits 0, and the
+      # release ships unsigned. To turn signing on, add two repository
+      # secrets: WINDOWS_CERT_PFX (base64 of the .pfx) and
+      # WINDOWS_CERT_PASSWORD. Nothing else here changes.
+      - name: Authenticode-sign the Windows binaries
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: ./distribution/windows/sign.ps1 -Path _artifacts
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -218,9 +237,88 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  installer:
+    name: Windows installer
+    # Downstream of build-windows deliberately: the installer packs whatever
+    # that job produced, signatures included. Building it there instead would
+    # mean waiting on the frontend before the Windows backend could start.
+    needs: [variables, build-windows, build-frontend]
+    runs-on: windows-2022
+    env:
+      READARRVERSION: ${{ needs.variables.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: _artifacts/
+
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-artifacts
+          path: _output/UI/
+
+      # Same staging the `package` job does before tarballing, for the same
+      # reason: build.sh's PackageFiles() copies _output/UI into each per-RID
+      # package during a `--packages` build, and we split backend and frontend
+      # across separate jobs. The .iss pulls in
+      # _artifacts\<rid>\net10.0\Readarr\* recursively, so the UI has to be
+      # in place before ISCC runs or the installer ships a headless app.
+      - name: Stage UI into each per-RID package
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rid in win-x64 win-x86; do
+            dest="_artifacts/${rid}/net10.0/Readarr/UI"
+            mkdir -p "$dest"
+            cp -r _output/UI/* "$dest/"
+          done
+
+      # Inno Setup is preinstalled on windows-2022 (6.7.1 at time of
+      # writing), and build.sh uses it when present rather than downloading.
+      - name: Build installers
+        shell: bash
+        run: ./build.sh --installer
+
+      - name: Verify both installers were produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.variables.outputs.version }}"
+          for rid in win-x64 win-x86; do
+            exe="distribution/windows/setup/output/Librarr.${VERSION}.${rid}-installer.exe"
+            [ -f "$exe" ] || { echo "ERROR: $exe missing"; exit 1; }
+            echo "  $(basename "$exe") $(stat -c %s "$exe" 2>/dev/null || stat -f %z "$exe") bytes"
+          done
+
+      # The installer is the file most users actually download and the one
+      # SmartScreen judges, so it needs its own signature -- signing the
+      # payload does not sign the wrapper.
+      - name: Authenticode-sign the installers
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $exes = Get-ChildItem distribution/windows/setup/output/*.exe
+          ./distribution/windows/sign.ps1 -Path $exes.FullName
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-artifacts
+          path: distribution/windows/setup/output/*.exe
+          retention-days: 7
+          if-no-files-found: error
+
   package:
     name: Tarball + draft release
-    needs: [variables, build-backend, build-windows, build-frontend]
+    needs: [variables, build-backend, build-windows, build-frontend, installer]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -246,6 +344,14 @@ jobs:
         with:
           name: frontend-artifacts
           path: _output/UI/
+
+      # Straight into _release/ — these are finished assets, not something
+      # the steps below repackage.
+      - name: Download Windows installers
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-artifacts
+          path: _release/
 
       - name: Stage UI into each per-RID package
         # build.sh PackageFiles() copies _output/UI into each
@@ -303,21 +409,27 @@ jobs:
       - name: Compute SHA256SUMS
         shell: bash
         run: |
+          set -euo pipefail
           cd _release
-          sha256sum *.tar.gz *.zip > SHA256SUMS
+          # nullglob so *.exe vanishes rather than being passed through
+          # literally when signing/installer output is absent. There is
+          # always at least one tar.gz, so sha256sum never falls back to
+          # reading stdin and hanging.
+          shopt -s nullglob
+          sha256sum *.tar.gz *.zip *.exe > SHA256SUMS
           cat SHA256SUMS
 
       - name: Create draft GitHub release
         # TODO Phase 9b:
-        #   * Authenticode-sign the .exe assemblies before zipping
-        #     (needs WINDOWS_CERT_PFX + WINDOWS_CERT_PASSWORD secrets).
         #   * Notarize the .app bundles via `notarytool`
         #     (needs APPLE_ID + APPLE_PASSWORD + APPLE_TEAM_ID secrets).
-        #   * Generate Windows installer .exe via Inno Setup on a
-        #     windows-2022 runner (azure-pipelines.yml:208-234).
         #   * Sentry source-map upload (needs SENTRY_AUTH_TOKEN).
         env:
           GH_TOKEN: ${{ github.token }}
+          # Whether the signing secret is configured, so the notes can say
+          # what actually happened instead of claiming signatures that may
+          # not exist. The value is a boolean, never the secret itself.
+          WINDOWS_SIGNED: ${{ secrets.WINDOWS_CERT_PFX != '' }}
         shell: bash
         run: |
           VERSION="${{ needs.variables.outputs.version }}"
@@ -330,23 +442,37 @@ jobs:
             PRERELEASE="--prerelease"
           fi
 
-          # Windows assets are produced by the build-windows job on a
-          # windows-2022 runner. Releases up to 1.1.0-beta had none and said
-          # so here; that note is gone because the gap is closed.
+          # Windows assets are produced by the build-windows and installer
+          # jobs on windows-2022 runners. Releases up to 1.1.0-beta had none
+          # and said so here; that note is gone because the gap is closed.
           # Built with printf rather than a multi-line string literal: every
           # line inside a `run: |` block must stay indented, and a bare line
           # at column 0 silently ends the YAML block scalar.
+          if [ "${WINDOWS_SIGNED}" = "true" ]; then
+            SIGNING_NOTE='The Windows binaries and installers are Authenticode-signed.'
+          else
+            SIGNING_NOTE='The Windows binaries are not code-signed, so SmartScreen will warn on first run — choose "More info" then "Run anyway", or verify the checksum above instead.'
+          fi
+
           printf '%s\n' \
             'Verify downloads against `SHA256SUMS` before installing. Upgrading from Readarr: see `docs/migrating-from-readarr.md`.' \
             '' \
-            'Windows users: the `win-x64` / `win-x86` zips are a portable build — unzip and run `Readarr.exe` (tray) or `Readarr.Console.exe`. There is no installer yet.' \
+            'Windows users have two options: `Librarr.<version>.win-x64-installer.exe` installs to `%ProgramData%\Librarr` and can register the Windows service for you, or the `win-x64` / `win-x86` zips are a portable build — unzip and run `Readarr.exe` (tray) or `Readarr.Console.exe`.' \
+            '' \
+            "${SIGNING_NOTE}" \
             > _release_notes.md
+
+          # nullglob keeps an absent installer from being passed to gh as the
+          # literal string `_release/*.exe`, which it would treat as a missing
+          # file and fail on.
+          shopt -s nullglob
+          ASSETS=(_release/*.tar.gz _release/*.zip _release/*.exe _release/SHA256SUMS)
 
           gh release create "v${VERSION}" \
             --title "Librarr ${VERSION}" \
             --notes-file _release_notes.md \
             --draft $PRERELEASE \
-            _release/*.tar.gz _release/*.zip _release/SHA256SUMS
+            "${ASSETS[@]}"
 
   docker-multiarch:
     name: Docker multi-arch
