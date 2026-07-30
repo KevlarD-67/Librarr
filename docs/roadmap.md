@@ -40,10 +40,15 @@ priority; nothing here is a hard commitment.
   default `Dockerfile` is a 3-stage build (`sdk:6.0-alpine` →
   `node:20-alpine` → `aspnet:6.0-alpine` runtime). Compiles inside
   the image — no local toolchain needed. Runtime smoke (`docker build
-  && docker run`) has since been done, on x86_64 both locally and on a
-  real server. The `linux/arm64` and `linux/arm/v7` legs of the
-  multi-arch manifest are still cross-compiled-but-never-executed —
-  no ARM hardware has run this image.
+  && docker run`) has since been done on x86_64, both locally and on a
+  real server, and on **native aarch64** against the published
+  `1.1.0-beta` image: healthcheck, UI, live OL search, unmapped-folder
+  scan, Library Import and a full discography refresh, no errors.
+  `linux/arm/v7` completed the same workload only under emulation,
+  where QEMU's own Thumb translator then asserted
+  (`target/arm/tcg/translate.c`) — an emulator defect, not an
+  application one, and so still not a verdict either way on real
+  32-bit ARM hardware.
 
 ## Soon (1.0.0 stable)
 

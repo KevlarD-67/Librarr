@@ -144,11 +144,25 @@ version rather than `:latest`.
 `docker compose` and a local-build path are in
 [`distribution/docker/README.md`](distribution/docker/README.md).
 
-**ARM notes.** The `arm64` and `armv7` images are cross-compiled natively
-rather than under QEMU emulation, so they are built as fast and as
-correctly as the amd64 image. They have not yet been *run* on real ARM
-hardware by the maintainer — the build is verified, the runtime is not.
-If you are on a Pi or an ARM VM, a report either way is genuinely useful.
+**ARM notes.** Both ARM images are cross-compiled natively rather than
+under QEMU emulation, so they build as fast and as correctly as the
+amd64 image.
+
+`linux/arm64` is **runtime-verified**. Exercised on real aarch64
+hardware, not emulated: boot to a passing container healthcheck, UI and
+all routes serving, live Open Library search, root-folder scan with
+unmapped-folder detection, a Library Import run, and a full discography
+refresh with cover downloads. No errors in the log.
+
+`linux/arm/v7` is verified only under emulation, and with a caveat worth
+stating plainly. It completed that same workload, then QEMU itself
+aborted — the assertion is inside the emulator's ARM Thumb instruction
+translator (`target/arm/tcg/translate.c`), not in Librarr. Emulated
+32-bit ARM and a JIT are a known-awkward combination. The database
+survived intact and the container restarted cleanly, but **that is not
+evidence the image is sound on real armv7 hardware, and not evidence it
+is broken either.** If you run a 32-bit Pi, a report is the one thing
+that would settle it.
 
 ## Status
 
