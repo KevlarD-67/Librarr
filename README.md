@@ -1,6 +1,6 @@
 # Librarr
 
-> **1.0.0-beta — 2026-05-19.** Forked from the archived
+> **1.1.0-beta — 2026-07-30.** Forked from the archived
 > [Readarr/Readarr](https://github.com/Readarr/Readarr) project (last
 > upstream commit `0b79d300`, 2025-06-27). Rebuilds Readarr on top of
 > Open Library as the primary metadata source.
@@ -119,24 +119,48 @@ instead of all of Open Library.
 | CLA | Required (assigns rights to Servarr) | None — GPL v3 inbound = outbound |
 | Status | Archived 2025-06-27 | Active fork |
 
+## Installing with Docker
+
+Images are published to both GHCR and Docker Hub on every `v*` tag, as a
+single multi-arch manifest covering **`linux/amd64`, `linux/arm64` and
+`linux/arm/v7`**. Docker picks the right architecture for you — a
+Raspberry Pi and an x86 server run the same `docker pull`.
+
+```bash
+docker run -d \
+  --name librarr \
+  -p 8787:8787 \
+  -v /path/to/config:/config \
+  -v /path/to/books:/books \
+  -e PUID=1000 -e PGID=1000 -e TZ=Etc/UTC \
+  ghcr.io/rorqualx/librarr:latest
+```
+
+Docker Hub is the same image: `rorqualx/librarr:latest`. Tags are
+`:<version>` for every release, `:beta` on beta tags, and `:latest` only
+on non-prerelease tags — so on a beta line pin `:beta` or the explicit
+version rather than `:latest`.
+
+`docker compose` and a local-build path are in
+[`distribution/docker/README.md`](distribution/docker/README.md).
+
+**ARM notes.** The `arm64` and `armv7` images are cross-compiled natively
+rather than under QEMU emulation, so they are built as fast and as
+correctly as the amd64 image. They have not yet been *run* on real ARM
+hardware by the maintainer — the build is verified, the runtime is not.
+If you are on a Pi or an ARM VM, a report either way is genuinely useful.
+
 ## Status
 
-**1.0.0-beta — engineering gate cleared.** The OpenLibrary metadata
-proxy, BookIdMapping bridge, reidentify pipeline, first-boot
-migration, and downstream import-loop fixes are all shipped. See
-[`CHANGELOG.md`](CHANGELOG.md) for the per-cycle breakdown.
+**1.1.0-beta.** The OpenLibrary metadata proxy, BookIdMapping bridge,
+reidentify pipeline, first-boot migration, Library Import wizard, and
+multi-arch images are all shipped. See [`CHANGELOG.md`](CHANGELOG.md)
+for the per-release breakdown.
 
 Caveats:
 
-- Field-validated on a single deployment so far. Field reports
-  welcome.
-- **The published images are older than this branch.** Images are
-  pushed to GHCR and Docker Hub automatically on every `v*` tag (see
-  [`distribution/docker/`](distribution/docker/)), but the newest
-  published tag predates the multi-arch work — so it is `linux/amd64`
-  only, and none of the fixes listed under *Unreleased* in
-  [`CHANGELOG.md`](CHANGELOG.md) are in it. ARM users should build
-  locally until the next tagged release.
+- Field-validated on a single x86_64 deployment so far. Field reports
+  welcome, especially from ARM.
 - Several known follow-ups remain (duplicate-book-record dedupe,
   broader indexer coverage). Track progress in
   [`MASTER-PLAN.md`](MASTER-PLAN.md).

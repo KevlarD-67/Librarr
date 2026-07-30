@@ -7,9 +7,13 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
-Everything below is merged to `main` but **not yet published** — the
-release workflow builds and pushes images on `v*` tag push, so none of
-these fixes reach installed instances until the next tagged release.
+_Nothing yet._
+
+## [1.1.0-beta] — 2026-07-30
+
+First release since `1.0.0-beta`, and the first to publish images for
+`linux/arm64` and `linux/arm/v7` — ARM users no longer have to build
+locally.
 
 ### Added
 
@@ -248,5 +252,6 @@ fork's code-level inventory.
 - Internal `Readarr.*` csproj rename / `NzbDrone.*` namespace
   rebrand (deliberately preserved).
 
-[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.0.0-beta...HEAD
+[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.1.0-beta...HEAD
+[1.1.0-beta]: https://github.com/Rorqualx/Librarr/compare/v1.0.0-beta...v1.1.0-beta
 [1.0.0-beta]: https://github.com/Rorqualx/Librarr/releases/tag/v1.0.0-beta
