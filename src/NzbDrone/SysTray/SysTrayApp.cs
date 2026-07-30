@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -54,9 +53,15 @@ namespace NzbDrone.SysTray
             return Task.CompletedTask;
         }
 
-        protected override void OnClosing(CancelEventArgs e)
+        // OnFormClosing, not the .NET Framework 1.x-era OnClosing, which .NET 10
+        // marks obsolete — overriding it fails the strict build with CS0672.
+        // Only the net10.0-windows TFM compiles this file, so Linux CI cannot
+        // see it; found by building on Windows.
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
             DisposeTrayIcon();
+
+            base.OnFormClosing(e);
         }
 
         protected override void OnLoad(EventArgs e)
