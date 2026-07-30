@@ -7,9 +7,16 @@
     <ApplicationIcon>..\NzbDrone.Host\Readarr.ico</ApplicationIcon>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="System.Resources.Extensions" />
-  </ItemGroup>
+  <!--
+    System.Resources.Extensions used to be referenced here to satisfy
+    GenerateResourceUsePreserializedResources above. The .NET 10 SDK provides
+    it in-box, so the explicit reference now trips NU1510 ("will not be
+    pruned") which TreatWarningsAsErrors turns into a build failure.
+
+    This one only appears when building the net10.0-windows TFM, so a
+    Linux-only CI never sees it — it was found by actually building on
+    Windows. See the release workflow's windows job.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Host\Readarr.Host.csproj" />
     <ProjectReference Include="..\NzbDrone.Windows\Readarr.Windows.csproj" />

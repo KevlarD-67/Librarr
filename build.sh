@@ -86,7 +86,13 @@ Build()
     then
         dotnet msbuild -restore $slnFile -p:Configuration=Release -p:Platform=$platform -t:PublishAllRids
     else
-        dotnet msbuild -restore $slnFile -p:Configuration=Release -p:Platform=$platform -p:RuntimeIdentifiers=$RID -t:PublishAllRids
+        # RID stays quoted so a semicolon-separated list survives word
+        # splitting. Note this is necessary but NOT sufficient for a
+        # multi-RID value: under Git Bash on Windows, MSYS re-marshals
+        # arguments containing `;` on the way to a native .exe and msbuild
+        # still ends up seeing a stray `win-x86` switch. Pass one RID per
+        # invocation on Windows — the release workflow does.
+        dotnet msbuild -restore $slnFile -p:Configuration=Release -p:Platform=$platform -p:RuntimeIdentifiers="$RID" -t:PublishAllRids
     fi
 
     ProgressEnd 'Build'
@@ -221,12 +227,12 @@ PackageWindows()
 
     PackageFiles "$folder" "$framework" "$runtime"
 
-    # The Windows-specific TFM (net10.0-windows) publish only exists
-    # when a Windows runner ran `dotnet publish`. On Linux-only CI
-    # (Phase 9 release.yml) this directory is missing — the release.yml
-    # package job's tarball loop is already WARN+skip on missing per-RID
-    # outputs, so we just skip building this incomplete Windows package
-    # entirely rather than producing a half-baked archive.
+    # The Windows-specific TFM (net10.0-windows) publish only exists when
+    # a Windows host ran the build. It is present on the release
+    # workflow's build-windows job (windows-2022) and on a developer's
+    # Windows machine; it is absent on the Linux build-backend job and on
+    # macOS. Skip rather than emit an archive missing Readarr.Windows.dll —
+    # the package job's loops already WARN+skip missing per-RID outputs.
     local winPublish="$outputFolder/$framework-windows/$runtime/publish"
     if [ ! -d "$winPublish" ]; then
         echo "Note: $winPublish not present — skipping Windows package for $runtime (incomplete, downstream WARN+skip)"

@@ -111,6 +111,83 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  build-windows:
+    name: Build backend (Windows RIDs)
+    needs: variables
+    runs-on: windows-2022
+    env:
+      READARRVERSION: ${{ needs.variables.outputs.version }}
+      EnableAnalyzers: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Why this job exists at all: the tray application
+      # (src/NzbDrone/Readarr.csproj) targets net10.0-windows and only
+      # publishes from a Windows runner. Without it, build.sh's
+      # PackageWindows finds no _output/net10.0-windows/<rid>/publish and
+      # deliberately skips the package rather than ship a Windows zip
+      # missing Readarr.Windows.dll — which is why releases up to
+      # 1.1.0-beta had no Windows asset.
+      #
+      # build.sh already knows how to do this: it detects a Windows host,
+      # switches the msbuild platform to Windows, and PackageWindows merges
+      # the net10.0-windows publish over the net10.0 console publish and
+      # strips the Mono shim. Reuse it rather than restating the packaging
+      # rules in YAML, where they would drift.
+      #
+      # One RID per invocation, deliberately. msbuild would happily take
+      # `RuntimeIdentifiers=win-x64;win-x86`, but under Git Bash — which is
+      # what `shell: bash` means on a Windows runner — MSYS re-marshals
+      # arguments containing a semicolon on the way to dotnet.exe, and
+      # msbuild fails with "MSB1006: Property is not valid. Switch:
+      # win-x86". Verified by running it.
+      #
+      # Doing a full --backend --packages twice is safe: Build() wipes
+      # _output and _tests, but never _artifacts, so the win-x64 package
+      # survives the win-x86 pass.
+      - name: Build + package win-x64
+        shell: bash
+        run: ./build.sh --backend --packages -f net10.0 -r win-x64
+
+      - name: Build + package win-x86
+        shell: bash
+        run: ./build.sh --backend --packages -f net10.0 -r win-x86
+
+      # Fail loudly here rather than silently shipping a broken zip. The
+      # whole point of this job is Readarr.Windows.dll; if it is absent the
+      # package is the exact artifact the old skip existed to prevent.
+      - name: Verify the Windows platform shim made it into the package
+        shell: bash
+        run: |
+          set -euo pipefail
+          for rid in win-x64 win-x86; do
+            pkg="_artifacts/${rid}/net10.0/Readarr"
+            [ -d "$pkg" ] || { echo "ERROR: $pkg missing"; exit 1; }
+            [ -f "$pkg/Readarr.Windows.dll" ] || { echo "ERROR: $pkg/Readarr.Windows.dll missing"; exit 1; }
+            [ -f "$pkg/Readarr.exe" ] || { echo "ERROR: $pkg/Readarr.exe missing"; exit 1; }
+            [ -f "$pkg/Readarr.Console.exe" ] || { echo "ERROR: $pkg/Readarr.Console.exe missing"; exit 1; }
+            if [ -f "$pkg/Readarr.Mono.dll" ]; then
+              echo "ERROR: $pkg still contains the Mono shim"; exit 1
+            fi
+            echo "  ${rid} OK"
+          done
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: _artifacts/
+          retention-days: 7
+          if-no-files-found: error
+
   build-frontend:
     name: Build frontend
     needs: variables
@@ -143,7 +220,7 @@ jobs:
 
   package:
     name: Tarball + draft release
-    needs: [variables, build-backend, build-frontend]
+    needs: [variables, build-backend, build-windows, build-frontend]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -154,6 +231,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-artifacts
+          path: _artifacts/
+
+      # Same _artifacts/ root, different RID subdirectories — the Linux job
+      # skips win-x64/win-x86, so these two merge in without colliding.
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
           path: _artifacts/
 
       - name: Download frontend artifacts
@@ -245,18 +330,16 @@ jobs:
             PRERELEASE="--prerelease"
           fi
 
-          # Windows is deliberately absent from the asset set: the
-          # net10.0-windows TFM can only be published from a Windows runner,
-          # and build.sh skips the package rather than ship one missing
-          # Readarr.Windows.dll. Say so on the release page instead of
-          # leaving users to notice the gap themselves.
+          # Windows assets are produced by the build-windows job on a
+          # windows-2022 runner. Releases up to 1.1.0-beta had none and said
+          # so here; that note is gone because the gap is closed.
           # Built with printf rather than a multi-line string literal: every
           # line inside a `run: |` block must stay indented, and a bare line
           # at column 0 silently ends the YAML block scalar.
           printf '%s\n' \
             'Verify downloads against `SHA256SUMS` before installing. Upgrading from Readarr: see `docs/migrating-from-readarr.md`.' \
             '' \
-            '**No Windows build in this release.** The Windows package needs the `net10.0-windows` target framework, which only publishes from a Windows runner; CI is Linux-only, and `build.sh` skips the package rather than ship one that is missing `Readarr.Windows.dll`. Windows users should run the Docker image or build from source until a Windows leg is added to the release matrix.' \
+            'Windows users: the `win-x64` / `win-x86` zips are a portable build — unzip and run `Readarr.exe` (tray) or `Readarr.Console.exe`. There is no installer yet.' \
             > _release_notes.md
 
           gh release create "v${VERSION}" \
