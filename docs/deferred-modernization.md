@@ -55,19 +55,31 @@ the lowest-coupling ones (`NzbDrone.Common.Test`, `Readarr.Http`).
 
 ## React 17 → React 18
 
-**Status:** deferred.
+**Status: the React bump SHIPPED. The dependency cleanup did not.**
+Corrected 2026-07-30 — this section said "deferred" long after the work
+landed, and the stale status propagated into `CLAUDE.md` and
+`ARCHITECTURE.md`, both of which described a React 17 app.
 
-**Why not now:**
+What is actually true today:
 
-* The package.json pin is `react@17.0.2`. A bump to 18.x triggers
-  re-resolution of every dependent React lib in the tree
-  (`react-dnd@14`, `react-virtualized@9`, `react-popper@1` — already
-  flagged as peer-dep-incompatible with React 17). Some of those
-  packages don't have React-18-compatible versions and would need
-  replacing.
-* The bootstrap entry-point at `frontend/src/bootstrap.tsx` would need
-  to migrate from `ReactDOM.render` to `createRoot`. That part is
-  trivial; the dependency story is what blocks.
+* `react` and `react-dom` are **18.3.1** — the same version Sonarr's
+  `v5-develop` runs.
+* `frontend/src/bootstrap.tsx:3,18` imports `createRoot` from
+  `react-dom/client` and uses it. This is real React 18, not the legacy
+  `ReactDOM.render` compatibility mode.
+
+The half that did **not** happen is the peer-dependency cleanup this
+section was actually worried about. Still pinned at their pre-18
+versions: `react-dnd@14.0.4`, `react-dnd-html5-backend@14.0.2`,
+`react-popper@1.3.7`, `react-virtualized@9.21.1`. `react-redux` is also
+still **7.2.4**, which predates React 18 and does not use
+`useSyncExternalStore` — so combined with legacy `createStore` and
+`connected-react-router@6`, the app is on React 18 without access to any
+concurrent feature.
+
+So the honest framing is: **React 18 is installed and mounted; the
+ecosystem around it is still React 17-era.** The remaining work is the
+dependency audit below, not the framework bump.
 
 **What's needed:**
 
@@ -143,30 +155,75 @@ running Readarr install with a real library and live OL HTTP. An
 offline session can scaffold the test shape (done) but can't
 populate the seed data.
 
-## React 17 → 18 (Later bucket item, reaffirmed)
+## React 17 → 18 (superseded — see the corrected section above)
 
-**Status:** still deferred. Same reasoning as above — `react-dnd@14`,
-`react-virtualized@9`, and `react-popper@1` all need replacements
-before the React bump is safe, and each of those replacements is a
-non-trivial diff. An LLM session can do the mechanical part (bump
-versions, run the codemods) but the visual regression check needs a
-human at a browser, which this session cannot provide.
+**Status: obsolete as written.** React 18.3.1 shipped and is mounted via
+`createRoot`. This entry's claim that the bump was blocked *on* the
+dependency replacements turned out to be backwards: the bump happened
+first, and `react-dnd@14`, `react-virtualized@9`, `react-popper@1` and
+`react-redux@7.2.4` are all still on their pre-18 pins. They are
+follow-up work, not a precondition.
 
-## .NET 8 LTS + Nullable enable (Later bucket items, reaffirmed)
+## .NET 8 LTS + Nullable enable — RE-TARGETED to .NET 10 (2026-07-30)
 
-**Status:** still deferred. The Servarr-forked NuGet packages
-(`System.Data.SQLite.Core.Servarr`, `TagLibSharp-Lidarr`,
-`Mono.Posix.NETStandard...-servarr22`, `Servarr.FluentMigrator.*`)
-are pinned to `net6.0`-specific builds; bumping the TFM fails at
-restore. Without a co-bump of those forks (or successor packages),
-the .NET 8 work cannot start. Same blocker for Nullable: the
-codebase has zero annotations, so flipping the switch produces a
-several-thousand-error build that needs human triage.
+**The target was wrong and the blocker was overstated. Both corrected
+below.**
 
-## Selenium → Playwright (Later bucket item, reaffirmed)
+### The target is .NET 10, not .NET 8
 
-**Status:** still deferred. The Selenium suite is already
-quarantined (`[Explicit]` per Phase 1), so this is a port rather
-than a critical-path item. A future session can port it without
-blocking anything else — recommended priority: after the cassette
-work above so a real regression suite exists at all.
+.NET 8 **and** .NET 9 both reach end of support on **2026-11-10**.
+Landing on .NET 8 now would buy about one quarter. .NET 6 — what we run
+today — has been out of support since **2024-11-12**. .NET 10 LTS is
+supported to **2028-11-14** and is the only sensible destination.
+
+### "The forks are pinned to net6.0, so this cannot start" — falsified
+
+Each of the four named packages was checked against the rest of the
+Servarr family on 2026-07-30. Every one has a resolved path, and two of
+them have been solved twice:
+
+| Package | Librarr (net6.0) | Lidarr `develop` (net8.0) | Sonarr `v5-develop` (net10.0) |
+|---|---|---|---|
+| FluentMigrator | `Servarr.FluentMigrator.* 3.3.2.9` | upstream **6.2.0** | upstream **8.0.1** |
+| `System.Data.SQLite.Core.Servarr` | `1.0.115.5-18` | **not referenced** | **not referenced** |
+| `TagLibSharp-Lidarr` | `2.2.0.19` | **`2.2.0.27`** on net8 | n/a (no audio tagging) |
+| `Mono.Posix.NETStandard` | `-servarr22` | `-servarr20` | **`-servarr24`** |
+
+So: the FluentMigrator fork is *dropped* for upstream, the SQLite fork is
+*dropped entirely*, TagLibSharp has a newer build that runs on net8, and
+Mono.Posix's fork was updated rather than abandoned. Nothing here fails
+at restore for want of a successor.
+
+### Where the real work is
+
+Not the TFM bump — the **SQLite provider swap**.
+`System.Data.SQLite` is referenced across 22 files, and the coupling is
+to concrete types, not just a connection string: `SQLiteParameter` (20
+uses), `SQLiteErrorCode` (11), `SQLiteException` (7), `SQLiteConnection`
+(7), plus FluentMigrator's `SQLiteProcessor`/`SQLiteQuoter`/
+`SQLiteGenerator`/`SQLiteResolver`. Roughly half the files are test
+fixtures. Both reference projects removed this dependency, so the
+destination is known — but this is the step to schedule real time for,
+and every change has to stay valid on **both** SQLite and PostgreSQL.
+
+### Nullable enable
+
+Still deferred, and unchanged: the codebase has zero annotations, so
+flipping the switch produces a several-thousand-error build. Worth
+noting that neither Lidarr nor Sonarr v5 sets `Nullable` either — Sonarr
+v5 sets `AnalysisLevel 6.0-all` and stops there. This is not a
+prerequisite for the runtime move and should not be bundled with it.
+
+## Selenium → Playwright (partially done — status corrected 2026-07-30)
+
+**Status: a Playwright suite exists and runs green.**
+`src/NzbDrone.Playwright.Test` drives headless Chromium against a real
+Librarr instance, opt-in via `READARR_RUN_PLAYWRIGHT=1`. It is small
+(main-pages smoke, narrator detail page, library-import wizard) rather
+than a full port of the Selenium suite, and `NzbDrone.Automation.Test`
+still exists alongside it with its years-old Selenium + ChromeDriver
+pins.
+
+Remaining: decide whether to finish porting the Selenium cases or delete
+that project outright. Leaving both in the tree is the worst of the three
+options — it implies coverage that only one of them provides.
