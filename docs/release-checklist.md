@@ -91,6 +91,23 @@ human maintainer must pass through before tagging the beta.
   ```
 - [ ] Release secrets configured for `release.yml`. The workflow
   fires on `v*` tag push; inspect `secrets:` references inline.
+- [ ] **Decide whether to code-sign the Windows build.** Optional —
+  with no certificate the pipeline still produces the zips and the
+  installers, just unsigned, and `distribution/windows/sign.ps1`
+  says so and exits 0. Unsigned means every user meets a SmartScreen
+  "unrecognised app" warning on first run, and a fresh certificate
+  earns reputation slowly, so signing only stops being painful some
+  weeks after the first signed release. To turn it on, add two
+  repository secrets:
+  - `WINDOWS_CERT_PFX` — the code-signing certificate as a base64
+    PKCS#12 blob: `base64 -w0 cert.pfx` (macOS: `base64 -i cert.pfx`).
+  - `WINDOWS_CERT_PASSWORD` — that .pfx's password.
+
+  An EV certificate on a hardware token cannot be used this way; it
+  needs a signing service the runner can call instead. Once both
+  secrets exist nothing else changes — the `build-windows` and
+  `installer` jobs pick them up, and the draft release notes switch
+  from the SmartScreen warning to stating the build is signed.
 - [ ] `v1.0.0-beta` tag pushed. Triggers the release pipeline
   (`.github/workflows/release.yml`):
   ```bash

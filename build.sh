@@ -275,24 +275,84 @@ Package()
     esac
 }
 
+# Path to the ISCC.exe that BuildInstaller should use. Set by InstallInno,
+# which either finds one already on the box or unpacks a portable copy.
+isccPath=''
+
+FindInstalledIscc()
+{
+    if [[ -n "$ISCC_PATH" && -f "$ISCC_PATH" ]];
+    then
+        echo "$ISCC_PATH"
+        return
+    fi
+
+    local candidate
+    for candidate in "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+                     "/c/Program Files/Inno Setup 6/ISCC.exe"
+    do
+        if [ -f "$candidate" ];
+        then
+            echo "$candidate"
+            return
+        fi
+    done
+
+    command -v ISCC 2>/dev/null || true
+}
+
 BuildInstaller()
 {
     local framework="$1"
     local runtime="$2"
-    
-    ./_inno/ISCC.exe distribution/windows/setup/readarr.iss "//DFramework=$framework" "//DRuntime=$runtime"
+
+    ProgressStart "Creating Windows Installer for $runtime"
+
+    "$isccPath" distribution/windows/setup/readarr.iss "//DFramework=$framework" "//DRuntime=$runtime"
+
+    ProgressEnd "Created Windows Installer for $runtime"
 }
 
 InstallInno()
 {
+    # GitHub's windows-2022 runners ship Inno Setup (6.7.1 at time of
+    # writing), so use what is already there and skip the download entirely
+    # on CI. The download path below still exists for a bare dev machine.
+    isccPath=$(FindInstalledIscc)
+    if [ -n "$isccPath" ];
+    then
+        echo "Using installed Inno Setup: $isccPath"
+        return
+    fi
+
     ProgressStart "Installing portable Inno Setup"
-    
+
     rm -rf _inno
-    curl -s --output innosetup.exe "https://files.jrsoftware.org/is/6/innosetup-${INNOVERSION:-6.2.0}.exe"
+
+    # jrsoftware moved binary distribution to GitHub Releases; the old
+    # files.jrsoftware.org/is/6/innosetup-<ver>.exe path now serves only
+    # .issig signature files and 404s for every .exe, including the 6.2.0
+    # this script used to pin. The tag spells the version with underscores.
+    #
+    # -f matters as much as the URL. Without it curl wrote the 404 page to
+    # innosetup.exe and the next line ran the HTML as a shell script
+    # ("syntax error near unexpected token `newline'"), which is a baffling
+    # way to find out a download failed.
+    local innoVersion="${INNOVERSION:-6.7.3}"
+    curl -fsSL --output innosetup.exe \
+        "https://github.com/jrsoftware/issrc/releases/download/is-${innoVersion//./_}/innosetup-${innoVersion}.exe"
     mkdir _inno
     ./innosetup.exe //portable=1 //silent //currentuser //dir=.\\_inno
     rm innosetup.exe
-    
+
+    if [ ! -f _inno/ISCC.exe ];
+    then
+        echo "ERROR: Inno Setup unpacked but _inno/ISCC.exe is missing"
+        exit 1
+    fi
+
+    isccPath='./_inno/ISCC.exe'
+
     ProgressEnd "Installed portable Inno Setup"
 }
 
