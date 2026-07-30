@@ -2,8 +2,9 @@ import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import Card from 'Components/Card';
 import Label from 'Components/Label';
+import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import ConfirmModal from 'Components/Modal/ConfirmModal';
-import { kinds } from 'Helpers/Props';
+import { icons, kinds } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
 import EditRootFolderModalConnector from './EditRootFolderModalConnector';
 import styles from './RootFolder.css';
@@ -48,6 +49,15 @@ class RootFolder extends Component {
     this.props.onConfirmDeleteRootFolder(this.props.id);
   };
 
+  onRescanPress = (event) => {
+    // The whole Card is pressable and opens the edit modal. Link/IconButton
+    // don't stop propagation themselves, so without this a rescan click also
+    // pops the edit dialog over the top of it.
+    event.stopPropagation();
+
+    this.props.onRescanRootFolderPress(this.props.path);
+  };
+
   //
   // Render
 
@@ -57,7 +67,8 @@ class RootFolder extends Component {
       name,
       path,
       qualityProfile,
-      metadataProfile
+      metadataProfile,
+      isRescanning
     } = this.props;
 
     return (
@@ -66,8 +77,18 @@ class RootFolder extends Component {
         overlayContent={true}
         onPress={this.onEditRootFolderPress}
       >
-        <div className={styles.name}>
-          {name}
+        <div className={styles.nameRow}>
+          <div className={styles.name}>
+            {name}
+          </div>
+
+          <SpinnerIconButton
+            className={styles.rescan}
+            name={icons.REFRESH}
+            isSpinning={isRescanning}
+            title={translate('RescanRootFolder')}
+            onPress={this.onRescanPress}
+          />
         </div>
 
         <div className={styles.enabled}>
@@ -111,7 +132,9 @@ RootFolder.propTypes = {
   path: PropTypes.string.isRequired,
   qualityProfile: PropTypes.object.isRequired,
   metadataProfile: PropTypes.object.isRequired,
-  onConfirmDeleteRootFolder: PropTypes.func.isRequired
+  isRescanning: PropTypes.bool.isRequired,
+  onConfirmDeleteRootFolder: PropTypes.func.isRequired,
+  onRescanRootFolderPress: PropTypes.func.isRequired
 };
 
 export default RootFolder;

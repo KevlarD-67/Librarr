@@ -3,6 +3,8 @@
 interface CssExports {
   'enabled': string;
   'name': string;
+  'nameRow': string;
+  'rescan': string;
   'rootFolder': string;
 }
 export const cssExports: CssExports;

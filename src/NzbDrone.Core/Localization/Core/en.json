@@ -848,6 +848,7 @@
   "RescanAfterRefreshHelpText": "Rescan the author folder after refreshing the author",
   "RescanAfterRefreshHelpTextWarning": "Librarr will not automatically detect changes to files when not set to 'Always",
   "RescanAuthorFolderAfterRefresh": "Rescan author folder after Refresh",
+  "RescanRootFolder": "Rescan this folder and import any books found",
   "Reset": "Reset",
   "ResetAPIKey": "Reset API Key",
   "ResetAPIKeyMessageText": "Are you sure you want to reset your API Key?",
