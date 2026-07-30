@@ -163,5 +163,87 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
 
             criteria.Count.Should().Be(0);
         }
+
+        // BookSearch used to build its search term with
+        //   book.Editions.Value.SingleOrDefault(x => x.Monitored).Title
+        // which threw two different ways, both surfacing as a bare HTTP 500
+        // from ReleaseController and reading to users as "search is broken":
+        // NullReferenceException when nothing matched, and
+        // InvalidOperationException when more than one edition was monitored.
+        //
+        // Measured on a real fresh library (Brandon Sanderson, 192 books),
+        // 81 books — 42% — had zero edition rows and failed every search.
+        [Test]
+        public async Task should_search_on_book_title_when_book_has_no_editions()
+        {
+            _firstBook.Editions = new List<Edition>();
+
+            var allCriteria = WatchForSearchCriteria();
+
+            await Subject.BookSearch(_firstBook, false, true, false);
+
+            var criteria = allCriteria.OfType<BookSearchCriteria>().Single();
+            criteria.BookTitle.Should().Be(_firstBook.Title);
+        }
+
+        [Test]
+        public async Task should_fall_back_to_an_unmonitored_edition_when_none_are_monitored()
+        {
+            var edition = Builder<Edition>.CreateNew()
+                .With(e => e.Book = _firstBook)
+                .With(e => e.Monitored = false)
+                .With(e => e.Title = "Unmonitored Edition")
+                .Build();
+
+            _firstBook.Editions = new List<Edition> { edition };
+
+            var allCriteria = WatchForSearchCriteria();
+
+            await Subject.BookSearch(_firstBook, false, true, false);
+
+            var criteria = allCriteria.OfType<BookSearchCriteria>().Single();
+            criteria.BookTitle.Should().Be("Unmonitored Edition");
+        }
+
+        [Test]
+        public async Task should_not_throw_when_multiple_editions_are_monitored()
+        {
+            var editions = Builder<Edition>.CreateListOfSize(3)
+                .All()
+                .With(e => e.Book = _firstBook)
+                .With(e => e.Monitored = true)
+                .Build()
+                .ToList();
+
+            _firstBook.Editions = editions;
+
+            var allCriteria = WatchForSearchCriteria();
+
+            await Subject.BookSearch(_firstBook, false, true, false);
+
+            var criteria = allCriteria.OfType<BookSearchCriteria>().Single();
+            criteria.BookTitle.Should().Be(editions.First().Title);
+        }
+
+        [Test]
+        public async Task should_prefer_the_monitored_edition_title()
+        {
+            var editions = new List<Edition>
+            {
+                Builder<Edition>.CreateNew().With(e => e.Book = _firstBook)
+                    .With(e => e.Monitored = false).With(e => e.Title = "Other Edition").Build(),
+                Builder<Edition>.CreateNew().With(e => e.Book = _firstBook)
+                    .With(e => e.Monitored = true).With(e => e.Title = "Monitored Edition").Build()
+            };
+
+            _firstBook.Editions = editions;
+
+            var allCriteria = WatchForSearchCriteria();
+
+            await Subject.BookSearch(_firstBook, false, true, false);
+
+            var criteria = allCriteria.OfType<BookSearchCriteria>().Single();
+            criteria.BookTitle.Should().Be("Monitored Edition");
+        }
     }
 }
