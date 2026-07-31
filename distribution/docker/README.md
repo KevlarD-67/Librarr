@@ -73,7 +73,7 @@ single-platform build — e.g. to target a glibc base (`linux-x64`,
 in the RID list and is unsupported (`src/Directory.Build.props:11`).
 
 `Dockerfile.prebuilt` accepts the same `--platform` set, but only for
-RIDs you have already built into `_output/net6.0/` — a missing RID fails
+RIDs you have already built into `_output/net10.0/` — a missing RID fails
 that platform's build with an explicit error rather than silently
 shipping the wrong binaries. Populate it with:
 

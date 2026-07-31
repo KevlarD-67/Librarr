@@ -13,7 +13,7 @@ roadmap.
 
 1. **Built backend on disk.** Run `./build.sh --backend` once.
    `NzbDroneRunner` invokes the most-recently-built output under
-   `_output/net6.0/`.
+   `_output/net10.0/`.
 
 2. **Built frontend on disk.** Run `yarn install && yarn build`
    once. The runner serves `_output/UI/` from disk; without the

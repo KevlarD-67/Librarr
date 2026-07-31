@@ -7,17 +7,16 @@ using NUnit.Framework;
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
     public class AuthorFixture : IntegrationTest
     {
         [Test]
         [Order(0)]
         public void add_author_with_tags_should_store_them()
         {
-            EnsureNoAuthor("14586394", "Andrew Hunter Murray");
+            EnsureNoAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
             var tag = EnsureTag("abc");
 
-            var author = Author.Lookup("edition:43765115").Single();
+            var author = Author.Lookup(OpenLibraryFixtureData.AndrewHunterMurrayId).Single();
 
             author.QualityProfileId = 1;
             author.MetadataProfileId = 1;
@@ -35,9 +34,9 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(0)]
         public void add_author_without_profileid_should_return_badrequest()
         {
-            EnsureNoAuthor("14586394", "Andrew Hunter Murray");
+            EnsureNoAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
 
-            var author = Author.Lookup("edition:43765115").Single();
+            var author = Author.Lookup(OpenLibraryFixtureData.AndrewHunterMurrayId).Single();
 
             author.Path = Path.Combine(AuthorRootFolder, author.AuthorName);
 
@@ -48,9 +47,9 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(0)]
         public void add_author_without_path_should_return_badrequest()
         {
-            EnsureNoAuthor("14586394", "Andrew Hunter Murray");
+            EnsureNoAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
 
-            var author = Author.Lookup("edition:43765115").Single();
+            var author = Author.Lookup(OpenLibraryFixtureData.AndrewHunterMurrayId).Single();
 
             author.QualityProfileId = 1;
 
@@ -61,9 +60,9 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(1)]
         public void add_author()
         {
-            EnsureNoAuthor("14586394", "Andrew Hunter Murray");
+            EnsureNoAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
 
-            var author = Author.Lookup("edition:43765115").Single();
+            var author = Author.Lookup(OpenLibraryFixtureData.AndrewHunterMurrayId).Single();
 
             author.QualityProfileId = 1;
             author.MetadataProfileId = 1;
@@ -82,25 +81,25 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(2)]
         public void get_all_author()
         {
-            EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray");
-            EnsureAuthor("383606", "16160797", "Robert Galbraith");
+            EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
+            EnsureAuthor(OpenLibraryFixtureData.RobertGalbraithId, OpenLibraryFixtureData.RobertGalbraithName);
 
             var authors = Author.All();
 
             authors.Should().NotBeNullOrEmpty();
-            authors.Should().Contain(v => v.ForeignAuthorId == "14586394");
-            authors.Should().Contain(v => v.ForeignAuthorId == "383606");
+            authors.Should().Contain(v => v.ForeignAuthorId == OpenLibraryFixtureData.AndrewHunterMurrayId);
+            authors.Should().Contain(v => v.ForeignAuthorId == OpenLibraryFixtureData.RobertGalbraithId);
         }
 
         [Test]
         [Order(2)]
         public void get_author_by_id()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray");
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
 
             var result = Author.Get(author.Id);
 
-            result.ForeignAuthorId.Should().Be("14586394");
+            result.ForeignAuthorId.Should().Be(OpenLibraryFixtureData.AndrewHunterMurrayId);
         }
 
         [Test]
@@ -113,7 +112,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(2)]
         public void update_author_profile_id()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray");
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
 
             var profileId = 1;
             if (author.QualityProfileId == profileId)
@@ -132,7 +131,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(3)]
         public void update_author_monitored()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, false);
 
             author.Monitored.Should().BeFalse();
 
@@ -147,7 +146,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(3)]
         public void update_author_tags()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray");
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
             var tag = EnsureTag("abc");
 
             if (author.Tags.Contains(tag.Id))
@@ -170,13 +169,13 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Order(4)]
         public void delete_author()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray");
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName);
 
             Author.Get(author.Id).Should().NotBeNull();
 
             Author.Delete(author.Id);
 
-            Author.All().Should().NotContain(v => v.ForeignAuthorId == "14586394");
+            Author.All().Should().NotContain(v => v.ForeignAuthorId == OpenLibraryFixtureData.AndrewHunterMurrayId);
         }
     }
 }

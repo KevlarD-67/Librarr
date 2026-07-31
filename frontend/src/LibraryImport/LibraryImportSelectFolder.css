@@ -12,8 +12,8 @@
   composes: link from '~Components/Link/Link.css';
 
   display: flex;
-  flex-direction: column;
   justify-content: center;
+  flex-direction: column;
   margin: 0 10px 10px 0;
   padding: 20px;
   min-width: 300px;
@@ -28,9 +28,9 @@
 }
 
 .path {
+  word-break: break-all;
   font-weight: bold;
   font-size: 18px;
-  word-break: break-all;
 }
 
 .unmappedCount {

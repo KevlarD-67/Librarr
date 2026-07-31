@@ -15,7 +15,7 @@ namespace NzbDrone.Playwright.Test
     // the per-test error assertion.
     //
     // NzbDroneRunner picks up the most-recently-built backend in
-    // _output/net6.0 — run `./build.sh --backend` before invoking the suite,
+    // _output/net10.0 — run `./build.sh --backend` before invoking the suite,
     // or the runner will throw at assembly setup.
     public abstract class PlaywrightTestBase
     {

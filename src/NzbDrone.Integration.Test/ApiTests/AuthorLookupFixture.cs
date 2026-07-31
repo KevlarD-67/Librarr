@@ -4,7 +4,6 @@ using NUnit.Framework;
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
     public class AuthorLookupFixture : IntegrationTest
     {
         [TestCase("Robert Harris", "Robert Harris")]
@@ -17,13 +16,36 @@ namespace NzbDrone.Integration.Test.ApiTests
             author.Should().Contain(c => c.AuthorName == name);
         }
 
-        [Test]
-        public void lookup_new_author_by_goodreads_book_id()
+        // Replaces lookup_new_author_by_goodreads_book_id, which asked for
+        // `edition:2` and expected J.K. Rowling. That test was dead twice
+        // over: the id was a Goodreads edition, and /author/lookup never
+        // handled typed prefixes at all -- the prefix was ignored and the
+        // whole string searched as a name, which matched six unrelated
+        // records with "2" in them.
+        //
+        // Looking an author up by their own OpenLibrary id is the thing that
+        // actually needs guarding: it is how the Library Import wizard is
+        // corrected when its automatic match is wrong, and OpenLibrary's own
+        // author search cannot do it (q=OL1422008A returns nothing).
+        [TestCase(OpenLibraryFixtureData.PhilipErringtonId)]
+        [TestCase("author:" + OpenLibraryFixtureData.PhilipErringtonId)]
+        public void lookup_new_author_by_openlibrary_id(string term)
         {
-            var author = Author.Lookup("edition:2");
+            var author = Author.Lookup(term);
 
-            author.Should().NotBeEmpty();
-            author.Should().Contain(c => c.AuthorName == "J.K. Rowling");
+            author.Should().HaveCount(1);
+            author.Should().OnlyContain(c => c.ForeignAuthorId == OpenLibraryFixtureData.PhilipErringtonId);
+        }
+
+        [Test]
+        public void lookup_by_unknown_openlibrary_id_should_be_empty()
+        {
+            // Well-formed but nonexistent. OpenLibrary answers with a 404,
+            // which used to escape as an HTTP 500 with a stack trace; a
+            // mistyped id deserves an empty result.
+            var author = Author.Lookup("OL99999999999A");
+
+            author.Should().BeEmpty();
         }
     }
 }

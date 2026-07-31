@@ -8,7 +8,6 @@ using Readarr.Api.V1.RootFolders;
 namespace NzbDrone.Integration.Test.ApiTests.WantedTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
     public class CutoffUnmetFixture : IntegrationTest
     {
         [SetUp]
@@ -30,8 +29,9 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_have_monitored_items()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, true);
+            var (bookId, editionId) = FirstImportableBook(author);
+            EnsureBookFile(author, bookId, editionId, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPaged(0, 15, "releaseDate", "desc");
 
@@ -43,8 +43,9 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_not_have_unmonitored_items()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, false);
+            var (bookId, editionId) = FirstImportableBook(author);
+            EnsureBookFile(author, bookId, editionId, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPaged(0, 15, "releaseDate", "desc");
 
@@ -56,13 +57,14 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_have_author()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, true);
+            var (bookId, editionId) = FirstImportableBook(author);
+            EnsureBookFile(author, bookId, editionId, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPagedIncludeAuthor(0, 15, "releaseDate", "desc", includeAuthor: true);
 
             result.Records.First().Author.Should().NotBeNull();
-            result.Records.First().Author.AuthorName.Should().Be("Andrew Hunter Murray");
+            result.Records.First().Author.AuthorName.Should().Be(OpenLibraryFixtureData.AndrewHunterMurrayName);
         }
 
         [Test]
@@ -70,8 +72,9 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_not_have_author()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, true);
+            var (bookId, editionId) = FirstImportableBook(author);
+            EnsureBookFile(author, bookId, editionId, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPagedIncludeAuthor(0, 15, "releaseDate", "desc", includeAuthor: false);
 
@@ -83,8 +86,9 @@ namespace NzbDrone.Integration.Test.ApiTests.WantedTests
         public void cutoff_should_have_unmonitored_items()
         {
             EnsureProfileCutoff(1, Quality.AZW3, true);
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
-            EnsureBookFile(author, 1, "43765115", Quality.MOBI);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, false);
+            var (bookId, editionId) = FirstImportableBook(author);
+            EnsureBookFile(author, bookId, editionId, Quality.MOBI);
 
             var result = WantedCutoffUnmet.GetPaged(0, 15, "releaseDate", "desc", "monitored", false);
 
