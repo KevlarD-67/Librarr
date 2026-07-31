@@ -14,8 +14,8 @@
 
 .importContainer {
   display: flex;
-  flex-direction: column;
   justify-content: flex-end;
+  flex-direction: column;
   margin-left: auto;
 }
 

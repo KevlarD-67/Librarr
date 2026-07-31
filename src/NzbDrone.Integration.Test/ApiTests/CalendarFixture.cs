@@ -9,7 +9,6 @@ using Readarr.Api.V1.Books;
 namespace NzbDrone.Integration.Test.ApiTests
 {
     [TestFixture]
-    [Ignore("Waiting for metadata to be back again", Until = "2026-01-15 00:00:00Z")]
     public class CalendarFixture : IntegrationTest
     {
         public ClientBase<BookResource> Calendar;
@@ -21,34 +20,80 @@ namespace NzbDrone.Integration.Test.ApiTests
             Calendar = new ClientBase<BookResource>(RestClient, ApiKey, "calendar");
         }
 
+        // These used to ask for February 2020 and expect "The Last Day", which
+        // worked when Goodreads supplied an exact publication date. It cannot
+        // work against OpenLibrary: none of this author's works carry a
+        // first_publish_date at all, so Book.ReleaseDate falls back to an
+        // edition's publish_date, and those are mostly bare years ("2020",
+        // "2021", "2023") spread across seven editions of the same work.
+        //
+        // Pinning any fixed window would be a bet on which edition
+        // OpenLibrary considers primary this month. What these tests are
+        // actually for is the calendar endpoint's behaviour -- does a window
+        // containing a book's release date return it, and is the unmonitored
+        // flag respected -- so take the date from the book and build the
+        // window around it. The assertion gets stronger, not weaker: it now
+        // says "the calendar returns the book whose date is in range"
+        // rather than "OpenLibrary agrees with Goodreads about February".
+        private (DateTime Start, DateTime End, string Title) DatedBookWindow(int authorId)
+        {
+            var dated = Books.GetBooksInAuthor(authorId)
+                .Where(b => b.ReleaseDate.HasValue)
+                .OrderBy(b => b.ReleaseDate.Value)
+                .ToList();
+
+            dated.Should().NotBeEmpty(
+                "the calendar can only be tested with a book that has a release date; " +
+                "if this fails, OpenLibrary has stopped dating any of this author's books");
+
+            var book = dated.First();
+            var date = book.ReleaseDate.Value.Date;
+
+            return (date.AddDays(-1), date.AddDays(1), book.Title);
+        }
+
+        private List<BookResource> GetCalendar(DateTime start, DateTime end, int authorId, string unmonitored = null)
+        {
+            var request = Calendar.BuildRequest();
+            request.AddParameter("start", start.ToString("s") + "Z");
+            request.AddParameter("end", end.ToString("s") + "Z");
+
+            if (unmonitored != null)
+            {
+                request.AddParameter("unmonitored", unmonitored);
+            }
+
+            return Calendar.Get<List<BookResource>>(request)
+                .Where(v => v.AuthorId == authorId)
+                .ToList();
+        }
+
         [Test]
         public void should_be_able_to_get_books()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", true);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, true);
 
-            var request = Calendar.BuildRequest();
-            request.AddParameter("start", new DateTime(2020, 02, 01).ToString("s") + "Z");
-            request.AddParameter("end", new DateTime(2020, 02, 28).ToString("s") + "Z");
-            var items = Calendar.Get<List<BookResource>>(request);
+            var (start, end, title) = DatedBookWindow(author.Id);
 
-            items = items.Where(v => v.AuthorId == author.Id).ToList();
+            var items = GetCalendar(start, end, author.Id);
 
-            items.Should().HaveCount(1);
-            items.First().Title.Should().Be("The Last Day");
+            items.Should().NotBeEmpty();
+            items.Should().Contain(v => v.Title == title);
         }
 
         [Test]
         public void should_not_be_able_to_get_unmonitored_books()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, true);
 
-            var request = Calendar.BuildRequest();
-            request.AddParameter("start", new DateTime(2020, 02, 01).ToString("s") + "Z");
-            request.AddParameter("end", new DateTime(2020, 02, 28).ToString("s") + "Z");
-            request.AddParameter("unmonitored", "false");
-            var items = Calendar.Get<List<BookResource>>(request);
+            var (start, end, _) = DatedBookWindow(author.Id);
 
-            items = items.Where(v => v.AuthorId == author.Id).ToList();
+            // Unmonitor only after the window is known: an unmonitored author's
+            // books still have to be readable to work out which dates to ask
+            // for, and this is the state the assertion is about.
+            EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, false);
+
+            var items = GetCalendar(start, end, author.Id, "false");
 
             items.Should().BeEmpty();
         }
@@ -56,18 +101,16 @@ namespace NzbDrone.Integration.Test.ApiTests
         [Test]
         public void should_be_able_to_get_unmonitored_books()
         {
-            var author = EnsureAuthor("14586394", "43765115", "Andrew Hunter Murray", false);
+            var author = EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, true);
 
-            var request = Calendar.BuildRequest();
-            request.AddParameter("start", new DateTime(2020, 02, 01).ToString("s") + "Z");
-            request.AddParameter("end", new DateTime(2020, 02, 28).ToString("s") + "Z");
-            request.AddParameter("unmonitored", "true");
-            var items = Calendar.Get<List<BookResource>>(request);
+            var (start, end, title) = DatedBookWindow(author.Id);
 
-            items = items.Where(v => v.AuthorId == author.Id).ToList();
+            EnsureAuthor(OpenLibraryFixtureData.AndrewHunterMurrayId, OpenLibraryFixtureData.AndrewHunterMurrayName, false);
 
-            items.Should().HaveCount(1);
-            items.First().Title.Should().Be("The Last Day");
+            var items = GetCalendar(start, end, author.Id, "true");
+
+            items.Should().NotBeEmpty();
+            items.Should().Contain(v => v.Title == title);
         }
     }
 }

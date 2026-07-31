@@ -24,7 +24,7 @@ that Phases 2–5 wired up.
 
 - [x] `./test.sh Mac Unit Test` green on local Linux/macOS — verified
   during the finalization pass (3359 passed, 123 skipped, 0 failed
-  across nine assemblies; `TEST_DIR=_tests/net6.0` env required, see
+  across nine assemblies; `TEST_DIR=_tests/net10.0` env required, see
   test.sh for the path-resolution quirk).
 - [x] `dotnet build src/Readarr.sln -c Debug` clean (0 errors, 0
   warnings).
@@ -129,12 +129,22 @@ remaining engineering coverage gaps are closed.
 
 - [ ] Beta has been in the wild for at least 30 days with no
   critical regressions reported in `docs/state-of-the-fork/`.
-- [ ] **Integration suite reactivated.** Currently dormant —
-  `src/NzbDrone.Integration.Test/_AssemblyGate.cs` skips all 103
-  fixtures because the inherited `IntegrationTestBase` setup
-  hits `api.bookinfo.club` (retired upstream 2025-06-27).
-  Reactivation requires either repointing the setup at
-  `OpenLibraryProxy` or wiring cassette stubs into the test host.
+- [ ] **Integration suite runnable unattended.** The fixtures work —
+  the Goodreads identifiers are gone, `EnsureAuthor` resolves an
+  OpenLibrary author id, and the six fixtures that were marked
+  "Waiting for metadata to be back again" each pass against live
+  OpenLibrary. What does *not* work is running them in one pass:
+  every fixture starts from an empty appdata, so nothing is cached
+  between them, and one full run of `ApiTests` was enough to have
+  the source IP refused (`Connection refused (openlibrary.org:443)`
+  on 26 of 88 tests). Until that is solved they have to be run one
+  fixture at a time, which is not something CI can do usefully.
+
+  Two plausible routes, neither attempted: share one appdata (and
+  therefore one warm cache) across the assembly the way
+  `NzbDrone.Playwright.Test` shares its instance, or record the
+  OpenLibrary responses as cassettes — `OpenLibraryCassetteFixture`
+  in the unit suite already has the machinery.
 - [ ] **Playwright chip → page round-trip test.** Needs a seeded
   library — either a SQLite seed shipped under `tests/regression/`
   (capture recipe in `ReidentifyRegressionFixture` comments) or
@@ -195,7 +205,7 @@ To re-verify the engineering gates (the ones marked `[x]` above):
 
 ```bash
 # Unit suite
-TEST_DIR=_tests/net6.0 ./test.sh Mac Unit Test
+TEST_DIR=_tests/net10.0 ./test.sh Mac Unit Test
 
 # Full solution build
 dotnet build src/Readarr.sln -c Debug

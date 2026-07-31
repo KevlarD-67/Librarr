@@ -95,11 +95,12 @@ jobs:
 
       - name: Build backend
         shell: bash
-        # --enable-extra-platforms (freebsd-x64 + linux-x86) is deferred
-        # for 1.0.0-beta: the GHA runner's .NET 10 SDK no longer ships
-        # runtime packs for those RIDs on net6.0. Re-enable in a future
-        # cycle once we either pin the SDK via global.json or upgrade
-        # the target framework.
+        # --enable-extra-platforms (freebsd-x64 + linux-x86) is deferred:
+        # the .NET SDK stopped shipping runtime packs for those RIDs. The
+        # two escape hatches this comment used to name are both spent --
+        # global.json now pins the SDK and the target framework is net10.0 --
+        # so re-enabling means the patched-bundled-versions route the release
+        # workflow uses, not a version bump.
         run: ./build.sh --backend
 
       - name: Upload backend output
@@ -168,17 +169,21 @@ jobs:
         shell: bash
         run: |
           chmod +x test.sh
-          chmod +x _tests/net6.0/linux-x64/publish/Readarr.Test.Dummy 2>/dev/null || true
+          chmod +x _tests/net10.0/linux-x64/publish/Readarr.Test.Dummy 2>/dev/null || true
 
       - name: Run unit tests with coverage
         shell: bash
         env:
           # Per azure-pipelines.yml:1219 — test.sh's assembly-discovery loop
           # expects the test DLLs at $TEST_DIR/<DLL>.dll, which after build
-          # live under _tests/net6.0/<rid>/publish/. Without this, vstest
+          # live under _tests/net10.0/<rid>/publish/. Without this, vstest
           # is handed nonexistent file paths and reports "Failed tests: 1"
           # while exiting 0 — i.e., the suite never actually runs.
-          TEST_DIR: _tests/net6.0/linux-x64/publish
+          #
+          # Which is exactly what happened: the .NET 10 migration left this at
+          # net6.0 and this job has been failing on main ever since, with the
+          # symptom the comment above already described.
+          TEST_DIR: _tests/net10.0/linux-x64/publish
         run: ./test.sh Linux Unit Coverage
 
       - name: Upload test results
@@ -273,7 +278,7 @@ jobs:
       - name: Restore exec bit on Readarr binary
         # actions/upload-artifact strips POSIX exec bits on non-Windows.
         shell: bash
-        run: chmod +x _output/net6.0/linux-x64/publish/Readarr
+        run: chmod +x _output/net10.0/linux-x64/publish/Readarr
 
       - name: Run smoke script
         shell: bash

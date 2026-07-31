@@ -56,14 +56,37 @@ namespace NzbDrone.Test.Common
             }
 
             _startupLog = new List<string>();
-            if (BuildInfo.IsDebug)
+
+            // net10.0, not net6.0. The .NET 10 migration missed this path, and
+            // because the old _output/net6.0 tree survives on disk from any
+            // earlier build, every integration test went on booting a
+            // pre-migration binary without complaint -- passing or failing on
+            // behaviour that had not been in the codebase for months. Nothing
+            // pointed at it: the suite is gated behind READARR_RUN_INTEGRATION,
+            // so nobody was watching.
+            var binaryPath = BuildInfo.IsDebug
+                ? Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "_output", "net10.0", readarrConsoleExe)
+                : Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "bin", readarrConsoleExe);
+
+            // Say which binary, and when it was built. The failure mode above
+            // was silent for months precisely because nothing ever named the
+            // file it launched: the Release path (_tests/bin) is populated by
+            // a full ./build.sh, so a plain `dotnet test` refreshes the test
+            // assemblies and leaves the app behind, and the only symptom is
+            // assertions failing against code you are looking at.
+            var resolved = Path.GetFullPath(binaryPath);
+
+            if (!File.Exists(resolved))
             {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "_output", "net6.0", readarrConsoleExe));
+                Assert.Fail(
+                    $"Readarr binary not found at {resolved}. " +
+                    "Run ./build.sh --backend first, or run the suite in Debug so it picks up _output/net10.0.");
             }
-            else
-            {
-                Start(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "bin", readarrConsoleExe));
-            }
+
+            TestContext.Progress.WriteLine(
+                $"Starting Readarr from {resolved} (built {File.GetLastWriteTime(resolved):s})");
+
+            Start(resolved);
 
             while (true)
             {

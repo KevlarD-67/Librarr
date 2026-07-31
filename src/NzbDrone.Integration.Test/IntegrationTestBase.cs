@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FluentAssertions;
 using Microsoft.AspNetCore.SignalR.Client;
 using NLog;
 using NLog.Config;
@@ -238,14 +239,38 @@ namespace NzbDrone.Integration.Test
             Assert.Fail("Timed on wait");
         }
 
-        public AuthorResource EnsureAuthor(string authorId, string goodreadsEditionId, string authorName, bool? monitored = null)
+        // authorId is an OpenLibrary author key (OL...A).
+        //
+        // This used to take a Goodreads edition id as well and look the author
+        // up with `edition:<id>`. That never had a chance of working after the
+        // OpenLibrary cutover: /api/v1/author/lookup routes to
+        // SearchForNewAuthor, and the typed-prefix shortcuts live in
+        // SearchForNewEntity, which only /search uses. The prefix was silently
+        // ignored and the term searched as a name, so `edition:43765115`
+        // matched nothing and `edition:2` matched six junk records.
+        //
+        // SearchForNewAuthor now resolves an OpenLibrary author id directly,
+        // so the author's own id is both the lookup key and the thing the
+        // fixtures assert on -- one identifier instead of two, and no
+        // dependence on a particular edition surviving in the index.
+        public AuthorResource EnsureAuthor(string authorId, string authorName, bool? monitored = null)
         {
             var result = Author.All().FirstOrDefault(v => v.ForeignAuthorId == authorId);
 
             if (result == null)
             {
-                var lookup = Author.Lookup("edition:" + goodreadsEditionId);
+                var lookup = Author.Lookup(authorId);
+
+                // Fail here rather than adding whoever came back. An id lookup
+                // returns exactly one author or none, so anything else means
+                // the record moved or was merged, and the assertions further
+                // down would otherwise fail somewhere far less informative.
+                lookup.Should().HaveCount(1, $"looking up {authorId} should resolve exactly one author");
+
                 var author = lookup.First();
+
+                author.ForeignAuthorId.Should().Be(authorId);
+
                 author.QualityProfileId = 1;
                 author.MetadataProfileId = 1;
                 author.Path = Path.Combine(AuthorRootFolder, author.AuthorName);
@@ -293,6 +318,30 @@ namespace NzbDrone.Integration.Test
             {
                 Author.Delete(result.Id);
             }
+        }
+
+        // The book to import a fake file against, discovered rather than
+        // assumed.
+        //
+        // Callers used to pass bookId: 1 and a hard-coded Goodreads edition id.
+        // The first was a bet that the book happened to be database row 1; the
+        // second stopped identifying anything at the OpenLibrary cutover. Both
+        // are properties of the author's actual catalogue, so ask for them.
+        public (int BookId, string ForeignEditionId) FirstImportableBook(AuthorResource author)
+        {
+            var books = Books.GetBooksInAuthor(author.Id);
+
+            books.Should().NotBeEmpty($"{author.AuthorName} should have books after being added");
+
+            // ForeignEditionId, not Editions[0]. BookResourceMapper fills the
+            // former from whichever edition is monitored and leaves the latter
+            // null on this endpoint, so a book with a perfectly good edition
+            // still looks edition-less through the list API.
+            var book = books.FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.ForeignEditionId));
+
+            book.Should().NotBeNull($"{author.AuthorName} should have at least one book with a monitored edition to import against");
+
+            return (book.Id, book.ForeignEditionId);
         }
 
         public void EnsureBookFile(AuthorResource author, int bookId, string foreignEditionId, Quality quality)

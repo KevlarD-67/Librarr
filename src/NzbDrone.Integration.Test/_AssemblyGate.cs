@@ -8,15 +8,30 @@ namespace NzbDrone.Integration.Test
     //
     // That used to hit api.bookinfo.club, retired upstream on 2025-06-27, and
     // this gate was written on the assumption that every test therefore failed
-    // its setup. That is no longer true: the OpenLibrary cutover landed, and
-    // AuthorEditorFixture has been confirmed passing against live OL. Several
-    // fixtures still carry a stale
-    // [Ignore("Waiting for metadata to be back again")] from that era — see
-    // AuthorFixture, AuthorLookupFixture, CalendarFixture, BlocklistFixture.
+    // its setup. The OpenLibrary cutover fixed that, and the six fixtures that
+    // still carried a stale [Ignore("Waiting for metadata to be back again")]
+    // from that era — AuthorFixture, AuthorLookupFixture, CalendarFixture,
+    // BlocklistFixture, MissingFixture and CutoffUnmetFixture — have had it
+    // removed along with the Goodreads identifiers that were the real
+    // blocker. See OpenLibraryFixtureData.
     //
     // The gate stays because the reason it is useful survives the fix: these
     // tests need the network and a couple of minutes, so they should not run
     // on a bare `dotnet test`. Opt in with READARR_RUN_INTEGRATION=1.
+    //
+    // RUN ONE FIXTURE AT A TIME. Every fixture starts with an empty appdata,
+    // so no OpenLibrary cache carries over and each one re-fetches the author
+    // and its works from scratch. Running the whole ApiTests namespace in a
+    // single pass was enough to get the source IP refused --
+    // "Connection refused (openlibrary.org:443)" on 26 of 88 tests, with the
+    // refusals continuing for minutes afterwards. Individually the fixtures
+    // are fine:
+    //
+    //   dotnet test src/NzbDrone.Integration.Test/ -c Debug \
+    //       --filter "FullyQualifiedName~AuthorFixture"
+    //
+    // -c Debug matters too: the Release path boots _tests/bin, which only a
+    // full ./build.sh refreshes. See NzbDroneRunner.Start.
     [SetUpFixture]
     public class AssemblyGate
     {
@@ -26,8 +41,8 @@ namespace NzbDrone.Integration.Test
             if (Environment.GetEnvironmentVariable("READARR_RUN_INTEGRATION") != "1")
             {
                 Assert.Ignore(
-                    "Integration.Test depends on a reachable metadata source (api.bookinfo.club, now retired). " +
-                    "Set READARR_RUN_INTEGRATION=1 to run against a populated upstream once OpenLibrary cutover lands.");
+                    "Integration.Test boots a real instance and calls live OpenLibrary. " +
+                    "Set READARR_RUN_INTEGRATION=1 to run it.");
             }
         }
     }

@@ -18,6 +18,18 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   handling, the Add Author search result card and the root folder card. This
   is a foundation, not coverage -- four files out of roughly a thousand.
 
+- **The integration fixtures run again.** Six fixtures carried
+  `[Ignore("Waiting for metadata to be back again")]` from the bookinfo.club
+  retirement. The marker was never the blocker: `EnsureAuthor` looked authors
+  up with `edition:<goodreads id>`, and `/author/lookup` has no prefix
+  handling, so the prefix was ignored and a Goodreads number searched as a
+  name. Authors are now identified by their OpenLibrary id, collected in
+  `OpenLibraryFixtureData`, and 30 previously-skipped tests pass against live
+  OpenLibrary. CalendarFixture no longer asserts a hard-coded February 2020
+  window -- OpenLibrary dates none of the author's works, so the window is
+  derived from the book's own release date, which tests the calendar rather
+  than OpenLibrary's agreement with Goodreads.
+
 - **A root-folder default for the audiobook quality profile.** Set one on a
   root folder and authors created there inherit it, so a dual-format library
   no longer needs a per-author or bulk edit for every new arrival. Leaving it
@@ -66,6 +78,22 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   one slot. See `docs/ebooks-and-audiobooks.md`.
 
 ### Fixed
+
+- **CI was red on `main`, and had been since the .NET 10 migration.** Three
+  separate breakages, all found while running the integration suite. The
+  unit-test job passed `TEST_DIR=_tests/net6.0/...`, which the inline comment
+  beside it already warned would make vstest report "Failed tests: 1" against
+  paths that do not exist. The e2e-smoke job could not `chmod` a binary under
+  `_output/net6.0/`. And three CSS property-order violations from the Library
+  Import wizard failed stylelint. The stale `net6.0` paths are also gone from
+  `docs.sh`, `tests/e2e/smoke.sh` and the Playwright/Docker docs.
+
+- **The integration suite booted a binary from before the .NET 10 migration.**
+  `NzbDroneRunner` started `_output/net6.0/Readarr` in Debug, and that tree
+  survives on disk from any earlier build, so the tests ran against months-old
+  code and said nothing. It now resolves `net10.0`, fails with the path in the
+  message if the binary is missing, and prints which file it launched and when
+  that file was built.
 
 - **A quality profile used only for audiobooks could be deleted.** The
   in-use check that stops you deleting a profile still assigned to an author,

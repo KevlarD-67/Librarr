@@ -7,7 +7,7 @@
 # the unit + integration NUnit suites cover correctness.
 #
 # Usage:
-#   ./tests/e2e/smoke.sh                    # uses ./_output/net6.0/<rid>/Readarr
+#   ./tests/e2e/smoke.sh                    # uses ./_output/net10.0/<rid>/Readarr
 #   READARR_BIN=/path/to/Readarr ./smoke.sh # explicit binary
 #
 # Requires: curl.
@@ -28,7 +28,7 @@ if [[ -z "${READARR_BIN}" ]]; then
     Linux)  RID="linux-$(uname -m | sed s/x86_64/x64/)" ;;
     *)      echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
   esac
-  READARR_BIN="_output/net6.0/${RID}/publish/Readarr"
+  READARR_BIN="_output/net10.0/${RID}/publish/Readarr"
 fi
 
 if [[ ! -x "${READARR_BIN}" ]]; then
