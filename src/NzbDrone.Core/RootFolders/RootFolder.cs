@@ -11,6 +11,12 @@ namespace NzbDrone.Core.RootFolders
         public string Path { get; set; }
         public int DefaultMetadataProfileId { get; set; }
         public int DefaultQualityProfileId { get; set; }
+
+        // 0 means authors added under this root folder stay single-format and
+        // audiobooks are ranked by DefaultQualityProfileId, matching
+        // Author.AudiobookQualityProfileId. Unlike the field above, 0 is a
+        // valid setting rather than a missing one.
+        public int DefaultAudiobookQualityProfileId { get; set; }
         public MonitorTypes DefaultMonitorOption { get; set; }
         public NewItemMonitorTypes DefaultNewItemMonitorOption { get; set; }
         public HashSet<int> DefaultTags { get; set; } = new ();

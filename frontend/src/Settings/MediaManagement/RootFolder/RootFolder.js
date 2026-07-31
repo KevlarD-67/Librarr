@@ -67,6 +67,7 @@ class RootFolder extends Component {
       name,
       path,
       qualityProfile,
+      audiobookQualityProfile,
       metadataProfile,
       isRescanning
     } = this.props;
@@ -100,6 +101,17 @@ class RootFolder extends Component {
             {qualityProfile?.name || translate('None')}
           </Label>
 
+          {
+            // Only when a separate audiobook profile is actually configured.
+            // Rendering it unconditionally would add a "None" chip to every
+            // root folder to say nothing had changed.
+            audiobookQualityProfile ?
+              <Label kind={kinds.SUCCESS}>
+                {translate('AudiobookProfileLabel', { name: audiobookQualityProfile.name })}
+              </Label> :
+              null
+          }
+
           <Label kind={metadataProfile?.name ? kinds.SUCCESS : kinds.DANGER}>
             {metadataProfile?.name || translate('None')}
           </Label>
@@ -131,6 +143,7 @@ RootFolder.propTypes = {
   name: PropTypes.string.isRequired,
   path: PropTypes.string.isRequired,
   qualityProfile: PropTypes.object.isRequired,
+  audiobookQualityProfile: PropTypes.object,
   metadataProfile: PropTypes.object.isRequired,
   isRescanning: PropTypes.bool.isRequired,
   onConfirmDeleteRootFolder: PropTypes.func.isRequired,

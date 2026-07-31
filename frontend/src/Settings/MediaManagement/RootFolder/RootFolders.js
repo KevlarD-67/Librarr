@@ -59,12 +59,16 @@ class RootFolders extends Component {
             {
               items.sort(sortByName).map((item) => {
                 const qualityProfile = qualityProfiles.find((profile) => profile.id === item.defaultQualityProfileId);
+                const audiobookQualityProfile = item.defaultAudiobookQualityProfileId ?
+                  qualityProfiles.find((profile) => profile.id === item.defaultAudiobookQualityProfileId) :
+                  undefined;
                 const metadataProfile = metadataProfiles.find((profile) => profile.id === item.defaultMetadataProfileId);
                 return (
                   <RootFolder
                     key={item.id}
                     {...item}
                     qualityProfile={qualityProfile}
+                    audiobookQualityProfile={audiobookQualityProfile}
                     metadataProfile={metadataProfile}
                     isRescanning={isRescanning}
                     onConfirmDeleteRootFolder={onConfirmDeleteRootFolder}
