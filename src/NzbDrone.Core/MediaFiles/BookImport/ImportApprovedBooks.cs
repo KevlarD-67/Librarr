@@ -407,6 +407,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     author.RootFolderPath = rootFolder.Path;
                     author.MetadataProfileId = rootFolder.DefaultMetadataProfileId;
                     author.QualityProfileId = rootFolder.DefaultQualityProfileId;
+
+                    // 0 on the root folder means "single-format", and 0 on the
+                    // author means the same thing, so this copies through
+                    // cleanly either way. This is the path that matters most
+                    // for the setting: an author created here was never seen
+                    // by the Add Author form, so a root-folder default is the
+                    // only chance to get its audiobook ranking right before
+                    // the first file is judged.
+                    author.AudiobookQualityProfileId = rootFolder.DefaultAudiobookQualityProfileId;
                     author.Monitored = rootFolder.DefaultMonitorOption != MonitorTypes.None;
                     author.MonitorNewItems = rootFolder.DefaultNewItemMonitorOption;
                     author.Tags = rootFolder.DefaultTags;

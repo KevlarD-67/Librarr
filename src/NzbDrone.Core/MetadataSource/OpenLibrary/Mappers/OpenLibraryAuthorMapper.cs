@@ -12,6 +12,25 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
         {
             var metadata = ToMetadata(resource);
 
+            // WorkCount only ever came from /search/authors.json, so an
+            // author reached by id instead of by name arrived with 0 —
+            // and describeMatch() in the Library Import wizard renders 0
+            // as "No works". Pasting a known-good OL id therefore showed
+            // the correct author labelled as if it were an empty stub,
+            // which is precisely backwards.
+            //
+            // works.json's `size` is the same quantity: it reports 238 for
+            // OL79043A where the search index says 236, a freshness gap,
+            // not a different measure. TopWork stays unset — OL computes
+            // `top_work` in the search index and the works list is not
+            // ordered by it, so the first entry would be a guess wearing
+            // the label of a fact. describeMatch already handles its
+            // absence.
+            if (works != null)
+            {
+                metadata.WorkCount = works.Size;
+            }
+
             // Series stays empty for OL — OL doesn't model series at the
             // author level; per-work series links surface during book
             // refresh via OpenLibrarySeriesProxy. Initialising to an

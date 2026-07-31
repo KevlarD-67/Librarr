@@ -15,6 +15,7 @@ namespace Readarr.Api.V1.RootFolders
         public string Path { get; set; }
         public int DefaultMetadataProfileId { get; set; }
         public int DefaultQualityProfileId { get; set; }
+        public int DefaultAudiobookQualityProfileId { get; set; }
         public MonitorTypes DefaultMonitorOption { get; set; }
         public NewItemMonitorTypes DefaultNewItemMonitorOption { get; set; }
         public HashSet<int> DefaultTags { get; set; }
@@ -52,6 +53,7 @@ namespace Readarr.Api.V1.RootFolders
                 Path = model.Path.GetCleanPath(),
                 DefaultMetadataProfileId = model.DefaultMetadataProfileId,
                 DefaultQualityProfileId = model.DefaultQualityProfileId,
+                DefaultAudiobookQualityProfileId = model.DefaultAudiobookQualityProfileId,
                 DefaultMonitorOption = model.DefaultMonitorOption,
                 DefaultNewItemMonitorOption = model.DefaultNewItemMonitorOption,
                 DefaultTags = model.DefaultTags,
@@ -109,6 +111,7 @@ namespace Readarr.Api.V1.RootFolders
 
                 DefaultMetadataProfileId = resource.DefaultMetadataProfileId,
                 DefaultQualityProfileId = resource.DefaultQualityProfileId,
+                DefaultAudiobookQualityProfileId = resource.DefaultAudiobookQualityProfileId,
                 DefaultMonitorOption = resource.DefaultMonitorOption,
                 DefaultNewItemMonitorOption = resource.DefaultNewItemMonitorOption,
                 DefaultTags = resource.DefaultTags ?? new HashSet<int>(),

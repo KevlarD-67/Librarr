@@ -218,6 +218,32 @@ jobs:
         shell: bash
         run: yarn stylelint-linux
 
+  test-frontend:
+    # The frontend had no automated coverage of any kind until this job
+    # existed -- no jest, no vitest, no test file anywhere under frontend/.
+    # Separate from lint-frontend so a failing assertion and a style
+    # violation are never reported as the same red X.
+    name: Unit tests (frontend)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install dependencies
+        shell: bash
+        run: yarn install --frozen-lockfile
+
+      - name: Vitest
+        shell: bash
+        run: yarn test:frontend
+
   e2e-smoke:
     # Phase 8 exit criterion: one e2e smoke run per CI build. Boots the
     # published linux-x64 backend artifact, asserts the API surface

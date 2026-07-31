@@ -44,6 +44,7 @@ function EditRootFolderModalContent(props) {
     name,
     path,
     defaultQualityProfileId,
+    defaultAudiobookQualityProfileId,
     defaultMetadataProfileId,
     defaultMonitorOption,
     defaultNewItemMonitorOption,
@@ -178,6 +179,22 @@ function EditRootFolderModalContent(props) {
                     name="defaultQualityProfileId"
                     helpText={translate('DefaultQualityProfileIdHelpText')}
                     {...defaultQualityProfileId}
+                    onChange={onInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>
+                    {translate('AudiobookQualityProfile')}
+                  </FormLabel>
+
+                  <FormInputGroup
+                    type={inputTypes.QUALITY_PROFILE_SELECT}
+                    name="defaultAudiobookQualityProfileId"
+                    helpText={translate('DefaultAudiobookQualityProfileIdHelpText')}
+                    includeNone={true}
+                    noneLabel={translate('AudiobookQualityProfileNone')}
+                    {...defaultAudiobookQualityProfileId}
                     onChange={onInputChange}
                   />
                 </FormGroup>

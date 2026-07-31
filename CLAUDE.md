@@ -49,6 +49,8 @@ yarn start                                      # webpack --watch
 yarn build                                      # one-shot → _output/UI
 yarn lint                                       # ESLint
 yarn stylelint-linux                            # Stylelint over CSS
+yarn test:frontend                              # vitest (jsdom) — one-shot
+yarn test:frontend-watch                        # vitest in watch mode
 
 # Backend
 ./build.sh --backend --enable-extra-platforms   # full backend build (multi-RID)
@@ -73,8 +75,8 @@ number that is wrong is worse than no number, because it gets trusted.
   pinned in `global.json`),
   ASP.NET Core, **DryIoc 5.4.3** DI (`src/NzbDrone.Host/Bootstrap.cs:9-10,90`),
   custom Dapper-based ORM in `NzbDrone.Core/Datastore/`, Servarr-forked
-  FluentMigrator (`Servarr.FluentMigrator.Runner 3.3.2.9`; **47 migrations**,
-  latest `046_author_audiobook_quality_profile`), dual **SQLite +
+  FluentMigrator (`Servarr.FluentMigrator.Runner 3.3.2.9`; **48 migrations**,
+  latest `047_root_folder_audiobook_quality_profile`), dual **SQLite +
   PostgreSQL**, NLog logging, **Sentry 4.0.2**. Shipping version
   `1.1.0-beta` (`azure-pipelines.yml:22`). `Directory.Build.props:77`
   `AssemblyVersion 10.0.0.*` is the historical Readarr placeholder the CI
@@ -84,7 +86,7 @@ number that is wrong is worse than no number, because it gets trusted.
   2028-11-14. The Servarr-forked packages did **not** need replacing —
   `Servarr.FluentMigrator.Runner 3.3.2.9`,
   `System.Data.SQLite.Core.Servarr` and `Mono.Posix...-servarr22` all run
-  on .NET 10 unchanged, and all 47 migrations apply.
+  on .NET 10 unchanged, and all 48 migrations apply.
 
   **The trap that migration exposed:** ASP.NET Core 10 no longer infers
   `[FromBody]` for complex parameters on controllers that opt in via
@@ -103,15 +105,25 @@ number that is wrong is worse than no number, because it gets trusted.
   hand-written source: **1004 `.js` / 32 `.ts` / 36 `.tsx`**. Hooks appear
   136 times across just 28 files; the codebase is still overwhelmingly
   class components.
-- **Tests:** NUnit + Moq + FluentAssertions; **2764 passing** in
+- **Tests:** NUnit + Moq + FluentAssertions; **2789 passing** in
   `NzbDrone.Core.Test`. Selenium + ChromeDriver in
   `NzbDrone.Automation.Test` is years out of date — treat as historical;
   `NzbDrone.Playwright.Test` is the live smoke suite
   (opt in with `READARR_RUN_PLAYWRIGHT=1`). `NzbDrone.Integration.Test`
   needs `READARR_RUN_INTEGRATION=1` and real network.
 
-  **There is no frontend test infrastructure at all** — no jest, vitest,
-  or testing-library, and no test file anywhere under `frontend/`.
+  **Frontend: vitest + @testing-library/react + jsdom**, `yarn
+  test:frontend`, config in `frontend/build/vitest.config.mjs`. Tests are
+  `*.test.js` next to the component. Coverage is *thin* — four files,
+  24 tests, all on the dual-format and Add Author surfaces. Treat any
+  other component as untested.
+
+  Two things in that config are load-bearing and non-obvious. JSX inside
+  `.js` needs a `transform` plugin, not the `esbuild: { loader, include }`
+  option — that option's `include` replaces Vite's default and silently
+  stops `.ts`/`.tsx` being compiled. And `vitest.setup.mjs` has to create
+  `#portal-root` before any test module loads, because `Portal.js` reads
+  it into `defaultProps` at import time.
 
 ## Conventions
 

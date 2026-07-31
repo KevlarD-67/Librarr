@@ -54,6 +54,7 @@ export default {
       useSsl: false,
       outputProfile: 'default',
       defaultQualityProfileId: 0,
+      defaultAudiobookQualityProfileId: 0,
       defaultMetadataProfileId: 0,
       defaultMonitorOption: monitorOptions[0].key,
       defaultNewItemMonitorOption: monitorNewItemsOptions[0].key,

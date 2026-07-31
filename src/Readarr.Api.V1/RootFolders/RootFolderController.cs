@@ -68,6 +68,16 @@ namespace Readarr.Api.V1.RootFolders
                 .ValidId()
                 .SetValidator(qualityProfileExistsValidator);
 
+            // Deliberately not the same rule as the one above. 0 here means
+            // "authors added under this root folder stay single-format",
+            // which is both the default and a legitimate choice, and
+            // ValidId() rejects 0 outright -- so copying the rule would make
+            // every root folder unsaveable until a second profile was picked.
+            // When a profile IS named it still has to exist.
+            SharedValidator.RuleFor(c => c.DefaultAudiobookQualityProfileId).Cascade(CascadeMode.Stop)
+                .SetValidator(qualityProfileExistsValidator)
+                .When(c => c.DefaultAudiobookQualityProfileId > 0);
+
             SharedValidator.RuleFor(c => c.Host).ValidHost().When(x => x.IsCalibreLibrary);
             SharedValidator.RuleFor(c => c.Port).InclusiveBetween(1, 65535).When(x => x.IsCalibreLibrary);
             SharedValidator.RuleFor(c => c.UrlBase).ValidUrlBase().When(c => c.UrlBase.IsNotNullOrWhiteSpace());

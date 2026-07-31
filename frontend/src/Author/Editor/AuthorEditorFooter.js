@@ -60,10 +60,16 @@ class AuthorEditorFooter extends Component {
     } = this.props;
 
     if (prevProps.isSaving && !isSaving && !saveError) {
+      // audiobookQualityProfileId belongs here too. It was added to the
+      // constructor's state and to the render, but not to this reset, so
+      // after a bulk save every other control snapped back to "No Change"
+      // and this one kept showing the profile that had just been applied --
+      // as though it were still pending.
       this.setState({
         monitored: NO_CHANGE,
         monitorNewItems: NO_CHANGE,
         qualityProfileId: NO_CHANGE,
+        audiobookQualityProfileId: NO_CHANGE,
         metadataProfileId: NO_CHANGE,
         rootFolderPath: NO_CHANGE,
         savingTags: false

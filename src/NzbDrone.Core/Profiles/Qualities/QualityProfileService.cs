@@ -63,9 +63,14 @@ namespace NzbDrone.Core.Profiles.Qualities
 
         public void Delete(int id)
         {
-            if (_authorService.GetAllAuthors().Any(c => c.QualityProfileId == id) ||
+            // The two AudiobookQualityProfileId checks were missing: a profile
+            // used ONLY as an author's audiobook profile, or as a root
+            // folder's audiobook default, could be deleted without complaint,
+            // leaving rows pointing at a profile that no longer exists.
+            // Neither field can be 0 and match, because ids start at 1.
+            if (_authorService.GetAllAuthors().Any(c => c.QualityProfileId == id || c.AudiobookQualityProfileId == id) ||
                 _importListFactory.All().Any(c => c.ProfileId == id) ||
-                _rootFolderService.All().Any(c => c.DefaultQualityProfileId == id))
+                _rootFolderService.All().Any(c => c.DefaultQualityProfileId == id || c.DefaultAudiobookQualityProfileId == id))
             {
                 var profile = _profileRepository.Get(id);
                 throw new QualityProfileInUseException(profile.Name);

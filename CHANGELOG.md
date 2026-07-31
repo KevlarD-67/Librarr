@@ -9,6 +9,34 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Added
 
+- **Frontend unit tests, where there were none.** `yarn test:frontend` runs
+  vitest against jsdom with @testing-library/react; config lives in
+  `frontend/build/`, tests sit next to their component as `*.test.js`, and a
+  `Unit tests (frontend)` CI job runs them separately from linting. The first
+  24 cover the surfaces with the least prior verification: the 0-is-falsy
+  hazard in `QualityProfileSelectInputConnector`, the bulk editor's No Change
+  handling, the Add Author search result card and the root folder card. This
+  is a foundation, not coverage -- four files out of roughly a thousand.
+
+- **A root-folder default for the audiobook quality profile.** Set one on a
+  root folder and authors created there inherit it, so a dual-format library
+  no longer needs a per-author or bulk edit for every new arrival. Leaving it
+  unset keeps those authors single-format, which is what every existing root
+  folder gets. Migration 047; the setting lives beside the existing quality
+  profile default in the root folder dialog.
+
+  This matters most for authors nobody added by hand: when files land in a
+  folder for an author that is not in the library, `ImportApprovedBooks`
+  creates the author from the root folder's defaults, and until now there was
+  no way to give that author an audiobook profile before its first file was
+  judged.
+
+- **Work counts in the Add Author search results.** Open Library carries
+  several author records for most well-known names, identical on every field
+  the card showed. Searching "Tolkien" now distinguishes J.R.R. Tolkien, 355
+  works, from the "Tolkien" record with 1, and shows what each author is best
+  known for. The data was already on the wire; only the wizard was using it.
+
 - **Windows installers, and optional Authenticode signing.** The release
   pipeline now builds `Librarr.<version>.win-x64-installer.exe` and its
   x86 twin with Inno Setup, alongside the portable zips, and attaches
@@ -38,6 +66,25 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   one slot. See `docs/ebooks-and-audiobooks.md`.
 
 ### Fixed
+
+- **A quality profile used only for audiobooks could be deleted.** The
+  in-use check that stops you deleting a profile still assigned to an author,
+  an import list or a root folder never learned about the audiobook profile
+  the dual-format work added, so a profile referenced only there passed the
+  check and left those rows pointing at nothing.
+
+- **"Open in Open Library" was a 404 on every search result.** Both the
+  author and book cards in Add Author built a `goodreads.com` URL out of an
+  identifier that has been an Open Library key since the metadata cutover.
+  The link exists so you can check a match against the source, which made it
+  the one control on the card that most needed to work.
+
+- **The bulk editor's audiobook profile never reset after a save.** Every
+  other control in the author editor footer returns to "No Change" once the
+  save lands; `audiobookQualityProfileId` was added to the footer's initial
+  state and its render but not to that reset, so it went on displaying the
+  profile it had just applied as though it were still pending. Caught by the
+  first component test written against it.
 
 - **`build.sh --installer` could not have worked for anyone.** It fetched
   Inno Setup from `files.jrsoftware.org/is/6/innosetup-6.2.0.exe`;

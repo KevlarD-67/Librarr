@@ -80,6 +80,8 @@ class AddNewAuthorSearchResult extends Component {
       ratings,
       folder,
       images,
+      workCount,
+      topWork,
       isExistingAuthor,
       isSmallScreen
     } = this.props;
@@ -146,9 +148,17 @@ class AddNewAuthorSearchResult extends Component {
                     null
                 }
 
+                {/*
+                  * Open Library, not Goodreads. foreignAuthorId has been an
+                  * OL key since the metadata cutover, so this built
+                  * goodreads.com/author/show/OL26320A -- a 404 on every
+                  * result. Checking the source record is how you confirm a
+                  * match, which made this the one link on the card that
+                  * most needed to work.
+                  */}
                 <Link
                   className={styles.mbLink}
-                  to={`https://goodreads.com/author/show/${foreignAuthorId}`}
+                  to={`https://openlibrary.org/authors/${foreignAuthorId}`}
                   onPress={this.onMBLinkPress}
                 >
                   <Icon
@@ -168,6 +178,38 @@ class AddNewAuthorSearchResult extends Component {
                       rating={ratings.value}
                       iconSize={13}
                     />
+                  </Label> :
+                  null
+              }
+
+              {/*
+                * The signal that tells a real author from a stub. Open
+                * Library carries several records for most well-known
+                * authors -- searching "Tolkien" returns J.R.R. Tolkien with
+                * 355 works next to a "Tolkien" record with 1 -- and every
+                * other field on the card is identical or empty for both.
+                * The re-ranked search puts the right one first; this is how
+                * a user can tell when it hasn't.
+                */}
+              {
+                typeof workCount === 'number' ?
+                  <Label
+                    kind={workCount === 0 ? kinds.WARNING : kinds.DEFAULT}
+                    size={sizes.LARGE}
+                  >
+                    {
+                      workCount === 0 ?
+                        translate('AuthorNoWorks') :
+                        translate('AuthorWorkCount', { count: workCount })
+                    }
+                  </Label> :
+                  null
+              }
+
+              {
+                topWork ?
+                  <Label size={sizes.LARGE}>
+                    {translate('AuthorTopWork', { title: topWork })}
                   </Label> :
                   null
               }
@@ -226,6 +268,8 @@ AddNewAuthorSearchResult.propTypes = {
   ratings: PropTypes.object.isRequired,
   folder: PropTypes.string.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
+  workCount: PropTypes.number,
+  topWork: PropTypes.string,
   isExistingAuthor: PropTypes.bool.isRequired,
   isSmallScreen: PropTypes.bool.isRequired
 };
