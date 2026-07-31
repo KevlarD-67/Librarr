@@ -69,8 +69,4 @@ PendingChangesModal.propTypes = {
   unbindShortcut: PropTypes.func.isRequired
 };
 
-PendingChangesModal.defaultProps = {
-  kind: kinds.PRIMARY
-};
-
 export default keyboardShortcuts(PendingChangesModal);

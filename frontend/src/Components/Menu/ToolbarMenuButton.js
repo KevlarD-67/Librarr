@@ -9,7 +9,7 @@ import styles from './ToolbarMenuButton.css';
 function ToolbarMenuButton(props) {
   const {
     iconName,
-    indicator,
+    indicator = false,
     text,
     ...otherProps
   } = props;
@@ -53,11 +53,7 @@ function ToolbarMenuButton(props) {
 ToolbarMenuButton.propTypes = {
   iconName: PropTypes.object.isRequired,
   text: PropTypes.string,
-  indicator: PropTypes.bool.isRequired
-};
-
-ToolbarMenuButton.defaultProps = {
-  indicator: false
+  indicator: PropTypes.bool
 };
 
 export default ToolbarMenuButton;

@@ -4,7 +4,7 @@ import styles from './DescriptionListItemTitle.css';
 
 function DescriptionListItemTitle(props) {
   const {
-    className,
+    className = styles.title,
     children
   } = props;
 
@@ -16,12 +16,8 @@ function DescriptionListItemTitle(props) {
 }
 
 DescriptionListItemTitle.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   children: PropTypes.string
-};
-
-DescriptionListItemTitle.defaultProps = {
-  className: styles.title
 };
 
 export default DescriptionListItemTitle;

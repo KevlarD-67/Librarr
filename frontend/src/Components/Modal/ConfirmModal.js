@@ -13,14 +13,14 @@ import { kinds, sizes } from 'Helpers/Props';
 function ConfirmModal(props) {
   const {
     isOpen,
-    kind,
-    size,
+    kind = kinds.PRIMARY,
+    size = sizes.MEDIUM,
     title,
     message,
-    confirmLabel,
-    cancelLabel,
+    confirmLabel = 'OK',
+    cancelLabel = 'Cancel',
     hideCancelButton,
-    isSpinning,
+    isSpinning = false,
     onConfirm,
     onCancel,
     bindShortcut,
@@ -83,19 +83,11 @@ ConfirmModal.propTypes = {
   confirmLabel: PropTypes.string,
   cancelLabel: PropTypes.string,
   hideCancelButton: PropTypes.bool,
-  isSpinning: PropTypes.bool.isRequired,
+  isSpinning: PropTypes.bool,
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
   bindShortcut: PropTypes.func.isRequired,
   unbindShortcut: PropTypes.func.isRequired
-};
-
-ConfirmModal.defaultProps = {
-  kind: kinds.PRIMARY,
-  size: sizes.MEDIUM,
-  confirmLabel: 'OK',
-  cancelLabel: 'Cancel',
-  isSpinning: false
 };
 
 export default keyboardShortcuts(ConfirmModal);

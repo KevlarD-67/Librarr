@@ -118,12 +118,16 @@ number that is wrong is worse than no number, because it gets trusted.
   24 tests, all on the dual-format and Add Author surfaces. Treat any
   other component as untested.
 
-  Two things in that config are load-bearing and non-obvious. JSX inside
+  One thing in that config is load-bearing and non-obvious: JSX inside
   `.js` needs a `transform` plugin, not the `esbuild: { loader, include }`
   option — that option's `include` replaces Vite's default and silently
-  stops `.ts`/`.tsx` being compiled. And `vitest.setup.mjs` has to create
-  `#portal-root` before any test module loads, because `Portal.js` reads
-  it into `defaultProps` at import time.
+  stops `.ts`/`.tsx` being compiled.
+
+  (The setup file also creates `#root` and `#portal-root`. That used to be
+  order-sensitive — `Portal.js` resolved `#portal-root` into `defaultProps`
+  at import time, so an element created later was too late. The
+  `defaultProps` migration made it a default parameter, evaluated per
+  render, and the ordering constraint is gone.)
 
 ## Conventions
 

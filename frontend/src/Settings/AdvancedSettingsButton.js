@@ -11,7 +11,7 @@ function AdvancedSettingsButton(props) {
   const {
     advancedSettings,
     onAdvancedSettingsPress,
-    showLabel
+    showLabel = true
   } = props;
 
   return (
@@ -60,11 +60,7 @@ function AdvancedSettingsButton(props) {
 AdvancedSettingsButton.propTypes = {
   advancedSettings: PropTypes.bool.isRequired,
   onAdvancedSettingsPress: PropTypes.func.isRequired,
-  showLabel: PropTypes.bool.isRequired
-};
-
-AdvancedSettingsButton.defaultProps = {
-  showLabel: true
+  showLabel: PropTypes.bool
 };
 
 export default AdvancedSettingsButton;

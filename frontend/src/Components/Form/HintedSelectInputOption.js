@@ -4,6 +4,13 @@ import React from 'react';
 import EnhancedSelectInputOption from './EnhancedSelectInputOption';
 import styles from './HintedSelectInputOption.css';
 
+// isHidden reads oddly next to isDisabled, so: it is the caller's prop, and
+// the two are not linked. The old code said isHidden={isDisabled}, but that
+// line never took effect -- isHidden was defaulted without being destructured,
+// so it stayed in otherProps and the trailing spread overwrote it on every
+// render. Callers that hide an option pass isHidden themselves (see the
+// column definitions in authorIndexActions and friends). Behaviour is
+// unchanged; the dead assignment is gone.
 function HintedSelectInputOption(props) {
   const {
     id,
@@ -11,8 +18,9 @@ function HintedSelectInputOption(props) {
     hint,
     depth,
     isSelected,
-    isDisabled,
-    isMultiSelect,
+    isDisabled = false,
+    isHidden = false,
+    isMultiSelect = false,
     isMobile,
     ...otherProps
   } = props;
@@ -23,7 +31,7 @@ function HintedSelectInputOption(props) {
       depth={depth}
       isSelected={isSelected}
       isDisabled={isDisabled}
-      isHidden={isDisabled}
+      isHidden={isHidden}
       isMultiSelect={isMultiSelect}
       isMobile={isMobile}
       {...otherProps}
@@ -52,15 +60,10 @@ HintedSelectInputOption.propTypes = {
   hint: PropTypes.node,
   depth: PropTypes.number,
   isSelected: PropTypes.bool.isRequired,
-  isDisabled: PropTypes.bool.isRequired,
-  isMultiSelect: PropTypes.bool.isRequired,
+  isDisabled: PropTypes.bool,
+  isHidden: PropTypes.bool,
+  isMultiSelect: PropTypes.bool,
   isMobile: PropTypes.bool.isRequired
-};
-
-HintedSelectInputOption.defaultProps = {
-  isDisabled: false,
-  isHidden: false,
-  isMultiSelect: false
 };
 
 export default HintedSelectInputOption;

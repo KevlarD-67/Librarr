@@ -4,7 +4,7 @@ import styles from './DescriptionListItemDescription.css';
 
 function DescriptionListItemDescription(props) {
   const {
-    className,
+    className = styles.description,
     children
   } = props;
 
@@ -16,12 +16,8 @@ function DescriptionListItemDescription(props) {
 }
 
 DescriptionListItemDescription.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   children: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.node])
-};
-
-DescriptionListItemDescription.defaultProps = {
-  className: styles.description
 };
 
 export default DescriptionListItemDescription;

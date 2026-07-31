@@ -8,9 +8,9 @@ import styles from './FormInputButton.css';
 
 function FormInputButton(props) {
   const {
-    className,
-    canSpin,
-    isLastButton,
+    className = styles.button,
+    canSpin = false,
+    isLastButton = true,
     ...otherProps
   } = props;
 
@@ -40,15 +40,9 @@ function FormInputButton(props) {
 }
 
 FormInputButton.propTypes = {
-  className: PropTypes.string.isRequired,
-  isLastButton: PropTypes.bool.isRequired,
-  canSpin: PropTypes.bool.isRequired
-};
-
-FormInputButton.defaultProps = {
-  className: styles.button,
-  isLastButton: true,
-  canSpin: false
+  className: PropTypes.string,
+  isLastButton: PropTypes.bool,
+  canSpin: PropTypes.bool
 };
 
 export default FormInputButton;

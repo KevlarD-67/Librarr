@@ -11,12 +11,17 @@ afterEach(() => {
   cleanup();
 });
 
-// index.ejs ships these two divs and the app assumes they exist. It has to
-// happen here, before any test module is imported, because Portal.js reads
+// index.ejs ships these two divs and the app assumes they exist, so create
+// them before the tests run.
+//
+// This used to be strictly ordered -- it had to happen before any test module
+// was imported, because Portal.js resolved
 // `document.getElementById('portal-root')` into defaultProps at module load
-// time -- creating the element inside a test is already too late, and the
-// failure reads "Target container is not a DOM element" from deep inside
-// react-dom.
+// time, and an element created inside a test was already too late ("Target
+// container is not a DOM element", thrown from deep inside react-dom). The
+// defaultProps migration turned that into a default parameter, which is
+// evaluated per render, so the ordering no longer matters. Doing it here is
+// still the clearest place for it.
 for (const id of ['root', 'portal-root']) {
   const div = document.createElement('div');
   div.id = id;

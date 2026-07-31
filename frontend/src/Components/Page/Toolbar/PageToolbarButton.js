@@ -10,9 +10,9 @@ function PageToolbarButton(props) {
   const {
     label,
     iconName,
-    spinningName,
-    isDisabled,
-    isSpinning,
+    spinningName = icons.SPINNER,
+    isDisabled = false,
+    isSpinning = false,
     ...otherProps
   } = props;
 
@@ -46,12 +46,6 @@ PageToolbarButton.propTypes = {
   spinningName: PropTypes.object,
   isSpinning: PropTypes.bool,
   isDisabled: PropTypes.bool
-};
-
-PageToolbarButton.defaultProps = {
-  spinningName: icons.SPINNER,
-  isDisabled: false,
-  isSpinning: false
 };
 
 export default PageToolbarButton;

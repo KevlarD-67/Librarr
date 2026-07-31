@@ -42,7 +42,7 @@ function HistoryDetailsModal(props) {
     eventType,
     sourceTitle,
     data,
-    isMarkingAsFailed,
+    isMarkingAsFailed = false,
     shortDateFormat,
     timeFormat,
     onMarkAsFailedPress,
@@ -98,15 +98,11 @@ HistoryDetailsModal.propTypes = {
   eventType: PropTypes.string.isRequired,
   sourceTitle: PropTypes.string.isRequired,
   data: PropTypes.object.isRequired,
-  isMarkingAsFailed: PropTypes.bool.isRequired,
+  isMarkingAsFailed: PropTypes.bool,
   shortDateFormat: PropTypes.string.isRequired,
   timeFormat: PropTypes.string.isRequired,
   onMarkAsFailedPress: PropTypes.func.isRequired,
   onModalClose: PropTypes.func.isRequired
-};
-
-HistoryDetailsModal.defaultProps = {
-  isMarkingAsFailed: false
 };
 
 export default HistoryDetailsModal;

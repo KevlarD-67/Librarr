@@ -4,7 +4,7 @@ import styles from './TableRow.css';
 
 function TableRow(props) {
   const {
-    className,
+    className = styles.row,
     children,
     overlayContent,
     ...otherProps
@@ -21,13 +21,9 @@ function TableRow(props) {
 }
 
 TableRow.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   children: PropTypes.node,
   overlayContent: PropTypes.bool
-};
-
-TableRow.defaultProps = {
-  className: styles.row
 };
 
 export default TableRow;

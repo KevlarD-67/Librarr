@@ -6,9 +6,9 @@ import SelectInput from './SelectInput';
 
 function MonitorBooksSelectInput(props) {
   const {
-    includeNoChange,
-    includeMixed,
-    includeSpecificBook,
+    includeNoChange = false,
+    includeMixed = false,
+    includeSpecificBook = false,
     ...otherProps
   } = props;
 
@@ -46,16 +46,10 @@ function MonitorBooksSelectInput(props) {
 }
 
 MonitorBooksSelectInput.propTypes = {
-  includeNoChange: PropTypes.bool.isRequired,
-  includeMixed: PropTypes.bool.isRequired,
-  includeSpecificBook: PropTypes.bool.isRequired,
+  includeNoChange: PropTypes.bool,
+  includeMixed: PropTypes.bool,
+  includeSpecificBook: PropTypes.bool,
   onChange: PropTypes.func.isRequired
-};
-
-MonitorBooksSelectInput.defaultProps = {
-  includeNoChange: false,
-  includeMixed: false,
-  includeSpecificBook: false
 };
 
 export default MonitorBooksSelectInput;

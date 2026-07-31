@@ -6,8 +6,8 @@ import SelectInput from './SelectInput';
 
 function MonitorNewItemsSelectInput(props) {
   const {
-    includeNoChange,
-    includeMixed,
+    includeNoChange = false,
+    includeMixed = false,
     ...otherProps
   } = props;
 
@@ -38,14 +38,9 @@ function MonitorNewItemsSelectInput(props) {
 }
 
 MonitorNewItemsSelectInput.propTypes = {
-  includeNoChange: PropTypes.bool.isRequired,
-  includeMixed: PropTypes.bool.isRequired,
+  includeNoChange: PropTypes.bool,
+  includeMixed: PropTypes.bool,
   onChange: PropTypes.func.isRequired
-};
-
-MonitorNewItemsSelectInput.defaultProps = {
-  includeNoChange: false,
-  includeMixed: false
 };
 
 export default MonitorNewItemsSelectInput;
