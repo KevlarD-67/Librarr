@@ -11,7 +11,9 @@
     "lint": "eslint --config frontend/.eslintrc.js --ignore-path frontend/.eslintignore frontend/",
     "lint-fix": "yarn lint --fix",
     "stylelint-linux": "stylelint $(find frontend -name '*.css') --config frontend/.stylelintrc",
-    "stylelint-windows": "stylelint \"frontend/**/*.css\" --config frontend/.stylelintrc"
+    "stylelint-windows": "stylelint \"frontend/**/*.css\" --config frontend/.stylelintrc",
+    "test:frontend": "vitest run --config ./frontend/build/vitest.config.mjs",
+    "test:frontend-watch": "vitest --config ./frontend/build/vitest.config.mjs"
   },
   "repository": {
     "type": "git",
@@ -93,6 +95,9 @@
     "@babel/preset-env": "7.26.0",
     "@babel/preset-react": "7.26.3",
     "@babel/preset-typescript": "7.26.0",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.10.0",
+    "@testing-library/react": "16.3.2",
     "@types/lodash": "4.14.195",
     "@types/react-lazyload": "3.2.3",
     "@types/redux-actions": "2.6.5",
@@ -117,6 +122,7 @@
     "filemanager-webpack-plugin": "8.0.0",
     "fork-ts-checker-webpack-plugin": "8.0.0",
     "html-webpack-plugin": "5.6.0",
+    "jsdom": "26.1.0",
     "loader-utils": "^3.2.1",
     "mini-css-extract-plugin": "2.9.1",
     "postcss": "8.4.47",
@@ -136,6 +142,8 @@
     "ts-loader": "9.5.1",
     "typescript-plugin-css-modules": "5.0.1",
     "url-loader": "4.1.1",
+    "vite": "6.4.3",
+    "vitest": "3.2.7",
     "webpack": "5.95.0",
     "webpack-cli": "5.1.4",
     "webpack-livereload-plugin": "3.0.2",

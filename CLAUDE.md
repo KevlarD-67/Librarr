@@ -49,6 +49,8 @@ yarn start                                      # webpack --watch
 yarn build                                      # one-shot → _output/UI
 yarn lint                                       # ESLint
 yarn stylelint-linux                            # Stylelint over CSS
+yarn test:frontend                              # vitest (jsdom) — one-shot
+yarn test:frontend-watch                        # vitest in watch mode
 
 # Backend
 ./build.sh --backend --enable-extra-platforms   # full backend build (multi-RID)
@@ -103,15 +105,25 @@ number that is wrong is worse than no number, because it gets trusted.
   hand-written source: **1004 `.js` / 32 `.ts` / 36 `.tsx`**. Hooks appear
   136 times across just 28 files; the codebase is still overwhelmingly
   class components.
-- **Tests:** NUnit + Moq + FluentAssertions; **2764 passing** in
+- **Tests:** NUnit + Moq + FluentAssertions; **2787 passing** in
   `NzbDrone.Core.Test`. Selenium + ChromeDriver in
   `NzbDrone.Automation.Test` is years out of date — treat as historical;
   `NzbDrone.Playwright.Test` is the live smoke suite
   (opt in with `READARR_RUN_PLAYWRIGHT=1`). `NzbDrone.Integration.Test`
   needs `READARR_RUN_INTEGRATION=1` and real network.
 
-  **There is no frontend test infrastructure at all** — no jest, vitest,
-  or testing-library, and no test file anywhere under `frontend/`.
+  **Frontend: vitest + @testing-library/react + jsdom**, `yarn
+  test:frontend`, config in `frontend/build/vitest.config.mjs`. Tests are
+  `*.test.js` next to the component. Coverage is *thin* — three files,
+  21 tests, all on the dual-format and Add Author surfaces. Treat any
+  other component as untested.
+
+  Two things in that config are load-bearing and non-obvious. JSX inside
+  `.js` needs a `transform` plugin, not the `esbuild: { loader, include }`
+  option — that option's `include` replaces Vite's default and silently
+  stops `.ts`/`.tsx` being compiled. And `vitest.setup.mjs` has to create
+  `#portal-root` before any test module loads, because `Portal.js` reads
+  it into `defaultProps` at import time.
 
 ## Conventions
 
