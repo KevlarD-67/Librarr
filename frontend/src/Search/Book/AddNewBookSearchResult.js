@@ -138,11 +138,20 @@ class AddNewBookSearchResult extends Component {
                     null
                 }
 
+                {/*
+                  * Open Library, not Goodreads -- foreignEditionId has been
+                  * an OL key (OL...M) since the metadata cutover, so this
+                  * built a goodreads.com URL that 404s. The `length > 1`
+                  * condition is left as inherited: it hides the link on
+                  * single-edition books, which looks unintentional, but
+                  * changing when a link appears is a different decision
+                  * from making the link correct.
+                  */}
                 {
                   editions && editions.length > 1 ?
                     <Link
                       className={styles.mbLink}
-                      to={`https://goodreads.com/book/show/${editions[0].foreignEditionId}`}
+                      to={`https://openlibrary.org/books/${editions[0].foreignEditionId}`}
                       onPress={this.onTVDBLinkPress}
                     >
                       <Icon

@@ -26,7 +26,9 @@ function describeMatch({ workCount, topWork }) {
     return translate('LibraryImportNoWorks');
   }
 
-  const works = translate('LibraryImportWorkCount', { count: workCount });
+  // AuthorWorkCount, shared with the Add Author search results rather than
+  // a second key holding the same English string.
+  const works = translate('AuthorWorkCount', { count: workCount });
 
   return topWork ? `${works}, ${topWork}` : works;
 }

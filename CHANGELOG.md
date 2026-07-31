@@ -9,6 +9,22 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Added
 
+- **Frontend unit tests, where there were none.** `yarn test:frontend` runs
+  vitest against jsdom with @testing-library/react; config lives in
+  `frontend/build/`, tests sit next to their component as `*.test.js`, and a
+  `Unit tests (frontend)` CI job runs them separately from linting. The first
+  21 cover the surfaces with the least prior verification: the 0-is-falsy
+  hazard in `QualityProfileSelectInputConnector`, the bulk editor's No Change
+  handling, and the Add Author search result card. This is a foundation, not
+  coverage -- three files out of roughly a thousand.
+
+- **Work counts in the Add Author search results.** Open Library carries
+  several author records for most well-known names, identical on every field
+  the card showed. Searching "Tolkien" now distinguishes J.R.R. Tolkien, 355
+  works, from the "Tolkien" record with 1, and shows what each author is best
+  known for. The data was already on the wire; only the wizard was using it.
+
+
 - **Windows installers, and optional Authenticode signing.** The release
   pipeline now builds `Librarr.<version>.win-x64-installer.exe` and its
   x86 twin with Inno Setup, alongside the portable zips, and attaches
@@ -38,6 +54,19 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   one slot. See `docs/ebooks-and-audiobooks.md`.
 
 ### Fixed
+
+- **"Open in Open Library" was a 404 on every search result.** Both the
+  author and book cards in Add Author built a `goodreads.com` URL out of an
+  identifier that has been an Open Library key since the metadata cutover.
+  The link exists so you can check a match against the source, which made it
+  the one control on the card that most needed to work.
+
+- **The bulk editor's audiobook profile never reset after a save.** Every
+  other control in the author editor footer returns to "No Change" once the
+  save lands; `audiobookQualityProfileId` was added to the footer's initial
+  state and its render but not to that reset, so it went on displaying the
+  profile it had just applied as though it were still pending. Caught by the
+  first component test written against it.
 
 - **`build.sh --installer` could not have worked for anyone.** It fetched
   Inno Setup from `files.jrsoftware.org/is/6/innosetup-6.2.0.exe`;
