@@ -215,10 +215,17 @@
     <RuntimeIdentifier>linux-$(Architecture)</RuntimeIdentifier>
   </PropertyGroup>
 
+  <!-- osx-$(Architecture), matching the two blocks above. This was pinned to
+       osx-x64 from before Apple Silicon existed, so `dotnet build` on an arm64
+       Mac produced an x86_64 apphost that then refused to start with
+       "libhostfxr.dylib ... incompatible architecture (have 'arm64', need
+       'x86_64')". osx-arm64 has been in RuntimeIdentifiers above the whole
+       time; only the default was wrong. CI is unaffected, because build.sh
+       and the workflows always pass an explicit -r. -->
   <PropertyGroup Condition="'$(IsOSX)' == 'true' and
                             '$(RuntimeIdentifier)' == ''">
     <_UsingDefaultRuntimeIdentifier>true</_UsingDefaultRuntimeIdentifier>
-    <RuntimeIdentifier>osx-x64</RuntimeIdentifier>
+    <RuntimeIdentifier>osx-$(Architecture)</RuntimeIdentifier>
   </PropertyGroup>
 
 </Project>

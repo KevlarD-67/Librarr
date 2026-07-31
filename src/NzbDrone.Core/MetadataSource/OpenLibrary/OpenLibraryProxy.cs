@@ -195,19 +195,49 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<Author> SearchForNewAuthor(string title)
         {
+            // An OL author id is not findable through OL's own author
+            // search: q=OL79043A and q=author:OL79043A both come back with
+            // numFound 0. That matters because /api/v1/author/lookup routes
+            // here, and the Library Import wizard is its only caller -- so
+            // when the wizard picked the wrong author there was no way to
+            // correct it beyond retyping the name and hoping for a better
+            // ranking. Pasting the id off the author's Open Library page
+            // is the obvious move and it silently returned nothing.
+            //
+            // SearchForNewEntity has honoured `author:` since the OL
+            // cutover, but that is the Add Author page's route, not this
+            // one. Resolve the id forms here directly.
+            var (term, authorId) = ParseAuthorSearchTerm(title);
+
+            if (authorId != null)
+            {
+                try
+                {
+                    var author = GetAuthorInfo(authorId);
+                    return author != null ? new List<Author> { author } : new List<Author>();
+                }
+                catch (Exception ex) when (IsNotFound(ex))
+                {
+                    // A well-formed id that OL does not have. An empty
+                    // result is the honest answer; falling back to a name
+                    // search on the id string would only ever return noise.
+                    return new List<Author>();
+                }
+            }
+
             // OL's `/search/*.json` returns 422 UnprocessableEntity for
             // single-char queries (e.g. when the user is mid-typing and
             // the frontend's onChange fires a search on each keystroke).
             // Short-circuit before the HTTP call to avoid both the
             // wasted round-trip and the [Fatal] error pipeline log.
-            if (string.IsNullOrWhiteSpace(title) || title.Trim().Length < 2)
+            if (term.Length < 2)
             {
                 return new List<Author>();
             }
 
-            return Cached(true, $"osa_{title}", TimeSpan.FromHours(1), () =>
+            return Cached(true, $"osa_{term}", TimeSpan.FromHours(1), () =>
             {
-                var req = _requestBuilder.For($"search/authors.json?q={Uri.EscapeDataString(title)}").Build();
+                var req = _requestBuilder.For($"search/authors.json?q={Uri.EscapeDataString(term)}").Build();
                 req.SuppressHttpError = false;
                 req.SuppressHttpErrorStatusCodes = new[] { HttpStatusCode.UnprocessableEntity };
                 req.LogHttpError = false;
@@ -222,8 +252,54 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     return new List<Author>();
                 }
 
-                return OpenLibrarySearchMapper.ReRankAndMapAuthors(resp?.Resource, title);
+                return OpenLibrarySearchMapper.ReRankAndMapAuthors(resp?.Resource, term);
             });
+        }
+
+        // "OL does not have this record", as opposed to "the lookup failed".
+        //
+        // OL answers an unknown but well-formed id with a 404, and Send()
+        // surfaces that as an HttpException, not an OpenLibraryException --
+        // so a catch on OpenLibraryException alone lets it escape and the
+        // API returns a 500 with a stack trace. Pasting an id with a typo
+        // in it is an ordinary thing for a user to do and deserves "no
+        // results", not an error page.
+        //
+        // Deliberately narrow: a 429 or a 5xx or a transport failure is a
+        // real fault and has to keep propagating, or a rate-limited lookup
+        // becomes indistinguishable from an author who does not exist.
+        private static bool IsNotFound(Exception ex)
+            => ex is OpenLibraryException ||
+               (ex is HttpException http && http.Response?.StatusCode == HttpStatusCode.NotFound);
+
+        // Splits a raw author-search term into (term to search by name,
+        // OL author id to fetch directly). Exactly one of the two is
+        // meaningful: a non-null id means skip the name search entirely.
+        //
+        // Accepts a bare id ("OL79043A") as well as the prefixed form
+        // ("author:OL79043A") that SearchForNewEntity already understands.
+        // An `author:` prefix in front of something that is not an id --
+        // "author:le guin" -- keeps the prefix stripped and searches for
+        // the rest, because a user who types it plainly means "search
+        // authors for this", and passing the literal string through to OL
+        // matches nothing.
+        internal static (string Term, string AuthorId) ParseAuthorSearchTerm(string title)
+        {
+            var term = title?.Trim() ?? string.Empty;
+
+            var colon = term.IndexOf(':');
+            if (colon >= 0 &&
+                term.Substring(0, colon).Trim().Equals("author", StringComparison.OrdinalIgnoreCase))
+            {
+                term = term.Substring(colon + 1).Trim();
+            }
+
+            // Upper-cased because OL's author endpoint is case-sensitive:
+            // /authors/OL79043A.json is a 200 and /authors/ol79043a.json is
+            // a 404. An id is OL + digits + A, so upper-casing it is lossless.
+            return OpenLibraryIdHelper.IsAuthorId(term)
+                ? (term, term.ToUpperInvariant())
+                : (term, null);
         }
 
         public List<Book> SearchForNewBook(string title, string author, bool getAllEditions = true)
@@ -322,7 +398,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     var (_, book, _) = GetBookInfo(foreignBookId);
                     return new List<Book> { book };
                 }
-                catch (OpenLibraryException)
+                catch (Exception ex) when (IsNotFound(ex))
                 {
                     return new List<Book>();
                 }
@@ -330,16 +406,26 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             if (foreignBookId.EndsWith("M", StringComparison.OrdinalIgnoreCase))
             {
-                return Cached(true, $"oe_{foreignBookId}", TimeSpan.FromDays(30), () =>
+                // Same 404-is-not-an-error handling as the work branch above
+                // and as SearchForNewAuthor: `edition:OL9999999999M` in the
+                // search box is a typo, not a server fault.
+                try
                 {
-                    var resp = Send<OpenLibraryEditionResource>(_requestBuilder.For($"books/{foreignBookId}.json").Build());
-                    if (resp?.Resource == null)
+                    return Cached(true, $"oe_{foreignBookId}", TimeSpan.FromDays(30), () =>
                     {
-                        return new List<Book>();
-                    }
+                        var resp = Send<OpenLibraryEditionResource>(_requestBuilder.For($"books/{foreignBookId}.json").Build());
+                        if (resp?.Resource == null)
+                        {
+                            return new List<Book>();
+                        }
 
-                    return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
-                });
+                        return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
+                    });
+                }
+                catch (Exception ex) when (IsNotFound(ex))
+                {
+                    return new List<Book>();
+                }
             }
 
             return new List<Book>();
@@ -524,15 +610,15 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     // (W → work, M → edition), so both prefixes share it.
                     return SearchByForeignBookId(slug, true).Cast<object>().ToList();
                 case "author":
-                    try
-                    {
-                        var author = GetAuthorInfo(slug);
-                        return author != null ? new List<object> { author } : new List<object>();
-                    }
-                    catch (OpenLibraryException)
-                    {
-                        return new List<object>();
-                    }
+                    // Delegates so both search routes agree on what
+                    // `author:` means. It used to call GetAuthorInfo on the
+                    // slug whatever the slug was, so `author:Tolkien` was a
+                    // 404 and an empty result; SearchForNewAuthor resolves
+                    // an id directly and falls back to a name search for
+                    // anything else. (A slug with a space never reaches
+                    // this switch -- the whitespace guard above returns
+                    // null and the merged search handles it.)
+                    return SearchForNewAuthor(title).Cast<object>().ToList();
 
                 default:
                     return null;

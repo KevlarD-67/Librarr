@@ -1,4 +1,4 @@
-using System;
+using System.Text.RegularExpressions;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
 {
@@ -14,14 +14,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     // is already on the new system.
     public static class OpenLibraryIdHelper
     {
+        // Anchored on the digits, not just the OL prefix and the type
+        // suffix. The old StartsWith("OL") && EndsWith("A") pair called
+        // "Olivia" an author id -- harmless while every caller passed a
+        // stored foreign id, but SearchForNewAuthor now asks this question
+        // about whatever a user typed into a search box, where it is not
+        // harmless at all.
+        private static readonly Regex AuthorIdRegex =
+            new Regex(@"^OL\d+A$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex WorkIdRegex =
+            new Regex(@"^OL\d+W$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         public static bool IsAuthorId(string id)
-            => id != null
-               && id.StartsWith("OL", StringComparison.OrdinalIgnoreCase)
-               && id.EndsWith("A", StringComparison.OrdinalIgnoreCase);
+            => id != null && AuthorIdRegex.IsMatch(id);
 
         public static bool IsWorkId(string id)
-            => id != null
-               && id.StartsWith("OL", StringComparison.OrdinalIgnoreCase)
-               && id.EndsWith("W", StringComparison.OrdinalIgnoreCase);
+            => id != null && WorkIdRegex.IsMatch(id);
     }
 }
