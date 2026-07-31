@@ -5,9 +5,9 @@ import styles from './EnhancedSelectInputSelectedValue.css';
 
 function EnhancedSelectInputSelectedValue(props) {
   const {
-    className,
+    className = styles.selectedValue,
     children,
-    isDisabled
+    isDisabled = false
   } = props;
 
   return (
@@ -22,14 +22,9 @@ function EnhancedSelectInputSelectedValue(props) {
 }
 
 EnhancedSelectInputSelectedValue.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   children: PropTypes.node,
-  isDisabled: PropTypes.bool.isRequired
-};
-
-EnhancedSelectInputSelectedValue.defaultProps = {
-  className: styles.selectedValue,
-  isDisabled: false
+  isDisabled: PropTypes.bool
 };
 
 export default EnhancedSelectInputSelectedValue;

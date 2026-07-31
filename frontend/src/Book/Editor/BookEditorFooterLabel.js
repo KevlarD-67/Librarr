@@ -6,7 +6,7 @@ import styles from './BookEditorFooterLabel.css';
 
 function BookEditorFooterLabel(props) {
   const {
-    className,
+    className = styles.label,
     label,
     isSaving
   } = props;
@@ -28,13 +28,9 @@ function BookEditorFooterLabel(props) {
 }
 
 BookEditorFooterLabel.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   label: PropTypes.string.isRequired,
   isSaving: PropTypes.bool.isRequired
-};
-
-BookEditorFooterLabel.defaultProps = {
-  className: styles.label
 };
 
 export default BookEditorFooterLabel;

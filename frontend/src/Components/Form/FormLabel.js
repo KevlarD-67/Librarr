@@ -7,12 +7,12 @@ import styles from './FormLabel.css';
 function FormLabel(props) {
   const {
     children,
-    className,
-    errorClassName,
-    size,
+    className = styles.label,
+    errorClassName = styles.hasError,
+    size = sizes.LARGE,
     name,
     hasError,
-    isAdvanced,
+    isAdvanced = false,
     ...otherProps
   } = props;
 
@@ -40,13 +40,6 @@ FormLabel.propTypes = {
   name: PropTypes.string,
   hasError: PropTypes.bool,
   isAdvanced: PropTypes.bool
-};
-
-FormLabel.defaultProps = {
-  className: styles.label,
-  errorClassName: styles.hasError,
-  isAdvanced: false,
-  size: sizes.LARGE
 };
 
 export default FormLabel;

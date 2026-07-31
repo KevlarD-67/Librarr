@@ -62,12 +62,12 @@ function revisionLabel(className, quality, showRevision) {
 function BookQuality(props) {
   const {
     className,
-    title,
+    title = '',
     quality,
     size,
-    isMonitored,
+    isMonitored = true,
     isCutoffNotMet,
-    showRevision
+    showRevision = false
   } = props;
 
   let kind = kinds.DEFAULT;
@@ -102,12 +102,6 @@ BookQuality.propTypes = {
   isMonitored: PropTypes.bool,
   isCutoffNotMet: PropTypes.bool,
   showRevision: PropTypes.bool
-};
-
-BookQuality.defaultProps = {
-  title: '',
-  isMonitored: true,
-  showRevision: false
 };
 
 export default BookQuality;

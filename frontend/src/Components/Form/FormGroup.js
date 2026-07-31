@@ -7,11 +7,11 @@ import styles from './FormGroup.css';
 
 function FormGroup(props) {
   const {
-    className,
+    className = styles.group,
     children,
-    size,
-    advancedSettings,
-    isAdvanced,
+    size = sizes.SMALL,
+    advancedSettings = false,
+    isAdvanced = false,
     ...otherProps
   } = props;
 
@@ -39,18 +39,11 @@ function FormGroup(props) {
 }
 
 FormGroup.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   children: PropTypes.node.isRequired,
-  size: PropTypes.oneOf(sizes.all).isRequired,
-  advancedSettings: PropTypes.bool.isRequired,
-  isAdvanced: PropTypes.bool.isRequired
-};
-
-FormGroup.defaultProps = {
-  className: styles.group,
-  size: sizes.SMALL,
-  advancedSettings: false,
-  isAdvanced: false
+  size: PropTypes.oneOf(sizes.all),
+  advancedSettings: PropTypes.bool,
+  isAdvanced: PropTypes.bool
 };
 
 export default FormGroup;

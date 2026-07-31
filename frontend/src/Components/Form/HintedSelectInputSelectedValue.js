@@ -10,8 +10,8 @@ function HintedSelectInputSelectedValue(props) {
     value,
     values,
     hint,
-    isMultiSelect,
-    includeHint,
+    isMultiSelect = false,
+    includeHint = true,
     ...otherProps
   } = props;
 
@@ -56,13 +56,8 @@ HintedSelectInputSelectedValue.propTypes = {
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string, PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number]))]).isRequired,
   values: PropTypes.arrayOf(PropTypes.object).isRequired,
   hint: PropTypes.string,
-  isMultiSelect: PropTypes.bool.isRequired,
-  includeHint: PropTypes.bool.isRequired
-};
-
-HintedSelectInputSelectedValue.defaultProps = {
-  isMultiSelect: false,
-  includeHint: true
+  isMultiSelect: PropTypes.bool,
+  includeHint: PropTypes.bool
 };
 
 export default HintedSelectInputSelectedValue;

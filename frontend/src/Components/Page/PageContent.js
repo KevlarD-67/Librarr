@@ -7,7 +7,7 @@ import styles from './PageContent.css';
 
 function PageContent(props) {
   const {
-    className,
+    className = styles.content,
     title,
     children
   } = props;
@@ -27,10 +27,6 @@ PageContent.propTypes = {
   className: PropTypes.string,
   title: PropTypes.string,
   children: PropTypes.node.isRequired
-};
-
-PageContent.defaultProps = {
-  className: styles.content
 };
 
 export default PageContent;

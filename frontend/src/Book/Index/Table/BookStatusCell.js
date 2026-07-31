@@ -8,9 +8,9 @@ import styles from './BookStatusCell.css';
 
 function BookStatusCell(props) {
   const {
-    className,
+    className = styles.status,
     monitored,
-    component: Component,
+    component: Component = VirtualTableRowCell,
     ...otherProps
   } = props;
 
@@ -29,14 +29,9 @@ function BookStatusCell(props) {
 }
 
 BookStatusCell.propTypes = {
-  className: PropTypes.string.isRequired,
+  className: PropTypes.string,
   monitored: PropTypes.bool.isRequired,
   component: PropTypes.elementType
-};
-
-BookStatusCell.defaultProps = {
-  className: styles.status,
-  component: VirtualTableRowCell
 };
 
 export default BookStatusCell;

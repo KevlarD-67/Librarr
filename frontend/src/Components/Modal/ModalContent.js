@@ -7,9 +7,9 @@ import styles from './ModalContent.css';
 
 function ModalContent(props) {
   const {
-    className,
+    className = styles.modalContent,
     children,
-    showCloseButton,
+    showCloseButton = true,
     onModalClose,
     ...otherProps
   } = props;
@@ -40,13 +40,8 @@ function ModalContent(props) {
 ModalContent.propTypes = {
   className: PropTypes.string,
   children: PropTypes.node,
-  showCloseButton: PropTypes.bool.isRequired,
+  showCloseButton: PropTypes.bool,
   onModalClose: PropTypes.func.isRequired
-};
-
-ModalContent.defaultProps = {
-  className: styles.modalContent,
-  showCloseButton: true
 };
 
 export default ModalContent;

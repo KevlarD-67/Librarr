@@ -7,7 +7,7 @@ import { icons } from 'Helpers/Props';
 function ViewMenu(props) {
   const {
     children,
-    isDisabled,
+    isDisabled = false,
     ...otherProps
   } = props;
 
@@ -27,11 +27,7 @@ function ViewMenu(props) {
 
 ViewMenu.propTypes = {
   children: PropTypes.node.isRequired,
-  isDisabled: PropTypes.bool.isRequired
-};
-
-ViewMenu.defaultProps = {
-  isDisabled: false
+  isDisabled: PropTypes.bool
 };
 
 export default ViewMenu;

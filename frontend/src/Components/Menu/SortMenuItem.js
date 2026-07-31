@@ -5,7 +5,7 @@ import SelectedMenuItem from './SelectedMenuItem';
 
 function SortMenuItem(props) {
   const {
-    name,
+    name = null,
     sortKey,
     sortDirection,
     ...otherProps
@@ -29,10 +29,6 @@ SortMenuItem.propTypes = {
   sortDirection: PropTypes.oneOf(sortDirections.all),
   children: PropTypes.oneOfType([PropTypes.string, PropTypes.element]).isRequired,
   onPress: PropTypes.func.isRequired
-};
-
-SortMenuItem.defaultProps = {
-  name: null
 };
 
 export default SortMenuItem;

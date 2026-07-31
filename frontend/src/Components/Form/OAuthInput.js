@@ -5,7 +5,7 @@ import { kinds } from 'Helpers/Props';
 
 function OAuthInput(props) {
   const {
-    label,
+    label = 'Start OAuth',
     authorizing,
     error,
     onPress
@@ -26,14 +26,10 @@ function OAuthInput(props) {
 }
 
 OAuthInput.propTypes = {
-  label: PropTypes.string.isRequired,
+  label: PropTypes.string,
   authorizing: PropTypes.bool.isRequired,
   error: PropTypes.object,
   onPress: PropTypes.func.isRequired
-};
-
-OAuthInput.defaultProps = {
-  label: 'Start OAuth'
 };
 
 export default OAuthInput;
