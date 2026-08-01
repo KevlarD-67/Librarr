@@ -52,10 +52,23 @@ namespace NzbDrone.Playwright.Test.PageModel
                     Timeout = (float)TimeSpan.FromSeconds(timeoutSeconds).TotalMilliseconds
                 });
             }
-            catch (TimeoutException)
+            catch (PlaywrightException ex)
             {
                 // Same forgiving behaviour as the Selenium version: if the
                 // spinner never appeared at all, that's fine — page is ready.
+                //
+                // Catch PlaywrightException, not TimeoutException. Playwright
+                // throws Microsoft.Playwright.TimeoutException, and `using
+                // System;` is also in scope here, so the unqualified name is
+                // not the type you think it is -- this catch used to miss
+                // every timeout it was written to swallow. TimeoutException
+                // derives from PlaywrightException, so this covers both.
+                //
+                // Log rather than swallow silently. A spinner that never
+                // clears means the page is wedged, and the whole point of the
+                // smoke suite is to notice that.
+                NUnit.Framework.TestContext.Progress.WriteLine(
+                    $"WaitForNoSpinner gave up after {timeoutSeconds}s: {ex.Message}");
             }
         }
 

@@ -33,9 +33,22 @@ roadmap.
 
    The script restores the NuGet packages and then invokes the
    bundled `playwright install` tool to download Chromium into
-   `~/.cache/ms-playwright/` (Linux/macOS) or
-   `%LOCALAPPDATA%\ms-playwright\` (Windows). ~250 MB on first
-   run; subsequent runs are cached.
+
+   | OS | Cache |
+   |---|---|
+   | Linux | `~/.cache/ms-playwright/` |
+   | macOS | `~/Library/Caches/ms-playwright/` |
+   | Windows | `%LOCALAPPDATA%\ms-playwright\` |
+
+   ~250 MB on first run; subsequent runs are cached. The macOS path
+   is **not** `~/.cache` — installing there with
+   `PLAYWRIGHT_BROWSERS_PATH` set downloads a browser Playwright will
+   never look at, and the suite still fails as if nothing were
+   installed.
+
+   Browsers are cached per driver build, so bumping the
+   `Microsoft.Playwright` version in `src/Directory.Packages.props`
+   means re-running this script.
 
 ## Running
 
