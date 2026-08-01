@@ -1,6 +1,9 @@
 using System;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Playwright;
+using Newtonsoft.Json.Linq;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -55,6 +58,8 @@ namespace NzbDrone.Playwright.Test
             LogManager.Configuration.AddTarget(consoleTarget.GetType().Name, consoleTarget);
             LogManager.Configuration.LoggingRules.Add(new LoggingRule("*", NLog.LogLevel.Trace, consoleTarget));
 
+            AssertDriverMatchesClient();
+
             Playwright = await Microsoft.Playwright.Playwright.CreateAsync();
 
             Browser = await Playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
@@ -70,6 +75,24 @@ namespace NzbDrone.Playwright.Test
 
             Page = await Context.NewPageAsync();
 
+            // Surface what the browser saw. Without this a frontend exception
+            // presents only as "the spinner never went away" from
+            // WaitForNoSpinner, with the actual error -- the one line that
+            // says which component threw -- discarded inside the browser.
+            Page.Console += (_, msg) =>
+            {
+                if (msg.Type == "error" || msg.Type == "warning")
+                {
+                    TestContext.Progress.WriteLine($"[browser {msg.Type}] {msg.Text}");
+                }
+            };
+
+            Page.PageError += (_, error) =>
+                TestContext.Progress.WriteLine($"[browser exception] {error}");
+
+            Page.RequestFailed += (_, request) =>
+                TestContext.Progress.WriteLine($"[request failed] {request.Url} {request.Failure}");
+
             _runner = new NzbDroneRunner(LogManager.GetCurrentClassLogger(), null);
             _runner.KillAll();
             _runner.Start(true);
@@ -82,6 +105,49 @@ namespace NzbDrone.Playwright.Test
             // Match the Selenium suite — the frontend reads this to widen the
             // viewport on certain pages. See window.Readarr in frontend/src/index.ts.
             await Page.EvaluateAsync("() => { window.Readarr.NameViews = true; }");
+        }
+
+        // The test output folder is shared and never cleaned, so it
+        // accumulates: a driver from an older package version can sit next to
+        // a newer Microsoft.Playwright.dll indefinitely. When they disagree
+        // the driver exits during the initialize handshake and the only
+        // symptom is `TargetClosedException : Process exited` from
+        // CreateAsync -- which says nothing about versions and sent this
+        // author looking at browsers, Gatekeeper and stdio buffering first.
+        //
+        // Same disease as the pre-.NET-10 binary NzbDroneRunner used to boot
+        // silently. Name it instead.
+        private static void AssertDriverMatchesClient()
+        {
+            var assemblyDirectory = Path.GetDirectoryName(typeof(AssemblyGate).Assembly.Location);
+            var driverManifest = Path.Combine(assemblyDirectory, ".playwright", "package", "package.json");
+
+            if (!File.Exists(driverManifest))
+            {
+                Assert.Fail(
+                    $"Playwright driver not found at {driverManifest}. " +
+                    "Rebuild the test project so the package's build targets copy it.");
+            }
+
+            var client = typeof(IPlaywright).Assembly.GetName().Version;
+            var driver = JObject.Parse(File.ReadAllText(driverManifest)).Value<string>("version");
+
+            // The driver carries a prerelease suffix (1.55.0-beta-...) while
+            // the assembly version is padded to four parts (1.55.0.0), so
+            // compare on major.minor only.
+            var clientSeries = $"{client.Major}.{client.Minor}";
+            var driverSeries = string.Join(".", driver.Split('.').Take(2));
+
+            if (clientSeries != driverSeries)
+            {
+                Assert.Fail(
+                    $"Playwright version mismatch: Microsoft.Playwright.dll is {client}, " +
+                    $"but the driver in {Path.GetDirectoryName(driverManifest)} is {driver}. " +
+                    "A stale driver left in the shared test output makes CreateAsync fail " +
+                    "with 'Process exited'. Delete the .playwright folder and rebuild.");
+            }
+
+            TestContext.Progress.WriteLine($"Playwright client {client}, driver {driver}");
         }
 
         [OneTimeTearDown]
