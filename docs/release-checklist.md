@@ -33,11 +33,17 @@ that Phases 2–5 wired up.
   job (`.github/workflows/build.yml:209-242`). Boots the published
   `linux-x64` backend artefact, asserts `/api/v1/health` +
   `/api/v1/system/status`, fires a `ReidentifyLibrary` command.
-- [x] Playwright smoke suite scaffolded with 7 tests
-  (`src/NzbDrone.Playwright.Test/`) — 6 page-load smokes from the
-  Phase 10 port plus 1 narrator-detail-page smoke from the
-  finalization pass. Gated by `READARR_RUN_PLAYWRIGHT=1`; opt-in
-  per the suite's README.
+- [x] Playwright smoke suite, 14 tests (`src/NzbDrone.Playwright.Test/`):
+  7 page-load smokes (6 from the Phase 10 port plus the
+  narrator-detail page), 2 root folder form checks, 2 Add Author
+  search checks and 2 seeded library round-trips. Gated by
+  `READARR_RUN_PLAYWRIGHT=1`; opt-in per the suite's README.
+
+  It could not run at all between the .NET 10 migration and
+  `5447db9` — a stale driver in the shared `_tests/` output made
+  every test die in `CreateAsync`, and Playwright 1.40's Chromium
+  crashed on current macOS about one run in three. The gate now
+  checks driver against client up front.
 - [x] `docker build -f distribution/docker/Dockerfile -t librarr/librarr:test .`
   builds clean (~180 MB alpine 6.0 runtime). `docker run` boots,
   serves `/ping`, passes `tests/e2e/smoke.sh`. Eight Phase 9b
@@ -145,10 +151,18 @@ remaining engineering coverage gaps are closed.
   `NzbDrone.Playwright.Test` shares its instance, or record the
   OpenLibrary responses as cassettes — `OpenLibraryCassetteFixture`
   in the unit suite already has the machinery.
-- [ ] **Playwright chip → page round-trip test.** Needs a seeded
-  library — either a SQLite seed shipped under `tests/regression/`
-  (capture recipe in `ReidentifyRegressionFixture` comments) or
-  an API-based seed step added to `PlaywrightTestBase`.
+- [x] **Playwright chip → page round-trip test.** Done via the
+  API-based seed (`LibrarySeeder`), not a checked-in SQLite file:
+  a captured database pins the schema at whatever migration count
+  it was taken on and rots the next time somebody adds one of the
+  48. `SeededLibraryTest` adds one small author, then clicks
+  library → author and asserts on the book rows themselves, so it
+  cannot pass on an empty table. Verified it fails with seeding
+  disabled.
+
+  The seed is the suite's only OpenLibrary dependency, so it
+  reports Inconclusive rather than red when the network is
+  missing or throttling.
 - [ ] **Cross-browser Playwright.** Firefox + WebKit launchers
   are Playwright one-liners; wire when needed for theme/CSS
   regression coverage.

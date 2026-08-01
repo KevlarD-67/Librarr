@@ -41,6 +41,11 @@ namespace NzbDrone.Playwright.Test
 
         private static NzbDroneRunner _runner;
 
+        // For fixtures that seed through the API. See LibrarySeeder.
+        internal static int Port => _runner.Port;
+
+        internal static string ApiKey => _runner.ApiKey;
+
         [OneTimeSetUp]
         public async Task GateAssembly()
         {
