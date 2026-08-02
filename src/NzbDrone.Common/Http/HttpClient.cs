@@ -268,7 +268,21 @@ namespace NzbDrone.Common.Http
             {
                 try
                 {
+                    var before = container.Count;
+
                     container.SetCookies((Uri)url, cookieHeader);
+
+                    // SetCookies does not always throw on a cookie it declines:
+                    // an already-expired one is dropped silently, which is
+                    // correct but indistinguishable from success here. The catch
+                    // below therefore cannot be relied on to notice, and a
+                    // missing session cookie surfaces much later as an
+                    // unexplained re-login or 403 against the origin. Say so at
+                    // the point it happens.
+                    if (container.Count == before)
+                    {
+                        _logger.Debug("Cookie was rejected without error by {0}: {1}", url, cookieHeader);
+                    }
                 }
                 catch (Exception ex)
                 {
