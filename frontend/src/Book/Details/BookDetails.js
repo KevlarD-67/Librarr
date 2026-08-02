@@ -368,7 +368,11 @@ BookDetails.propTypes = {
   ratings: PropTypes.object.isRequired,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   links: PropTypes.arrayOf(PropTypes.object).isRequired,
-  statistics: PropTypes.object.isRequired,
+  // Not isRequired: both this component and the connector tolerate its
+  // absence with a `statistics = {}` default, and propTypes are validated
+  // BEFORE defaults are applied -- so requiring it warned on every first
+  // render, before the book had loaded.
+  statistics: PropTypes.object,
   monitored: PropTypes.bool.isRequired,
   shortDateFormat: PropTypes.string.isRequired,
   isSaving: PropTypes.bool.isRequired,
