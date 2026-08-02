@@ -799,8 +799,21 @@ namespace NzbDrone.Common.Test.Http
             Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
             try
             {
-                // the date is bad in the below - should be 13-Jul-2026
-                var malformedCookie = @"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires=Mon, 13-Jul-26 16:19:50 GMT; path=/; HttpOnly";
+                // The point of this test is the malformed two-digit YEAR in the
+                // expires attribute -- "13-Jul-26" rather than "13-Jul-2026".
+                //
+                // The date used to be hard-coded as 13-Jul-26, which was a
+                // decade away when it was written and is now in the past, so
+                // the cookie was being discarded for being expired and the test
+                // failed for a reason that had nothing to do with what it
+                // tests. .NET parses the two-digit form correctly either way
+                // (RFC 6265 5.1.1: 0-69 is 20xx, 70-99 is 19xx) -- verified.
+                //
+                // Generated relative to now so it cannot rot again. Invariant
+                // culture matters: this test also runs under es-ES, where the
+                // abbreviated month name is not "Jul".
+                var expires = DateTime.UtcNow.AddYears(5).ToString("ddd, dd-MMM-yy HH:mm:ss", CultureInfo.InvariantCulture);
+                var malformedCookie = $"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires={expires} GMT; path=/; HttpOnly";
                 var requestSet = new HttpRequestBuilder($"https://{_httpBinHost}/response-headers")
                     .AddQueryParam("Set-Cookie", malformedCookie)
                     .Build();
