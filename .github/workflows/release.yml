@@ -74,13 +74,13 @@ jobs:
       READARRVERSION: ${{ needs.variables.outputs.version }}
       EnableAnalyzers: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Set up .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -108,7 +108,7 @@ jobs:
         run: ./build.sh --backend --packages
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-artifacts
           path: _artifacts/
@@ -123,13 +123,13 @@ jobs:
       READARRVERSION: ${{ needs.variables.outputs.version }}
       EnableAnalyzers: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Set up .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -201,7 +201,7 @@ jobs:
         run: ./distribution/windows/sign.ps1 -Path _artifacts
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-artifacts
           path: _artifacts/
@@ -213,13 +213,13 @@ jobs:
     needs: variables
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -231,7 +231,7 @@ jobs:
         run: ./build.sh --frontend
 
       - name: Upload UI output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-artifacts
           path: _output/UI/
@@ -248,18 +248,18 @@ jobs:
     env:
       READARRVERSION: ${{ needs.variables.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-artifacts
           path: _artifacts/
 
       - name: Download frontend artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-artifacts
           path: _output/UI/
@@ -310,7 +310,7 @@ jobs:
           ./distribution/windows/sign.ps1 -Path $exes.FullName
 
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installer-artifacts
           path: distribution/windows/setup/output/*.exe
@@ -322,12 +322,12 @@ jobs:
     needs: [variables, build-backend, build-windows, build-frontend, installer]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Download backend artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-artifacts
           path: _artifacts/
@@ -335,13 +335,13 @@ jobs:
       # Same _artifacts/ root, different RID subdirectories — the Linux job
       # skips win-x64/win-x86, so these two merge in without colliding.
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-artifacts
           path: _artifacts/
 
       - name: Download frontend artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-artifacts
           path: _output/UI/
@@ -349,7 +349,7 @@ jobs:
       # Straight into _release/ — these are finished assets, not something
       # the steps below repackage.
       - name: Download Windows installers
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: installer-artifacts
           path: _release/
@@ -480,20 +480,20 @@ jobs:
     needs: [variables, build-backend, build-frontend]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
         # Zero-config — uses the workflow's built-in GITHUB_TOKEN. The
         # release.yml `permissions:` block declares `packages: write`.
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -506,7 +506,7 @@ jobs:
         # Earlier attempt at `if: secrets.X != ''` gating broke workflow
         # validation, so we drop the conditional entirely now that
         # secrets are provisioned.
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -515,7 +515,7 @@ jobs:
         # Generates :<version> exact + :beta rolling pointer (only on
         # beta tags) + :latest (only on non-prerelease tags).
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/librarr
@@ -536,7 +536,7 @@ jobs:
         # on the amd64 runner. Do NOT pass DOTNET_RID here — a single
         # build-arg applies to every platform and would pin all three
         # manifest entries to the same RID.
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: distribution/docker/Dockerfile
