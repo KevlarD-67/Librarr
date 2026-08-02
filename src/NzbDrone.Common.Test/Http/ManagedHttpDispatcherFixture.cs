@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -47,6 +48,11 @@ namespace NzbDrone.Common.Test.Http
         // called, so pointing at a closed loopback port reaches the racy code
         // and then fails the send -- which this test ignores. That keeps it
         // network-free and fast enough for the blocking unit job.
+        //
+        // Confirmed to fail against the unfixed dispatcher, which is the only
+        // thing that makes it a regression test: 26-37 collisions per 400
+        // iterations, plus InvalidOperationException from the backing
+        // Dictionary noticing its own corruption. With the lock, zero.
         [Test]
         public async Task should_not_race_on_the_shared_credential_cache_when_one_url_is_requested_concurrently()
         {
@@ -71,24 +77,44 @@ namespace NzbDrone.Common.Test.Http
                     {
                         await subject.GetResponseAsync(request, new CookieContainer());
                     }
-                    catch (ArgumentException ex) when (ex.StackTrace?.Contains("CredentialCache") == true)
+                    catch (HttpRequestException)
                     {
-                        races.Add(ex);
+                        // Connection refused. Expected, and the whole point of
+                        // aiming at a closed port.
                     }
-                    catch (Exception)
+                    catch (OperationCanceledException)
                     {
-                        // Connection refused, and anything else the send throws
-                        // against a closed port. Not what this test is about.
+                        // Request timeout. Also uninteresting here.
+                    }
+                    catch (Exception ex)
+                    {
+                        // Anything else got here from the credential mutation,
+                        // which is what is under test.
+                        //
+                        // Deliberately NOT filtered on exception type or stack
+                        // contents. The first version of this test matched
+                        // `StackTrace.Contains("CredentialCache")` and passed
+                        // against the UNFIXED dispatcher, because in Release
+                        // CredentialCache.Add is inlined: the trace runs
+                        // Dictionary.TryInsert -> Dictionary.Add ->
+                        // GetResponseAsync, with no CredentialCache frame to
+                        // match on. Name the expected exceptions and treat
+                        // everything else as failure, rather than trying to
+                        // predict what corruption will look like.
+                        races.Add(ex);
                     }
                 }
             })).ToArray();
 
             await Task.WhenAll(workers);
 
+            var summary = string.Join(", ", races
+                .GroupBy(e => e.GetType().Name)
+                .Select(g => $"{g.Key} x{g.Count()}"));
+
             races.Should().BeEmpty(
-                "concurrent requests to one URL must not corrupt the shared CredentialCache; " +
-                "got {0} collision(s), first: {1}",
-                races.Count,
+                "concurrent requests to one URL must not corrupt the shared CredentialCache, but got [{0}]; first: {1}",
+                summary,
                 races.FirstOrDefault()?.Message);
         }
 
