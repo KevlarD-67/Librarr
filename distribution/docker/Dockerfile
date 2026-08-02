@@ -144,7 +144,7 @@ RUN dotnet publish src/NzbDrone.Mono/Readarr.Mono.csproj \
 # JS/CSS/HTML with no per-arch content, so building it once natively and
 # copying it into every arch's runtime image is both correct and much
 # faster than re-running yarn under emulation for each platform.
-FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend-build
 
 WORKDIR /src
 

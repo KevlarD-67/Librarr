@@ -12,7 +12,7 @@ _smoke-config/
 **/bin/
 **/obj/
 
-# Node modules (stage 2 reinstalls inside the node:20-alpine layer)
+# Node modules (stage 2 reinstalls inside the node:24-alpine layer)
 node_modules/
 
 # Git history not needed by the build

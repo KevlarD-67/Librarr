@@ -33,9 +33,14 @@ on:
   workflow_dispatch:
 
 env:
-  # Keep in sync with azure-pipelines.yml:18 until that file is removed.
-  DOTNET_VERSION: '6.0.x'
-  NODE_VERSION: '20.x'
+  # Keep in sync with azure-pipelines.yml:28 (`dotnetVersion`) and
+  # global.json until that file is removed.
+  DOTNET_VERSION: '10.0.x'
+  # Node 20 went EOL 2026-04-30. 24 is the current LTS (until 2028-04-30),
+  # which outlives the .NET 10 support window this repo is pinned to.
+  # Keep in sync with .nvmrc, package.json `engines`/`volta`, and
+  # distribution/docker/Dockerfile.
+  NODE_VERSION: '24.x'
   # Phase 9 version reset. The fork starts its own 1.0.0-beta.x line
   # rather than continuing the inherited Readarr 0.4.x numbering — the
   # metadata-source overhaul + UI wizard + the fork's CI/branding/CLA
@@ -69,13 +74,13 @@ jobs:
       # StyleCop runs only on the Linux leg upstream — mirror that here.
       EnableAnalyzers: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Set up .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -104,7 +109,7 @@ jobs:
         run: ./build.sh --backend
 
       - name: Upload backend output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-linux
           path: |
@@ -117,13 +122,13 @@ jobs:
     name: Build frontend
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -135,7 +140,7 @@ jobs:
         run: ./build.sh --frontend
 
       - name: Upload UI output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-ui
           path: _output/UI/
@@ -147,18 +152,18 @@ jobs:
     needs: build-backend
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Set up .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download backend output
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-linux
           path: .
@@ -188,7 +193,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-linux
           path: |
@@ -201,12 +206,12 @@ jobs:
     name: Lint frontend
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -231,12 +236,12 @@ jobs:
     name: Unit tests (frontend)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -260,17 +265,17 @@ jobs:
     needs: build-backend
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Set up .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download backend output
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-linux
           path: .
@@ -294,12 +299,12 @@ jobs:
       - build-frontend
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: Set up .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -338,7 +343,7 @@ jobs:
             --exclude '.git/**' || echo "syft returned non-zero; continuing"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: _sbom/

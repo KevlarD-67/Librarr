@@ -717,7 +717,7 @@ Two caveats that are easy to get wrong:
 | Error report | `@sentry/browser 7.51.2`, `@sentry/integrations 7.51.2`                      |
 | Build        | `webpack 5.88.2`, `babel-loader 9.1.3`, `postcss 8.4.38`, `ts-loader 9.4.4`, `mini-css-extract-plugin`, `terser-webpack-plugin`, `css-modules-typescript-loader`, `typescript-plugin-css-modules` |
 | Lint/format  | `eslint 8.57.0`, `eslint-plugin-react 7.34.1`, `eslint-plugin-react-hooks 4.6.0`, `eslint-plugin-prettier 4.2.1`, `prettier 2.8.8`, `stylelint 15.10.3` |
-| Runtime pin  | `volta.node 16.17.0` (`package.json:148-151`) — note CI uses **Node 20.X** instead (`azure-pipelines.yml:19`) — a contradiction |
+| Runtime pin  | **Node 24.18.1 LTS**, declared three ways that must agree: `.nvmrc`, `package.json` `engines` + `volta`, and `NODE_VERSION` in both GitHub workflows. Node 20 went EOL 2026-04-30 |
 
 There is no test runner declared in `package.json` — the frontend has
 **no actively running JS test suite** despite some `.test.js`-style files
@@ -915,8 +915,8 @@ Notable variables (`azure-pipelines.yml:6-23`):
 - `majorVersion: '1.1.0-beta'` — the *real* shipping version
   (`azure-pipelines.yml:22`).
 - `minorVersion: $[counter('minorVersion', 1)]` — auto-incremented.
-- `dotnetVersion: '6.0.427'` — .NET 6, not 8.
-- `nodeVersion: '20.X'` — frontend runtime.
+- `dotnetVersion: '10.0.302'` — .NET 10 LTS (migrated 2026-07-30).
+- `nodeVersion: '24.X'` — frontend runtime (Node 24 LTS).
 - `innoVersion: '6.2.0'` — Windows installer toolchain.
 - VM images: `windows-2022`, `ubuntu-20.04`, `macOS-11` — the macOS-11 image
   is deprecated by Azure DevOps; flag for maintenance.
@@ -1148,9 +1148,11 @@ Cited so future cleanup can be precise.
 - **`@types/react 18.2.79` and `@types/react-dom 18.2.25` in
   `package.json:37-38`**, but actual `react` and `react-dom` are pinned to
   `17.0.2`. The types describe a React version newer than what's installed.
-- **Volta vs CI Node mismatch.** `package.json:148-151` pins Node 16.17.0
-  via Volta; `azure-pipelines.yml:19` uses Node 20.X. Local devs and CI
-  run on different runtimes — a small but real lint-result divergence risk.
+- ~~**Volta vs CI Node mismatch.**~~ Resolved 2026-08-01. Volta, `.nvmrc`,
+  `engines` and both workflows now all say Node 24. The divergence this
+  warned about was real and had already bitten once: `@testing-library/jest-dom`
+  6.10.0 requires Node >=22, installed cleanly on a developer's newer Node,
+  and took down three CI jobs on Node 20 (`aef3e1f`).
 
 ### 8.3 Build/lint enforcement gaps
 

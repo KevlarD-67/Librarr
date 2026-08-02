@@ -26,7 +26,9 @@ variables:
   sentryOrg: 'servarr'
   sentryUrl: 'https://sentry.servarr.com'
   dotnetVersion: '10.0.302'
-  nodeVersion: '20.X'
+  # Node 20 is EOL (2026-04-30); 24 is LTS. Changed for consistency with
+  # .github/workflows — but nothing runs this file, so it is unverified.
+  nodeVersion: '24.X'
   innoVersion: '6.2.0'
   windowsImage: 'windows-2022'
   linuxImage: 'ubuntu-22.04'

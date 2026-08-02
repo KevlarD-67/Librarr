@@ -77,7 +77,45 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   EPUB and an M4B of the same book instead of having them compete for
   one slot. See `docs/ebooks-and-audiobooks.md`.
 
+### Changed
+
+- **The frontend toolchain moved from Node 20 to Node 24 LTS.** Node 20 went
+  end-of-life on 2026-04-30, so CI had been building and releasing on an
+  unsupported runtime for three months. Node 24 is supported to 2028-04-30,
+  which outlives the .NET 10 window the backend is pinned to.
+
+  Contributors building from source now need Node 24: `package.json` declares
+  `engines.node >=24.0.0`, and there is a `.nvmrc` for the first time. That
+  pin previously existed in six places that had drifted apart — volta said
+  20.11.1, CI said 20.x, and volta wasn't installed on the machine doing the
+  development, so local work happened on Node 26. The gap was not theoretical:
+  `@testing-library/jest-dom` 6.10.0 requires Node >=22, installed cleanly on
+  the newer local Node, and then failed `yarn install --frozen-lockfile` on
+  CI's Node 20 and took all three frontend jobs down. The Docker frontend
+  stage moves to `node:24-alpine` with it.
+
+- **GitHub Actions updated, clearing the Node 20 runtime deprecation
+  warnings.** These warnings are about the runtime each action declares in
+  its own `action.yml`, not about the Node the build runs on — a separate
+  problem from the one above, and GitHub was already forcing the affected
+  actions onto Node 24 regardless. The pins were well behind:
+  `download-artifact` v4→v8, `checkout` v4→v7, `setup-node` v4→v7,
+  `upload-artifact` v4→v7, `setup-dotnet` v4→v6, `labeler` v4→v7,
+  `label-actions` v3→v5, and the `docker/*` actions a major or two each.
+  `actions/labeler` v5 redesigned its config schema and rejects the old
+  format outright, so `.github/labeler.yml` was rewritten accordingly.
+
 ### Fixed
+
+- **`build.yml` installed a .NET 6 SDK on every run that nothing used.** The
+  .NET 10 migration updated `release.yml` and `azure-pipelines.yml` but missed
+  `build.yml`, which had carried `DOTNET_VERSION: '6.0.x'` since the Phase 0
+  skeleton. CI stayed green because `global.json` pins 10.0.302, so the dotnet
+  CLI ignored the freshly-installed 6.0.428 and selected a .NET 10 SDK that
+  happened to be preinstalled on the runner image — while still paying for a
+  188 MB download across four jobs. The build always targeted net10.0; the pin
+  was waste that would have surfaced as an unrelated-looking `global.json`
+  resolution failure the day the runner image stopped shipping a matching SDK.
 
 - **CI was red on `main`, and had been since the .NET 10 migration.** Three
   separate breakages, all found while running the integration suite. The
