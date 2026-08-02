@@ -14,6 +14,7 @@ namespace NzbDrone.Playwright.Test
     // is an oracle for that change rather than a test shaped to fit whatever
     // the new version happens to render.
     [TestFixture]
+    [Category("RequiresOpenLibrary")]
     public class BookDetailsTest : PlaywrightTestBase
     {
         private string _titleSlug;

@@ -105,6 +105,17 @@ if [[ -z "$node_bin" ]]; then
     exit 1
 fi
 
+# A dev box that has ever opened a browser already has Chromium's shared
+# libraries; a CI container does not, and the failure there is a launch
+# that dies naming a missing .so rather than anything about Playwright.
+# `install-deps` needs root, so it is opt-in rather than the default --
+# asking for a sudo password on someone's laptop to run a test suite is
+# not a reasonable default.
+if [[ "${1:-}" == "--with-deps" ]]; then
+    echo "Installing Chromium's system dependencies (needs root)..."
+    "$node_bin" "$playwright_cli" install-deps chromium
+fi
+
 echo "Installing Chromium..."
 "$node_bin" "$playwright_cli" install chromium
 

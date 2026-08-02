@@ -280,6 +280,204 @@ jobs:
         shell: bash
         run: bash tests/e2e/smoke.sh
 
+  integration-tests:
+    # `Category=IntegrationTest` ran in no job at all — the unit job
+    # excludes it explicitly. In practice that meant HttpClientFixture's
+    # 54 tests had never executed in CI, which is how one of them sat
+    # three weeks past a hard-coded cookie expiry without anyone noticing.
+    #
+    # READARR_RUN_INTEGRATION is deliberately NOT set here. That leaves
+    # NzbDrone.Integration.Test's 94 tests ignored by their own gate and
+    # confines this job to the fixtures that do not touch OpenLibrary.
+    # The gate documents why: running those 94 in one pass got the source
+    # IP refused by openlibrary.org on 26 of 88 tests, and the refusals
+    # persisted for minutes. They run one fixture at a time in
+    # .github/workflows/nightly-integration.yml instead — hammering a free
+    # public service on every push is not a reasonable thing to do.
+    name: Integration tests (network)
+    needs: build-backend
+    runs-on: ubuntu-22.04
+    # Non-blocking on purpose. Every test here reaches a third-party host,
+    # so red can mean "their server is down" as readily as "we broke
+    # something", and a suite that reddens for reasons the committer
+    # cannot fix is one people learn to ignore. The win is that these run
+    # at all and their result is visible on every build.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download backend output
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-linux
+          path: .
+
+      - name: Restore exec bits on published test artifacts
+        shell: bash
+        run: |
+          chmod +x test.sh
+          chmod +x _tests/net10.0/linux-x64/publish/Readarr.Test.Dummy 2>/dev/null || true
+
+      - name: Run integration-category tests
+        shell: bash
+        env:
+          TEST_DIR: _tests/net10.0/linux-x64/publish
+        run: ./test.sh Linux Integration Test
+
+      - name: Upload integration results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-integration
+          path: |
+            TestResult.xml
+            TestLog.txt
+          retention-days: 7
+          if-no-files-found: ignore
+
+  playwright:
+    # The Playwright smoke suite ran in no CI job at all. It is gated
+    # behind READARR_RUN_PLAYWRIGHT=1 so a bare `dotnet test` skips it,
+    # and nothing ever set that — which is precisely the blind spot three
+    # of the .NET 10 migration misses survived in.
+    #
+    # Split by network dependence rather than by convenience. Ten of the
+    # sixteen tests drive a local instance only; those block the build.
+    # The other six seed a library through the API, which is a live
+    # OpenLibrary fetch, so they run as a step that is allowed to fail.
+    # A third party rate-limiting us is not a reason to redden main, and
+    # a suite that goes red for reasons the committer cannot fix is a
+    # suite people learn to ignore.
+    name: Playwright smoke
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Read the pinned Playwright version
+        id: pw
+        shell: bash
+        run: |
+          set -euo pipefail
+          v=$(sed -n 's/.*PackageVersion Include="Microsoft.Playwright" Version="\([^"]*\)".*/\1/p' \
+                src/Directory.Packages.props | head -1)
+          [ -n "$v" ] || { echo "could not read the Microsoft.Playwright pin" >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Chromium bundle
+        # Keyed on the pin: a version bump must download its own browser
+        # rather than silently reuse the previous one. That mismatch is
+        # exactly what produced "Executable doesn't exist" locally.
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Download backend output
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-linux
+          path: .
+
+      - name: Download UI output
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-ui
+          path: _output/UI
+
+      - name: Assemble the tree NzbDroneRunner expects
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=_tests/net10.0/linux-x64/bin
+          # In Release the runner launches <testdir>/../bin/Readarr and
+          # asserts a UI sits beside it. A full ./build.sh produces that
+          # via PackageFiles(); this pipeline runs --backend only, so
+          # assemble it from the two artifacts rather than pay for a
+          # second full build.
+          #
+          # cp -a preserves mtimes deliberately: the runner's staleness
+          # guard fails when _output/UI is NEWER than the copy beside the
+          # binary, and a plain cp would make every run look stale.
+          mkdir -p "$app"
+          cp -a _output/net10.0/linux-x64/publish/. "$app/"
+          cp -a _output/UI "$app/UI"
+          # upload-artifact strips POSIX exec bits on non-Windows.
+          chmod +x "$app/Readarr"
+
+      - name: Install Chromium
+        shell: bash
+        run: bash scripts/playwright-install.sh --with-deps
+
+      - name: Put the Playwright driver beside the published test assembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Microsoft.Playwright build targets drop .playwright into the
+          # framework build output, NOT into the per-RID publish folder that
+          # PublishAllRids produces and that this job runs from. _AssemblyGate
+          # looks for it next to its own assembly, so without this the whole
+          # suite fails in OneTimeSetUp with "Playwright driver not found" --
+          # which is exactly how this surfaced, the guard doing its job.
+          src=_tests/net10.0/.playwright
+          dst=_tests/net10.0/linux-x64/publish/.playwright
+          if [ ! -d "$src" ]; then
+            echo "No Playwright driver at $src." >&2
+            echo "The install step builds the test project, which is what drops it." >&2
+            exit 1
+          fi
+          rm -rf "$dst"
+          cp -a "$src" "$dst"
+          # The bundled node ships without an exec bit through this path.
+          find "$dst" -path '*/node/*' -name node -type f -exec chmod +x {} +
+
+      - name: Playwright — no network (blocking)
+        shell: bash
+        env:
+          READARR_RUN_PLAYWRIGHT: '1'
+        run: |
+          dotnet test _tests/net10.0/linux-x64/publish/Readarr.Playwright.Test.dll \
+            --filter 'Category!=RequiresOpenLibrary' \
+            --logger 'nunit;LogFilePath=PlaywrightResult.xml'
+
+      - name: Playwright — live OpenLibrary (non-blocking)
+        # always(), so a failure in the blocking step above still yields
+        # the full picture instead of one step's worth of it.
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          READARR_RUN_PLAYWRIGHT: '1'
+        run: |
+          dotnet test _tests/net10.0/linux-x64/publish/Readarr.Playwright.Test.dll \
+            --filter 'Category=RequiresOpenLibrary' \
+            --logger 'nunit;LogFilePath=PlaywrightOpenLibraryResult.xml'
+
+      - name: Upload Playwright results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-results
+          path: |
+            **/PlaywrightResult.xml
+            **/PlaywrightOpenLibraryResult.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
   sbom:
     # Phase 10: SBOM artifact. Captures the .NET + Node dependency trees
     # at every successful build for supply-chain auditing. No publish

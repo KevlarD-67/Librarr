@@ -15,6 +15,7 @@ namespace NzbDrone.Playwright.Test
     // rather than a checked-in SQLite file, and for how it degrades when
     // OpenLibrary is unreachable.
     [TestFixture]
+    [Category("RequiresOpenLibrary")]
     public class SeededLibraryTest : PlaywrightTestBase
     {
         [OneTimeSetUp]
