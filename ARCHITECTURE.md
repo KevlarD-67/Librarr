@@ -173,7 +173,7 @@ all of Open Library to that author's bibliography.
 - `azure-pipelines.yml:22` — `majorVersion: '1.1.0-beta'`.
 - `distribution/docker/Dockerfile` — self-contained multi-stage build
   (Phase 9b). Compiles backend + frontend inside the image, runs on
-  `aspnet:6.0-alpine`. Build command + run shape documented in
+  `aspnet:10.0-alpine`. Build command + run shape documented in
   `distribution/docker/README.md`.
 - GitHub Actions replaces Azure Pipelines as the CI driver.
 
