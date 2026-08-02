@@ -40,7 +40,8 @@ on:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  NODE_VERSION: '20.x'
+  # See the note in build.yml — Node 20 is EOL, 24 is LTS until 2028-04-30.
+  NODE_VERSION: '24.x'
 
 permissions:
   contents: write    # gh release create

@@ -38,7 +38,7 @@ priority; nothing here is a hard commitment.
 - [x] **Self-contained Dockerfile** (Phase 9b skeleton). Landed. The
   original `Dockerfile` was renamed to `Dockerfile.prebuilt`; the new
   default `Dockerfile` is a 3-stage build (`sdk:10.0-alpine` →
-  `node:20-alpine` → `aspnet:10.0-alpine` runtime). Compiles inside
+  `node:24-alpine` → `aspnet:10.0-alpine` runtime). Compiles inside
   the image — no local toolchain needed. Runtime smoke (`docker build
   && docker run`) has since been done on x86_64, both locally and on a
   real server, and on **native aarch64** against the published

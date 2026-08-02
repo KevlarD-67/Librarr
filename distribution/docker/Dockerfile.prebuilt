@@ -6,7 +6,7 @@
 # This Dockerfile assumes the backend + frontend have ALREADY been built
 # locally via ./build.sh (it copies _output/). For a self-contained
 # multi-stage build that compiles inside the image — recommended for
-# anyone without a local .NET 6 + Node 20 toolchain — use
+# anyone without a local .NET 10 + Node 24 toolchain — use
 # `distribution/docker/Dockerfile` (the default, Phase 9b).
 #
 # The published image expects:

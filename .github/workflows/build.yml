@@ -35,7 +35,11 @@ on:
 env:
   # Keep in sync with azure-pipelines.yml:18 until that file is removed.
   DOTNET_VERSION: '6.0.x'
-  NODE_VERSION: '20.x'
+  # Node 20 went EOL 2026-04-30. 24 is the current LTS (until 2028-04-30),
+  # which outlives the .NET 10 support window this repo is pinned to.
+  # Keep in sync with .nvmrc, package.json `engines`/`volta`, and
+  # distribution/docker/Dockerfile.
+  NODE_VERSION: '24.x'
   # Phase 9 version reset. The fork starts its own 1.0.0-beta.x line
   # rather than continuing the inherited Readarr 0.4.x numbering — the
   # metadata-source overhaul + UI wizard + the fork's CI/branding/CLA
