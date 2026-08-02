@@ -35,19 +35,63 @@ UpdateVersionNumber()
 
 EnableExtraPlatformsInSDK()
 {
-    SDK_PATH=$(dotnet --list-sdks | grep -P '6\.\d\.\d+' | head -1 | sed 's/\(6\.[0-9]*\.[0-9]*\).*\[\(.*\)\]/\2\/\1/g')
-    BUNDLEDVERSIONS="${SDK_PATH}/Microsoft.NETCoreSdk.BundledVersions.props"
-    if grep -q freebsd-x64 $BUNDLEDVERSIONS; then
-        echo "Extra platforms already enabled"
+    # Patch the SDK that will actually build -- the one global.json
+    # resolves to -- rather than whichever SDK a hard-coded pattern
+    # happens to match first. A hosted runner carries several side by
+    # side (6.x, 8.x and 10.x have all been present at once), so
+    # "find the first one" is not the same question as "find the one
+    # doing the build".
+    #
+    # This used to grep for '6\.\d\.\d+'. After the .NET 10 migration
+    # that selected a .NET 6 SDK the build never used, and once CI
+    # stopped installing .NET 6 it selected nothing at all, leaving
+    # BUNDLEDVERSIONS as a bare "/Microsoft.NETCoreSdk.BundledVersions.props"
+    # for sed to fail on -- fatal, because this script runs under set -e.
+    SDK_VERSION=$(dotnet --version)
+    SDK_PATH=$(dotnet --list-sdks | sed -n "s|^${SDK_VERSION} \[\(.*\)\]$|\1|p" | head -1)
+
+    if [ -z "$SDK_PATH" ]; then
+        echo "Could not locate SDK $SDK_VERSION in 'dotnet --list-sdks'" >&2
+        exit 1
+    fi
+
+    BUNDLEDVERSIONS="${SDK_PATH}/${SDK_VERSION}/Microsoft.NETCoreSdk.BundledVersions.props"
+
+    # Fail rather than skip. This function only runs when extra platforms
+    # were explicitly asked for, and quietly not delivering them produces
+    # a release that is missing RIDs for no stated reason.
+    if [ ! -f "$BUNDLEDVERSIONS" ]; then
+        echo "No BundledVersions.props for SDK $SDK_VERSION at $BUNDLEDVERSIONS" >&2
+        exit 1
+    fi
+
+    # On .NET 10 this is inert, and correctly so. The SDK now ships
+    # freebsd-x64 in its own RID list, so the guard below short-circuits
+    # and the sed never runs. linux-x86 is genuinely gone -- absent from
+    # the list with no runtime pack -- so the sed could not deliver it
+    # anyway. Verified against mcr.microsoft.com/dotnet/sdk:10.0.
+    #
+    # Which means the guard tests only the first of the two RIDs it adds.
+    # Left that way deliberately: making it test both would start
+    # appending linux-x86 to an SDK that cannot build it. If extra
+    # platforms are ever revived, freebsd-x64 needs nothing and linux-x86
+    # needs a runtime pack that does not exist -- not a change here.
+    if grep -q freebsd-x64 "$BUNDLEDVERSIONS"; then
+        echo "Extra platforms already enabled in $BUNDLEDVERSIONS"
     else
-        echo "Enabling extra platform support"
-        sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' $BUNDLEDVERSIONS
+        echo "Enabling extra platform support in $BUNDLEDVERSIONS"
+        sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' "$BUNDLEDVERSIONS"
     fi
 }
 
 EnableExtraPlatforms()
 {
-    if grep -qv freebsd-x64 src/Directory.Build.props; then
+    # `grep -qv X file` is true when ANY line lacks X, which for a
+    # multi-line props file is always true -- including immediately after
+    # this function has just added the RIDs. The intended test is "the
+    # file does not contain X", so a second invocation appended them
+    # again.
+    if ! grep -q freebsd-x64 src/Directory.Build.props; then
         sed -i'' -e "s^<RuntimeIdentifiers>\(.*\)</RuntimeIdentifiers>^<RuntimeIdentifiers>\1;freebsd-x64;linux-x86</RuntimeIdentifiers>^g" src/Directory.Build.props
     fi
 }

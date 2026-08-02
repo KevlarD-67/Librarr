@@ -84,28 +84,19 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Enable extra platform support (freebsd-x64, linux-x86)
-        shell: bash
-        run: |
-          # actions/setup-dotnet exports DOTNET_ROOT; the SDK lives at
-          # $DOTNET_ROOT/sdk. Fall back to dirname-of-dotnet if unset.
-          SDK_DIR="${DOTNET_ROOT:-$(dirname "$(which dotnet)")}/sdk"
-          BUNDLED=$(find "$SDK_DIR" -name "Microsoft.NETCoreSdk.BundledVersions.props" 2>/dev/null | head -1)
-          if [ -n "$BUNDLED" ] && ! grep -q freebsd-x64 "$BUNDLED"; then
-            sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' "$BUNDLED"
-            echo "Extra platforms enabled in $BUNDLED"
-          else
-            echo "Skipping platform patch — bundled-versions file not found at $SDK_DIR (this is OK on hosted runners with current SDK)"
-          fi
-
       - name: Build backend
         shell: bash
         # --enable-extra-platforms (freebsd-x64 + linux-x86) is deferred:
         # the .NET SDK stopped shipping runtime packs for those RIDs. The
         # two escape hatches this comment used to name are both spent --
         # global.json now pins the SDK and the target framework is net10.0 --
-        # so re-enabling means the patched-bundled-versions route the release
-        # workflow uses, not a version bump.
+        # so re-enabling means patching the SDK's bundled-versions file,
+        # which build.sh already does behind
+        # `--enable-extra-platforms-in-sdk`. There used to be a step here
+        # that inlined that patch by hand; it selected the SDK with
+        # `find | head -1`, which on a runner carrying three SDKs picked
+        # 8.0.423 while the build ran on 10.0.302, and then reported
+        # success. Deleted rather than repaired -- build.sh owns this.
         run: ./build.sh --backend
 
       - name: Upload backend output

@@ -84,20 +84,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Enable extra platform support (freebsd-x64, linux-x86)
-        shell: bash
-        run: |
-          # actions/setup-dotnet exports DOTNET_ROOT; the SDK lives at
-          # $DOTNET_ROOT/sdk. Fall back to dirname-of-dotnet if unset.
-          SDK_DIR="${DOTNET_ROOT:-$(dirname "$(which dotnet)")}/sdk"
-          BUNDLED=$(find "$SDK_DIR" -name "Microsoft.NETCoreSdk.BundledVersions.props" 2>/dev/null | head -1)
-          if [ -n "$BUNDLED" ] && ! grep -q freebsd-x64 "$BUNDLED"; then
-            sed -i.ORI 's/osx-x64/osx-x64;freebsd-x64;linux-x86/' "$BUNDLED"
-            echo "Extra platforms enabled in $BUNDLED"
-          else
-            echo "Skipping platform patch — bundled-versions file not found at $SDK_DIR (this is OK on hosted runners with current SDK)"
-          fi
-
       - name: Build + package backend
         shell: bash
         # --enable-extra-platforms (freebsd-x64 + linux-x86) is deferred
