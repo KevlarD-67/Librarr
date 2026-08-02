@@ -20,7 +20,7 @@ You can also build locally from this directory — see **Build** below.
 
 | File | Purpose |
 |---|---|
-| `Dockerfile` | Self-contained multi-stage build: compiles backend (`dotnet publish`) + frontend (`yarn build`) inside the image, then assembles a small runtime layer on `aspnet:6.0-alpine`. No local toolchain required. |
+| `Dockerfile` | Self-contained multi-stage build: compiles backend (`dotnet publish`) + frontend (`yarn build`) inside the image, then assembles a small runtime layer on `aspnet:10.0-alpine`. No local toolchain required. |
 | `Dockerfile.prebuilt` | Thin packaging layer for when you already ran `./build.sh` and `yarn build` locally — copies `_output/` straight into the runtime image. Fast iteration, but requires the host toolchain. |
 
 ## Build
