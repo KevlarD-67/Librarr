@@ -15,8 +15,11 @@ namespace NzbDrone.Playwright.Test
     // the per-test error assertion.
     //
     // NzbDroneRunner picks up the most-recently-built backend in
-    // _output/net10.0 — run `./build.sh --backend` before invoking the suite,
-    // or the runner will throw at assembly setup.
+    // _output/net10.0 — run a full `./build.sh` before invoking the suite, or
+    // the runner will throw at assembly setup. `--backend` alone is not
+    // enough and is actively worse than nothing: it opens with
+    // `rm -rf _output`, so it deletes the frontend, and only the packaging
+    // step copies the UI next to the binary. See AssertAppIsNotStale.
     public abstract class PlaywrightTestBase
     {
         protected IPage Page => AssemblyGate.Page;

@@ -25,7 +25,7 @@
 #
 # Multi-arch: this variant can only produce the arches you actually built
 # locally. `./build.sh --backend --enable-extra-platforms` emits every RID
-# under _output/net6.0/, in which case:
+# under _output/net10.0/, in which case:
 #
 #   docker buildx build -f distribution/docker/Dockerfile.prebuilt \
 #     --platform linux/amd64,linux/arm64,linux/arm/v7 -t librarr/librarr:dev .
@@ -45,7 +45,7 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 ARG DOTNET_RID=""
 
-COPY _output/net6.0/ /out/
+COPY _output/net10.0/ /out/
 # build.sh stages the webpack bundle at _output/UI and deliberately keeps it
 # out of the per-RID publish/ trees (it grafts it in at package time — see the
 # "Stage UI into each per-RID package" step in .github/workflows/release.yml).
@@ -64,7 +64,7 @@ RUN set -eu; \
         esac; \
     fi; \
     if [ ! -d "/out/${rid}/publish" ]; then \
-        echo "missing _output/net6.0/${rid}/publish — build that RID first (./build.sh --backend --enable-extra-platforms)" >&2; \
+        echo "missing _output/net10.0/${rid}/publish — build that RID first (./build.sh --backend --enable-extra-platforms)" >&2; \
         exit 1; \
     fi; \
     echo "packaging RID: ${rid}"; \
@@ -75,7 +75,12 @@ RUN set -eu; \
 # ────────────────────────────────────────────────────────────────────
 # Runtime image
 # ────────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:6.0-alpine
+# Keep this in lockstep with the runtime stage in distribution/docker/Dockerfile.
+# The .NET 10 migration updated that one and missed this file entirely, so the
+# image kept building and then died at startup with "You must install or update
+# .NET to run this application" -- a runtime failure, invisible to a docker
+# build, in a file nothing in CI exercises.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 
 LABEL org.opencontainers.image.title="Librarr" \
       org.opencontainers.image.description="Librarr — OpenLibrary continuation of the archived Readarr ebook manager" \
