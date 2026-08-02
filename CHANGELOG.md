@@ -105,6 +105,17 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
   `actions/labeler` v5 redesigned its config schema and rejects the old
   format outright, so `.github/labeler.yml` was rewritten accordingly.
 
+- **The gated test suites run in CI instead of nowhere.** Four suites sat
+  behind env-var gates or NUnit categories that no CI job ever set, so a green
+  badge said nothing about them. They are wired in by network dependence:
+  Playwright's ten local-only tests block the build, its six OpenLibrary-seeded
+  ones and `HttpClientFixture`'s 54 run non-blocking alongside, and
+  `NzbDrone.Integration.Test`'s 94 move to a nightly workflow that runs one
+  fixture at a time — running them in one pass gets the source IP refused by
+  openlibrary.org, and hammering a free public service on every push is not a
+  reasonable thing to do. Anything reaching a third party is non-blocking on
+  purpose: red should mean "we broke it", not "their server is down".
+
 ### Fixed
 
 - **`build.yml` installed a .NET 6 SDK on every run that nothing used.** The

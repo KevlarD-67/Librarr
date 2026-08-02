@@ -16,9 +16,14 @@ namespace NzbDrone.Playwright.Test
     // the half that actually broke during #24 (work counts came back 0 on the
     // id path, so a correct match was labelled "No works").
     //
-    // This talks to real OpenLibrary. It is the one fixture here that does, so
-    // it degrades to Inconclusive rather than red when the network is missing.
+    // This talks to real OpenLibrary, so it degrades to Inconclusive rather
+    // than red when the network is missing. It is not the only one that does
+    // -- SeededLibraryTest and BookDetailsTest seed through the API too, which
+    // is a live metadata fetch. All three carry RequiresOpenLibrary so CI can
+    // run the ten network-free tests as a blocking job and leave these six to
+    // a separate one that is allowed to fail.
     [TestFixture]
+    [Category("RequiresOpenLibrary")]
     public class AddAuthorSearchTest : PlaywrightTestBase
     {
         [Test]
