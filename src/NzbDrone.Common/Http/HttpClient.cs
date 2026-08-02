@@ -268,20 +268,25 @@ namespace NzbDrone.Common.Http
             {
                 try
                 {
-                    var before = container.Count;
-
                     container.SetCookies((Uri)url, cookieHeader);
 
                     // SetCookies does not always throw on a cookie it declines:
                     // an already-expired one is dropped silently, which is
-                    // correct but indistinguishable from success here. The catch
-                    // below therefore cannot be relied on to notice, and a
-                    // missing session cookie surfaces much later as an
-                    // unexplained re-login or 403 against the origin. Say so at
-                    // the point it happens.
-                    if (container.Count == before)
+                    // correct behaviour but indistinguishable from success here.
+                    // The catch below therefore cannot be relied on to notice,
+                    // and a missing session cookie surfaces much later as an
+                    // unexplained re-login or 403 against the origin.
+                    //
+                    // Look for the cookie by name rather than watching the
+                    // container's count. Count is unchanged when a cookie
+                    // REPLACES one already held under the same name -- which is
+                    // the ordinary case for a refreshed session cookie -- so
+                    // counting reports a drop on nearly every re-issue.
+                    var name = ParseCookieName(cookieHeader);
+
+                    if (name != null && container.GetCookies((Uri)url)[name] == null)
                     {
-                        _logger.Debug("Cookie was rejected without error by {0}: {1}", url, cookieHeader);
+                        _logger.Debug("Cookie '{0}' was declined without error by {1}: {2}", name, url, cookieHeader);
                     }
                 }
                 catch (Exception ex)
@@ -289,6 +294,42 @@ namespace NzbDrone.Common.Http
                     _logger.Debug(ex, "Invalid cookie in {0}", url);
                 }
             }
+        }
+
+        // The name of the first cookie in a Set-Cookie header, or null when
+        // there is nothing worth reporting on. Only feeds the diagnostic above,
+        // so every uncertain case returns null rather than risk a false alarm.
+        //
+        // Null for a deletion — `my=; Expires=Thu, 01-Jan-1970 ...; Max-Age=0`,
+        // the conventional way to clear a cookie. Nothing is stored afterwards,
+        // which is the whole point, and reporting it as declined would mean the
+        // diagnostic fired on correct behaviour every time a server logged
+        // someone out.
+        private static string ParseCookieName(string cookieHeader)
+        {
+            var equals = cookieHeader.IndexOf('=');
+
+            if (equals <= 0)
+            {
+                return null;
+            }
+
+            var name = cookieHeader.Substring(0, equals).Trim();
+
+            if (name.Length == 0 || name.Contains(';'))
+            {
+                return null;
+            }
+
+            var value = cookieHeader.Substring(equals + 1);
+            var end = value.IndexOf(';');
+
+            if (end >= 0)
+            {
+                value = value.Substring(0, end);
+            }
+
+            return value.Trim().Length == 0 ? null : name;
         }
 
         public Task DownloadFileAsync(string url, string fileName, string userAgent = null)
