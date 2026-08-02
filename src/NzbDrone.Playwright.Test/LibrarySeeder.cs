@@ -88,6 +88,23 @@ namespace NzbDrone.Playwright.Test
             _seeded = true;
         }
 
+        // The route is /book/:titleSlug, so a test that wants the book detail
+        // page has to ask the API which slug the seeded author's books got --
+        // the slug is derived from the title by the backend, not something the
+        // test can predict.
+        public static string FirstBookTitleSlug(int port, string apiKey)
+        {
+            var client = new RestClient($"http://localhost:{port}/api/v1");
+            var books = Get(client, apiKey, "book");
+
+            if (books.Count == 0)
+            {
+                Assert.Inconclusive($"{AuthorName} has no books, so there is no book detail page to open.");
+            }
+
+            return books[0].Value<string>("titleSlug");
+        }
+
         // The author row lands immediately; its books arrive on a background
         // refresh command. Asserting on a page before that finishes is the
         // difference between "the book list renders" and a flaky empty table.
