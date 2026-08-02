@@ -44,6 +44,15 @@ that Phases 2–5 wired up.
   every test die in `CreateAsync`, and Playwright 1.40's Chromium
   crashed on current macOS about one run in three. The gate now
   checks driver against client up front.
+
+  Then, once it ran, it was running against an app tree built before
+  the features it tests existed — the recipe below was ordered so that
+  the backend build deleted the frontend build. That is what made the
+  first genuinely-green run of this suite 2026-08-01, not 2026-07-30:
+  the earlier "green" runs served a pre-migration frontend, so the
+  React 18.3 `defaultProps` work had never actually been exercised in a
+  browser, and neither had the audiobook-profile or work-count UI.
+  `NzbDroneRunner` now fails rather than boot a stale tree.
 - [x] `docker build -f distribution/docker/Dockerfile -t librarr/librarr:test .`
   builds clean (~180 MB alpine 6.0 runtime). `docker run` boots,
   serves `/ping`, passes `tests/e2e/smoke.sh`. Eight Phase 9b
@@ -227,9 +236,13 @@ dotnet build src/Readarr.sln -c Debug
 # Lint
 yarn lint && yarn stylelint-linux
 
-# Playwright smoke (requires built backend + frontend + browser bundle)
-./build.sh --backend
-yarn install && yarn build
+# Playwright smoke. Use a FULL ./build.sh -- the recipe here used to read
+# `./build.sh --backend` then `yarn build`, which is broken in both
+# directions: --backend opens with `rm -rf _output` and so deletes the
+# frontend, while `yarn build` writes _output/UI and never reaches the
+# app, which serves the UI folder beside its own binary. Only the full
+# build's packaging step copies it across.
+yarn install && ./build.sh
 ./scripts/playwright-install.sh
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/
 ```

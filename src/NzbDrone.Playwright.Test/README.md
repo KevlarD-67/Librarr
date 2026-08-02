@@ -3,21 +3,55 @@
 End-to-end smoke suite, replacing the gated legacy Selenium suite
 (`src/NzbDrone.Automation.Test/`, retired but kept for git blame).
 
-Scope today: six page-load smokes for Library / Calendar / Activity /
-Wanted / System / Add Author. Each test mounts the page and asserts a
-page-specific DOM anchor exists. Visual regression / interaction
-testing is not in scope; that's gated on the OL cassette work in the
-roadmap.
+Scope today: **14 tests**, in three tiers.
+
+| Fixture | Tests | Needs |
+|---|---|---|
+| `MainPagesTest` | 7 | — |
+| `NarratorPageTest` | 1 | — |
+| `SettingsFormsTest` | 2 | — |
+| `AddAuthorSearchTest` | 2 | OpenLibrary |
+| `SeededLibraryTest` | 2 | OpenLibrary + a seeded library |
+
+The first tier mounts a page and asserts a page-specific DOM anchor
+exists. The second and third assert on rendered content, so they make a
+real OpenLibrary call — see `LibrarySeeder` for why they degrade to
+`Inconclusive` rather than failing when OL is unreachable.
+
+Visual regression is still out of scope; that's gated on the OL cassette
+work in the roadmap.
 
 ## Prerequisites
 
-1. **Built backend on disk.** Run `./build.sh --backend` once.
-   `NzbDroneRunner` invokes the most-recently-built output under
-   `_output/net10.0/`.
+1. **A coherent app tree on disk.** The reliable way is one command:
 
-2. **Built frontend on disk.** Run `yarn install && yarn build`
-   once. The runner serves `_output/UI/` from disk; without the
-   build step, every page test will see a blank document.
+   ```bash
+   yarn install && ./build.sh
+   ```
+
+   A full `./build.sh` builds the backend, builds the frontend, and then
+   copies `_output/UI` next to the binary. **No shorter command does all
+   three**, and the partial ones interact badly:
+
+   | Command | Effect |
+   |---|---|
+   | `./build.sh --backend` | rebuilds the app — and opens with `rm -rf _output`, so it **deletes** `_output/UI` |
+   | `yarn build` | writes `_output/UI`, and nothing else — it never reaches the running app |
+
+   The app serves the `UI/` folder beside its own binary, which only the
+   packaging step populates. So iterating with the two partial commands,
+   in either order, leaves the suite testing whichever frontend was
+   copied there last. If you must iterate that way, copy it yourself:
+
+   ```bash
+   yarn build && cp -r _output/UI _output/net10.0/<rid>/
+   ```
+
+   `NzbDroneRunner` prints the binary it launched with its build time,
+   and fails outright if `_output/UI` is newer than the copy beside the
+   binary. Read that line before believing a failure — an app tree
+   predating the feature under test produces failures that look exactly
+   like bugs, and passes that look exactly like coverage.
 
 3. **Playwright browser bundle.** Run the helper once per machine:
 
@@ -58,8 +92,12 @@ The suite is gated by `READARR_RUN_PLAYWRIGHT=1` (see
 stays green.
 
 ```bash
-# All seven smokes
+# All 14
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/
+
+# Only the tests that need no network
+READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/ \
+  --filter "FullyQualifiedName!~AddAuthorSearchTest&FullyQualifiedName!~SeededLibraryTest"
 
 # Single test (mirrors the Selenium suite filter syntax)
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/ \
@@ -72,35 +110,41 @@ Screenshots land in the working directory as
 
 ## First-run friction
 
-The suite runs green on the pinned `Microsoft.Playwright` **1.40.0**;
-verified 2026-07-30, eight tests, four consecutive clean runs.
+The suite runs green on the pinned `Microsoft.Playwright` **1.55.0**;
+verified 2026-08-01, 14 tests, three consecutive clean runs.
 
-The one thing that will make you think it's broken: 1.40.0 asks the CDN
-for `chromium-1091`, a build from late 2023, and that download is
-*extremely* slow — tens of minutes, with no progress output for long
-stretches. It does complete. Don't interrupt it, and don't conclude the
-artifact is gone; a partially-downloaded browser directory looks like a
-present-but-broken install and produces
-`Executable doesn't exist at .../chromium-1091/...` on the next run.
-If that happens, delete the directory under `~/Library/Caches/ms-playwright`
-(macOS) or `~/.cache/ms-playwright` (Linux) and re-run the installer.
+**`Executable doesn't exist at .../chromium-XXXX/...`** means the browser
+in the cache is not the one the driver wants. Almost always that is a
+stale driver, not a bad download. `_tests/` is shared, keyed by target
+framework and RID, and never cleaned, so it accumulates driver copies —
+after the .NET 6 → 10 migration this tree held four, two of them 1.40.0
+leftovers still asking for `chromium-1091`. Both install scripts now
+select the driver whose version matches the pin in
+`src/Directory.Packages.props` and print which one they chose; if none
+matches, they list what they found and stop rather than installing a
+browser the tests will not use. `_AssemblyGate` makes the same check at
+run time. If the scripts report only stale drivers, delete `_tests/` and
+rebuild.
 
-If you do bump the pin, be aware the 1.5x packages ship a node driver
-one revision ahead of their own .NET assembly, so `install` and
-`dotnet test` disagree about which browser to use:
+An earlier version of this file blamed that symptom on the 1.5x packages
+shipping a node driver one revision ahead of their own .NET assembly.
+That was wrong — driver and assembly agree, and both `install` and
+`dotnet test` go through the same driver. The mismatch came from
+`playwright-install.sh` picking whichever driver `find` reached first.
 
-| `Microsoft.Playwright` | .NET lib launches | bundled driver installs |
-|---|---|---|
-| 1.54.0 | `chromium_headless_shell-1181` | 1187 |
-| 1.55.0 | `chromium_headless_shell-1187` | 1194 |
+The other thing that will make you think it's broken is the first
+download: it is slow and silent for long stretches. It does complete.
+Interrupting it leaves a partial browser directory, which looks like a
+present-but-broken install and produces the same message as above —
+delete that directory under `~/Library/Caches/ms-playwright` (macOS) or
+`~/.cache/ms-playwright` (Linux) and re-run the installer.
 
-Check both before assuming a bump worked.
-
-`scripts/playwright-install.sh` used to look under
+Both install scripts previously looked only under
 `src/NzbDrone.Playwright.Test/bin`, which this repo never writes to
-(`Directory.Build.props` redirects output to `_tests/`), and it required
-PowerShell. It now finds the CLI under `_tests/` and drives Playwright's
-own bundled Node directly.
+(`Directory.Build.props` redirects output to `_tests/`) — on Windows that
+meant `playwright-install.ps1` never found the CLI at all. They now
+search `_tests/`, and the bash one drives Playwright's own bundled Node
+directly rather than requiring PowerShell.
 
 ## One instance per assembly
 
