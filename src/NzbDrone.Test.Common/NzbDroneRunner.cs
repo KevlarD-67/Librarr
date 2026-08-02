@@ -86,6 +86,8 @@ namespace NzbDrone.Test.Common
             TestContext.Progress.WriteLine(
                 $"Starting Readarr from {resolved} (built {File.GetLastWriteTime(resolved):s})");
 
+            AssertAppIsNotStale(Path.GetDirectoryName(resolved));
+
             Start(resolved);
 
             while (true)
@@ -117,6 +119,85 @@ namespace NzbDrone.Test.Common
 
                 Thread.Sleep(500);
             }
+        }
+
+        // Printing the binary's build time (above) was not enough. The number
+        // is only meaningful next to something to compare it against, and on
+        // its own it reads as provenance rather than as a warning -- a whole
+        // afternoon went into three "failing" Playwright tests that were
+        // really one app tree built before the features under test existed.
+        //
+        // The app serves the UI folder sitting beside its own binary, and no
+        // single command keeps that folder current:
+        //
+        //   yarn build             writes _output/UI, and nothing else
+        //   ./build.sh --backend   rebuilds the app -- and starts with
+        //                          `rm -rf _output`, so it DELETES _output/UI
+        //   ./build.sh (no args)   builds both, then PackageFiles() copies
+        //                          _output/UI next to the binary
+        //
+        // Only the third produces a coherent tree. Iterating with the first
+        // two, in either order, leaves the running app serving whichever
+        // frontend happened to be copied there last. Every symptom of that is
+        // a lie: assertions fail against code you are looking at, and -- worse
+        // -- assertions *pass* against code you deleted.
+        private static void AssertAppIsNotStale(string appFolder)
+        {
+            var servedUi = Path.Combine(appFolder, "UI", "index.html");
+
+            if (!File.Exists(servedUi))
+            {
+                Assert.Fail(
+                    $"No UI at {Path.Combine(appFolder, "UI")}. Run a full `./build.sh`, or " +
+                    "`yarn build` followed by copying _output/UI next to the binary.");
+            }
+
+            // _output/UI is the frontend's own output, two or three levels up
+            // depending on whether this build is RID-specific. Absent in a CI
+            // Release layout, in which case there is nothing to compare and
+            // the check is skipped.
+            var builtUi = FindFrontendOutput(appFolder);
+
+            if (builtUi == null)
+            {
+                return;
+            }
+
+            var servedAt = File.GetLastWriteTimeUtc(servedUi);
+            var builtAt = File.GetLastWriteTimeUtc(builtUi);
+
+            if (builtAt > servedAt)
+            {
+                Assert.Fail(
+                    $"The UI next to the binary is stale: {servedUi} was written {servedAt:s}, " +
+                    $"but {builtUi} is newer ({builtAt:s}). `yarn build` writes only the latter. " +
+                    $"Copy it across (`cp -r {Path.GetDirectoryName(builtUi)} {appFolder}/`) or run a " +
+                    "full `./build.sh` -- otherwise the suite tests a frontend you no longer have.");
+            }
+        }
+
+        private static string FindFrontendOutput(string appFolder)
+        {
+            // Resolve first. The Release path is _tests/bin, which is a symlink
+            // into _output/<tfm>/<rid>, and Path.GetFullPath is purely lexical
+            // -- so walking up the unresolved path climbs out through _tests and
+            // never sees _output at all. That would leave this check quietly
+            // skipping itself, which is the failure mode it exists to prevent.
+            var start = Directory.ResolveLinkTarget(appFolder, true)?.FullName ?? appFolder;
+
+            for (var folder = new DirectoryInfo(start); folder != null; folder = folder.Parent)
+            {
+                var candidate = folder.Name == "_output"
+                    ? Path.Combine(folder.FullName, "UI", "index.html")
+                    : Path.Combine(folder.FullName, "_output", "UI", "index.html");
+
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         public void Kill()
