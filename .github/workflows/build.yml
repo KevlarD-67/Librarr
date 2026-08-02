@@ -33,8 +33,9 @@ on:
   workflow_dispatch:
 
 env:
-  # Keep in sync with azure-pipelines.yml:18 until that file is removed.
-  DOTNET_VERSION: '6.0.x'
+  # Keep in sync with azure-pipelines.yml:28 (`dotnetVersion`) and
+  # global.json until that file is removed.
+  DOTNET_VERSION: '10.0.x'
   # Node 20 went EOL 2026-04-30. 24 is the current LTS (until 2028-04-30),
   # which outlives the .NET 10 support window this repo is pinned to.
   # Keep in sync with .nvmrc, package.json `engines`/`volta`, and
