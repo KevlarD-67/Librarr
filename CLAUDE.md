@@ -107,10 +107,28 @@ number that is wrong is worse than no number, because it gets trusted.
   class components.
 - **Tests:** NUnit + Moq + FluentAssertions; **2789 passing** in
   `NzbDrone.Core.Test`. Selenium + ChromeDriver in
-  `NzbDrone.Automation.Test` is years out of date — treat as historical;
-  `NzbDrone.Playwright.Test` is the live smoke suite
-  (opt in with `READARR_RUN_PLAYWRIGHT=1`). `NzbDrone.Integration.Test`
-  needs `READARR_RUN_INTEGRATION=1` and real network.
+  `NzbDrone.Automation.Test` is years out of date — treat as historical,
+  and it is the one suite still running nowhere.
+
+  **The gated suites now run in CI** (as of 2026-08-02; before that they
+  ran in no job at all and rotted silently). The env gates still exist —
+  they keep a bare `dotnet test` fast — but CI sets them:
+
+  | Suite | Where it runs | Blocking? |
+  |---|---|---|
+  | `NzbDrone.Playwright.Test`, 10 local-only tests | `build.yml` per push | **yes** |
+  | `NzbDrone.Playwright.Test`, 6 `RequiresOpenLibrary` | `build.yml` per push | no |
+  | `Category=IntegrationTest` minus the integration suite (HttpClientFixture's 54) | `build.yml` per push | no |
+  | `NzbDrone.Integration.Test` (94) | `nightly-integration.yml`, one fixture at a time | n/a (scheduled) |
+
+  Anything touching a third party is non-blocking on purpose — red should
+  mean "we broke it", not "their server is down".
+
+  **Do not move the integration suite into the push pipeline.** Running
+  its fixtures in one pass gets the source IP refused by openlibrary.org
+  (26 of 88 tests, refusals persisting for minutes) because each fixture
+  starts with empty appdata and re-fetches from scratch. That is why the
+  nightly runs one fixture per invocation with a pause between them.
 
   **Frontend: vitest + @testing-library/react + jsdom**, `yarn
   test:frontend`, config in `frontend/build/vitest.config.mjs`. Tests are

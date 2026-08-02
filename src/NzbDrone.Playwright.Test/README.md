@@ -91,13 +91,25 @@ The suite is gated by `READARR_RUN_PLAYWRIGHT=1` (see
 `Skipped` — the default `dotnet test src/Readarr.sln` invocation
 stays green.
 
+**CI sets it.** Since 2026-08-02 the `Playwright smoke` job in
+`build.yml` runs the whole suite on every push: the ten network-free
+tests block the build, the six `RequiresOpenLibrary` ones run in a step
+that is allowed to fail. Before that this suite ran in no job at all,
+which is how a stale driver and a frontend that had been deleted both
+went unnoticed. If you change the fixture layout, check that job — it
+assembles the app tree by hand and copies the `.playwright` driver into
+the publish folder, because neither is where a per-RID publish puts it.
+
 ```bash
-# All 14
+# All 16
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/
 
-# Only the tests that need no network
+# Only the 10 that need no network. The six that seed a library through
+# the API perform a live OpenLibrary fetch and carry the
+# RequiresOpenLibrary category; filter on that rather than on fixture
+# names, which go stale the moment a seeded fixture is added.
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/ \
-  --filter "FullyQualifiedName!~AddAuthorSearchTest&FullyQualifiedName!~SeededLibraryTest"
+  --filter "Category!=RequiresOpenLibrary"
 
 # Single test (mirrors the Selenium suite filter syntax)
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/ \
@@ -111,7 +123,8 @@ Screenshots land in the working directory as
 ## First-run friction
 
 The suite runs green on the pinned `Microsoft.Playwright` **1.55.0**;
-verified 2026-08-01, 14 tests, three consecutive clean runs.
+verified 2026-08-02 in CI, 16 tests (10 blocking + 6 live OpenLibrary),
+across three consecutive runs on an ubuntu-22.04 runner.
 
 **`Executable doesn't exist at .../chromium-XXXX/...`** means the browser
 in the cache is not the one the driver wants. Almost always that is a
