@@ -51,7 +51,23 @@ namespace NzbDrone.Common.Test.Http
             _httpBinHost = mainHost;
             _httpBinHosts = candidates.Where(IsTestSiteAvailable).ToArray();
 
-            TestLogger.Info($"{candidates.Length} TestSites available.");
+            // candidates.Length, not _httpBinHosts.Length, was reported here --
+            // i.e. the count before the availability filter, which is a
+            // constant. It announced "1 TestSites available" whether one was
+            // reachable or none were.
+            //
+            // None is not survivable: the [SetUp] below indexes _httpBinHosts
+            // modulo its own length, so an empty array fails every test in the
+            // fixture with DivideByZeroException, which names neither the host
+            // nor the reason. Say it here, once, where the cause is known.
+            TestLogger.Info($"{_httpBinHosts.Length} of {candidates.Length} TestSites available.");
+
+            if (_httpBinHosts.Length == 0)
+            {
+                Assert.Inconclusive(
+                    $"None of the secondary test sites ({string.Join(", ", candidates)}) are reachable. " +
+                    "These tests need them to round-robin across hosts and avoid the rate limiter.");
+            }
 
             _httpBinSleep = 10;
         }
