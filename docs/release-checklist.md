@@ -155,7 +155,18 @@ blocking work when nothing in it was.
   installers, and a Docker build that now genuinely pushes
   (`release.yml:530` is `push: true` — the `push: false` this line
   used to describe was the Phase 9b placeholder). A draft GitHub
-  release is created automatically.
+  release is created automatically; **publishing it is manual**, and
+  until you do, nobody without push access can see it.
+
+  If you re-push a tag to re-run the pipeline, the job now deletes any
+  existing *draft* for that tag before creating the new one, and stops
+  outright if the tag has already been published. It did neither
+  before 2026-08-03: every re-run left its predecessor behind as an
+  invisible orphan holding a full ~880 MB asset set, which is how
+  `v1.0.0-beta` ended up with three releases — one published and two
+  drafts, the later of which was created 22 minutes *after* the
+  publish. Both drafts were deleted 2026-08-03; neither had ever been
+  downloaded.
 
 ---
 

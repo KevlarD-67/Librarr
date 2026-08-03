@@ -421,6 +421,40 @@ jobs:
         run: |
           VERSION="${{ needs.variables.outputs.version }}"
 
+          # `gh release create` always creates a NEW release, and a draft
+          # carries no git tag, so there is nothing for GitHub to collide
+          # with -- re-running this workflow for a tag silently orphans the
+          # previous draft instead of replacing it. v1.0.0-beta collected two
+          # that way while this workflow was being debugged, one of them
+          # created 22 minutes after the release had already been published.
+          # Each orphan holds a full set of ~880 MB of artifacts that nobody
+          # can download, because drafts are invisible without push access.
+          #
+          # Filtering happens in awk rather than in the --jq filter so the
+          # tag comparison is an exact string match on a known-set variable,
+          # with no interpolation into a jq program and no dependency on how
+          # gh's jq resolves env lookups. One request, both answers.
+          RELEASES=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq '.[] | [(.draft|tostring), .tag_name, (.id|tostring)] | @tsv')
+
+          # A published release is deliberately never touched -- it is the
+          # thing users already hold checksums for. Stop instead, because
+          # re-running the release job for a tag that has already shipped is
+          # a mistake, and quietly producing a draft nobody can see is the
+          # worst available way to report it.
+          if printf '%s\n' "$RELEASES" \
+             | awk -F'\t' -v tag="v${VERSION}" '$1=="false" && $2==tag {found=1} END {exit !found}'; then
+            echo "::error::v${VERSION} is already published. Delete that release first if you really mean to rebuild it."
+            exit 1
+          fi
+
+          printf '%s\n' "$RELEASES" \
+            | awk -F'\t' -v tag="v${VERSION}" '$1=="true" && $2==tag {print $3}' \
+            | while read -r stale_id; do
+                echo "Removing stale draft release ${stale_id} for v${VERSION}"
+                gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${stale_id}"
+              done
+
           # Mark anything that isn't a plain x.y.z as a prerelease, or GitHub
           # serves a beta as "Latest" and every tool that reads
           # /releases/latest picks it up as stable.
