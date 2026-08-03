@@ -102,9 +102,9 @@ that Phases 2–5 wired up.
   Keep-a-Changelog releases rather than the per-phase one-liners
   originally sketched here — `## [1.0.0-beta] — 2026-05-19` covers
   Phases 0–12, `## [1.1.0-beta] — 2026-07-30` covers the .NET 10 move
-  and what followed. Grouping by release rather than by internal phase
-  number is the more useful shape for a reader who was never inside
-  the plan.
+  and `## [1.2.0-beta] — 2026-08-03` what followed it. Grouping by
+  release rather than by internal phase number is the more useful
+  shape for a reader who was never inside the plan.
 
 ### Out-of-engineering (manual user-action)
 
@@ -144,9 +144,10 @@ blocking work when nothing in it was.
   secrets exist nothing else changes — the `build-windows` and
   `installer` jobs pick them up, and the draft release notes switch
   from the SmartScreen warning to stating the build is signed.
-- [x] `v1.0.0-beta` tag pushed, and `v1.1.0-beta` after it. Both
-  exist; the release pipeline (`.github/workflows/release.yml`) fires
-  on `v*`:
+- [x] `v1.0.0-beta` tag pushed, then `v1.1.0-beta`, then
+  `v1.2.0-beta` (2026-08-03 — the first tag to carry Windows
+  installers). All three exist; the release pipeline
+  (`.github/workflows/release.yml`) fires on `v*`:
   ```bash
   git tag -a v1.0.0-beta -m "Librarr 1.0.0 beta"
   git push origin v1.0.0-beta

@@ -7,6 +7,15 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
+## [1.2.0-beta] — 2026-08-03
+
+Minor rather than patch: this line adds per-format quality profiles, a
+root-folder audiobook profile default carrying schema migration 047,
+work counts in author search, and the first Windows installers Librarr
+has ever shipped. It also turns off crash reporting that had been
+going to the retired upstream since the fork began — read that entry
+before upgrading if you relied on `AnalyticsEnabled`.
+
 ### Added
 
 - **Frontend unit tests, where there were none.** `yarn test:frontend` runs
@@ -520,6 +529,7 @@ fork's code-level inventory.
 - Internal `Readarr.*` csproj rename / `NzbDrone.*` namespace
   rebrand (deliberately preserved).
 
-[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.1.0-beta...HEAD
+[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.2.0-beta...HEAD
+[1.2.0-beta]: https://github.com/Rorqualx/Librarr/compare/v1.1.0-beta...v1.2.0-beta
 [1.1.0-beta]: https://github.com/Rorqualx/Librarr/compare/v1.0.0-beta...v1.1.0-beta
 [1.0.0-beta]: https://github.com/Rorqualx/Librarr/releases/tag/v1.0.0-beta
