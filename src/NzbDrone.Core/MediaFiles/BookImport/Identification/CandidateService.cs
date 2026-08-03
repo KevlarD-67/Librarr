@@ -375,6 +375,37 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 // We have to make sure various bits and pieces are populated that are normally handled
                 // by a database lazy load
+                //
+                // Author/AuthorMetadata/SeriesLinks are part of that set. A metadata
+                // source can leave them unset — the ISBN/ASIN edition lookup builds a
+                // slim book with no author at all, and the work and search mappers omit
+                // the author when the source returns no name or key. Downstream
+                // identification (DistanceCalculator, LocalEdition.PopulateMatch)
+                // dereferences them, so a null here fails the whole import run rather
+                // than just skipping the candidate.
+                if (book.AuthorMetadata?.Value == null)
+                {
+                    book.AuthorMetadata = new AuthorMetadata { Name = string.Empty };
+                }
+                else if (book.AuthorMetadata.Value.Name == null)
+                {
+                    book.AuthorMetadata.Value.Name = string.Empty;
+                }
+
+                if (book.Author?.Value == null)
+                {
+                    book.Author = new Author { Metadata = book.AuthorMetadata.Value, CleanName = string.Empty };
+                }
+                else if (book.Author.Value.Metadata?.Value == null)
+                {
+                    book.Author.Value.Metadata = book.AuthorMetadata.Value;
+                }
+
+                if (book.SeriesLinks == null)
+                {
+                    book.SeriesLinks = new List<SeriesBookLink>();
+                }
+
                 foreach (var edition in book.Editions.Value)
                 {
                     edition.Book = book;
