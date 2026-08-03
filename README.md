@@ -119,7 +119,7 @@ instead of all of Open Library.
 | Series metadata | Goodreads | Wikidata SPARQL |
 | Audiobook supplement | none | audnex.us (opt-in) |
 | CI | Azure Pipelines | GitHub Actions |
-| Sentry / telemetry | servarr.com | none (until the fork stands up its own) |
+| Sentry / telemetry | servarr.com, on by default | none — off unless you set `LIBRARR_SENTRY_DSN` |
 | CLA | Required (assigns rights to Servarr) | None — GPL v3 inbound = outbound |
 | Status | Archived 2025-06-27 | Active fork |
 

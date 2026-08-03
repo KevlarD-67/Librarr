@@ -2287,6 +2287,16 @@ behaviour change.
 
 ## Phase 11 — Long-term sustainability (ongoing)
 
+> **Retired 2026-08-03 — the first two bullets.** Expanding them into
+> `docs/governance.md` produced a governance model for an organization
+> that never existed: four roles for one person, an approval threshold
+> no change ever met, and a recruitment countdown enforced by
+> publishing a maintenance-mode notice that would have been false.
+> Librarr is a single-maintainer project by choice. The document is
+> deleted; the bullets are kept below as the record of where it came
+> from. The quarterly writeups survived on their own merits — see
+> `docs/state-of-the-fork/`.
+
 - **Bus-factor:** ≥2 active committers with merge rights.
 - **Funding:** Open Collective / GitHub Sponsors. Publish operating
   budget (CI, certs, Docker, Sentry).

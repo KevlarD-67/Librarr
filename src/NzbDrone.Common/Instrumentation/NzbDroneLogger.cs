@@ -64,17 +64,22 @@ namespace NzbDrone.Common.Instrumentation
 
         private static void RegisterSentry(bool updateClient, IAppFolderInfo appFolderInfo)
         {
-            string dsn;
+            // Upstream hard-coded Readarr's own sentry.servarr.com DSNs here, and
+            // AnalyticsEnabled defaults to true, so every production install reported
+            // its crashes to Servarr's instance. That was correct for Readarr and is
+            // not correct for a fork of it: Librarr has no crash-reporting service of
+            // its own, so those events went to a retired project that never agreed to
+            // receive them and to maintainers who cannot act on them. Shipping other
+            // people's crash data to a third party by default is not ours to do.
+            //
+            // Telemetry is therefore off unless an operator points it at a DSN they
+            // control. This is read from the environment rather than config.xml
+            // because logging is registered before the config layer exists.
+            var dsn = Environment.GetEnvironmentVariable("LIBRARR_SENTRY_DSN");
 
-            if (updateClient)
+            if (dsn.IsNullOrWhiteSpace())
             {
-                dsn = "https://a48936ded03b483bbba2ab52fa70de04@sentry.servarr.com/5";
-            }
-            else
-            {
-                dsn = RuntimeInfo.IsProduction
-                    ? "https://19c3bc46b87a470ba0f91430c4c0a68d@sentry.servarr.com/3"
-                    : "https://31e00a6c63ea42c8b5fe70358526a30d@sentry.servarr.com/4";
+                return;
             }
 
             var target = new SentryTarget(dsn, appFolderInfo)

@@ -5,28 +5,36 @@ priority; nothing here is a hard commitment.
 
 ## Open work at a glance
 
-Everything still open across this file,
-[`release-checklist.md`](release-checklist.md) and
-[`governance.md`](governance.md), tiered by what actually forces the
-ordering. The tier is about *what unblocks it*, not how big it is —
-a one-paragraph blog post outranks a multi-week refactor here because
-one has a clock on it and the other doesn't.
+Everything still open across this file and
+[`release-checklist.md`](release-checklist.md), tiered by what actually
+forces the ordering. The tier is about *what unblocks it*, not how big
+it is.
 
 | Tier | Meaning | Items |
 |---|---|---|
-| **0 — Clock running** | A dated commitment. Letting the date pass has governance consequences, not just schedule ones. | **Bus factor: recruit a second maintainer or post the maintenance-mode declaration — deadline 2026-08-14** per [`governance.md`](governance.md#when-the-90-days-start-recorded-2026-08-02) |
 | **1 — Gates 1.0.0-stable** | The stable tag cannot honestly be cut until these close. | Manual operator walkthrough steps 3–5 · 30-day beta soak with no critical regressions · integration suite runnable in one pass |
 | **2 — Coverage debt** | Real gaps. Nothing breaks by waiting, but each one is a place where a regression would ship unnoticed. | Cross-browser Playwright (Chromium-only today) · 500-book reidentify seed · decide `NzbDrone.Automation.Test`'s fate · move crash reporting off `sentry.servarr.com` |
 | **3 — Wants its own branch** | Understood, scoped, and deliberately not bundled with anything else. | `<Nullable>enable</Nullable>` · React 18 ecosystem dep refresh (`react-dnd@14`, `react-popper@1`, `react-virtualized@9`, `react-redux@7.2.4`) |
 | **4 — Trigger-gated** | Not scheduled at all. Revisit only when a named condition fires. | OL bulk-data dump fallback (four triggers in [`ol-bulk-data.md`](ol-bulk-data.md)) |
 | **Won't** | Decided against, recorded so nobody re-opens them by accident. | Namespace rename · rreading-glasses shim · CLA reintroduction |
 
-Tier 0 and Tier 1 are the only ones with a "should have happened by
-now" quality. Tiers 2–4 are healthy backlog.
+Tier 1 is the only one with a "should have happened by now" quality.
+Tiers 2–4 are healthy backlog.
 
-The 2026-Q2 state-of-the-fork writeup was the other Tier 0 item and was
-[published 2026-08-02](state-of-the-fork/2026-Q2.md), 19 days late. It
-came off this list by being done, not by being reclassified.
+**There is no Tier 0.** There was, briefly: a bus-factor deadline of
+2026-08-14 requiring a second maintainer or a maintenance-mode
+declaration. It came from `docs/governance.md`, which was written
+2026-05-17 by expanding two `MASTER-PLAN.md` Phase 11 bullets into a
+governance model for an organization that has never existed here —
+four roles for one person, an approval threshold that 0 of 2 PRs and 0
+of 7 migrations ever met, and a countdown whose only enforcement was
+publishing a maintenance-mode notice that would have been false on the
+day it was due. That document is deleted and the deadline with it.
+See [`state-of-the-fork/README.md`](state-of-the-fork/README.md) for
+what was kept.
+
+Librarr is maintained by one person. That is a fact about the project,
+not an outstanding task in it.
 
 ## Now (1.0.0-beta cycle)
 
@@ -213,17 +221,30 @@ difficulty dressed up as a constraint.)
   shares its instance, or cassette the OL responses (the machinery
   exists in `OpenLibraryCassetteFixture`).
 
+- [ ] **Enable private vulnerability reporting on the repository.**
+  One toggle in Settings → Security. It is off today, which means both
+  `SECURITY.md` and `CODE_OF_CONDUCT.md` currently direct people to
+  `/security/advisories/new` — a form that non-maintainers cannot
+  reach while the setting is off. `SECURITY.md` has pointed there
+  since 2026-05-19, so this channel has been documented-but-closed the
+  whole time. Until it is on, the fork has no private reporting route
+  at all: Discussions and Issues are both public, and no email address
+  is published. Found 2026-08-03 while replacing upstream's dead
+  `development@readarr.com` contact.
+
 - [ ] **Point crash reporting somewhere Librarr owns.**
   `src/NzbDrone.Common/Instrumentation/NzbDroneLogger.cs:71-77` still
   ships upstream's Sentry DSNs at `sentry.servarr.com`, so a Librarr
   install that hits an unhandled exception reports it into the
   retired parent project's infrastructure. Nobody agreed to receive
   that traffic and nobody here can read it, which makes it both a
-  courtesy problem and a wasted signal. Options are a Librarr-owned
-  Sentry (self-hosted is on the table per
-  [`governance.md`](governance.md) § Funding), or disabling the
-  target by default and letting operators opt in. Found 2026-08-02
-  while costing out the Q2 writeup.
+  courtesy problem and a wasted signal. Found 2026-08-02 while costing
+  out the Q2 writeup.
+
+  **Resolved 2026-08-03:** the hard-coded DSNs are gone. Sentry is only
+  registered when `LIBRARR_SENTRY_DSN` names one, so by default nothing
+  is sent anywhere. Left unchecked until it has been exercised on a
+  real .NET 10 build — see the note in the commit.
 
 - [ ] **OL bulk-data dump fallback**. Fork position + trigger
   conditions to revisit are in [`docs/ol-bulk-data.md`](ol-bulk-data.md).

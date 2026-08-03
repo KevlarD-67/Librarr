@@ -67,7 +67,10 @@ body:
   attributes:
     label: Trace Logs?
     description: |
-      Trace Logs (https://wiki.servarr.com/readarr/troubleshooting#logging-and-log-files) 
+      Trace Logs — upstream Readarr's guide still describes the logging settings
+      accurately, since that part of the app is unchanged in the fork:
+      https://wiki.servarr.com/readarr/troubleshooting#logging-and-log-files
+
       ***Generally speaking, all bug reports must have trace logs provided.***
       Tip: You can attach images or log files by clicking this area to highlight it and then dragging files in.
       Additionally, any additional info? Screenshots? References? Anything that will give us more context about the issue you are encountering!

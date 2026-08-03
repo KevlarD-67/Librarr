@@ -306,10 +306,10 @@ Three configuration sources merged at startup: XML file
 Readarr-develop/
 ├── ARCHITECTURE.md          ← this document
 ├── README.md                Marketing/install page, links to wiki
-├── CLA.md                   Required CLA for contributors
+├── CLA.md                   No CLA — GPL v3 inbound = outbound
 ├── CODE_OF_CONDUCT.md       Contributor Covenant
-├── CONTRIBUTING.md          13-line stub → wiki.servarr.com/readarr/contributing
-├── SECURITY.md              371-byte vuln-report pointer
+├── CONTRIBUTING.md          Librarr contributor guide (branch, build, PR handling)
+├── SECURITY.md              Vuln-report pointer → GitHub advisories
 ├── LICENSE.md               GPL v3 (~35 KB full text)
 ├── azure-pipelines.yml      ~1257-line multi-stage CI definition
 ├── build.sh                 Local-and-CI build orchestration (~442 lines)
@@ -1056,11 +1056,11 @@ test surface in the repo.
 | File                  | Summary                                                       |
 |-----------------------|---------------------------------------------------------------|
 | `LICENSE.md`          | GPL v3 (full text, ~35 KB)                                    |
-| `CLA.md`              | Individual contributor license agreement, required pre-merge  |
-| `CODE_OF_CONDUCT.md`  | Contributor Covenant                                          |
-| `CONTRIBUTING.md`     | 13-line stub pointing to wiki.servarr.com/readarr/contributing |
-| `SECURITY.md`         | Two-paragraph vuln-report pointer                             |
-| `README.md`           | Opens with the retirement notice (lines 1-20); the original marketing / install / community section follows |
+| `CLA.md`              | States there is **no** CLA — GPL v3 inbound = outbound. The fork dropped upstream's |
+| `CODE_OF_CONDUCT.md`  | Contributor Covenant. Enforcement contact is the maintainer via private advisory, not upstream's dead mailbox |
+| `CONTRIBUTING.md`     | Librarr-specific: branch off `main`, full `./build.sh`, and what happens when a PR is landed by cherry-pick |
+| `SECURITY.md`         | Vuln-report pointer — GitHub advisories, not the retired Servarr channel |
+| `README.md`           | Opens with the current release banner, then install / migration guidance |
 | `schemas/torznab.xsd` | Torznab feed schema consumed by Newznab/Torznab indexer code  |
 
 ---
