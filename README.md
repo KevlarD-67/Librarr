@@ -4,7 +4,7 @@
 [![Nightly integration](https://github.com/Rorqualx/Librarr/actions/workflows/nightly-integration.yml/badge.svg)](https://github.com/Rorqualx/Librarr/actions/workflows/nightly-integration.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
 
-> **1.1.0-beta — 2026-07-30.** Forked from the archived
+> **1.2.0-beta — 2026-08-03.** Forked from the archived
 > [Readarr/Readarr](https://github.com/Readarr/Readarr) project (last
 > upstream commit `0b79d300`, 2025-06-27). Rebuilds Readarr on top of
 > Open Library as the primary metadata source.
@@ -170,10 +170,12 @@ that would settle it.
 
 ## Status
 
-**1.1.0-beta.** The OpenLibrary metadata proxy, BookIdMapping bridge,
+**1.2.0-beta.** The OpenLibrary metadata proxy, BookIdMapping bridge,
 reidentify pipeline, first-boot migration, Library Import wizard, and
-multi-arch images are all shipped. See [`CHANGELOG.md`](CHANGELOG.md)
-for the per-release breakdown.
+multi-arch images are all shipped, joined in 1.2.0-beta by per-format
+quality profiles, a root-folder audiobook profile default, and the
+first Windows installers the fork has produced. See
+[`CHANGELOG.md`](CHANGELOG.md) for the per-release breakdown.
 
 Caveats:
 
