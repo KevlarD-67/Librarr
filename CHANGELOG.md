@@ -79,6 +79,25 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Changed
 
+- **Crash reporting is off by default, and no longer goes to Readarr.** The
+  inherited logger hard-coded upstream's `sentry.servarr.com` DSNs while
+  `AnalyticsEnabled` defaulted to true, so every production Librarr install
+  has been reporting its exceptions into the infrastructure of a project
+  archived in 2025 — to maintainers who never agreed to receive them and
+  cannot act on them. Sentry is now registered only when `LIBRARR_SENTRY_DSN`
+  names a DSN you control; unset, which is the default, nothing leaves the
+  machine. The README's claim that fork telemetry was "none" is finally true.
+
+- **The app's own links point at Librarr.** System → Status → More Info
+  offered Home page, Reddit, Discord, Source and Feature Requests, all of
+  which led to Readarr — including Source, so the app told users its code
+  lived in the archived repository. The major-version update prompt sent
+  people to `readarr.com/#downloads` to fetch a build. Both now point at
+  this project. Deep links into `wiki.servarr.com` are deliberately kept:
+  logging, remote path mappings and connection settings are unchanged in the
+  fork, so that guide is still the accurate documentation for them — only the
+  metadata-source material is obsolete.
+
 - **The frontend toolchain moved from Node 20 to Node 24 LTS.** Node 20 went
   end-of-life on 2026-04-30, so CI had been building and releasing on an
   unsupported runtime for three months. Node 24 is supported to 2028-04-30,

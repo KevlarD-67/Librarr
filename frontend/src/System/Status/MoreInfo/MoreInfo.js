@@ -17,32 +17,34 @@ class MoreInfo extends Component {
         <DescriptionList>
           <DescriptionListItemTitle>Home page</DescriptionListItemTitle>
           <DescriptionListItemDescription>
-            <Link to="https://readarr.com/">readarr.com</Link>
-          </DescriptionListItemDescription>
-
-          <DescriptionListItemTitle>Wiki</DescriptionListItemTitle>
-          <DescriptionListItemDescription>
-            <Link to="https://wiki.servarr.com/readarr">Wiki</Link>
-          </DescriptionListItemDescription>
-
-          <DescriptionListItemTitle>Reddit</DescriptionListItemTitle>
-          <DescriptionListItemDescription>
-            <Link to="https://www.reddit.com/r/Readarr/">Readarr</Link>
-          </DescriptionListItemDescription>
-
-          <DescriptionListItemTitle>Discord</DescriptionListItemTitle>
-          <DescriptionListItemDescription>
-            <Link to="https://readarr.com/discord">Readarr on Discord</Link>
+            <Link to="https://github.com/Rorqualx/Librarr">github.com/Rorqualx/Librarr</Link>
           </DescriptionListItemDescription>
 
           <DescriptionListItemTitle>Source</DescriptionListItemTitle>
           <DescriptionListItemDescription>
-            <Link to="https://github.com/readarr/Readarr/">github.com/Readarr/Readarr</Link>
+            <Link to="https://github.com/Rorqualx/Librarr">github.com/Rorqualx/Librarr</Link>
           </DescriptionListItemDescription>
 
-          <DescriptionListItemTitle>Feature Requests</DescriptionListItemTitle>
+          <DescriptionListItemTitle>Bugs &amp; Feature Requests</DescriptionListItemTitle>
           <DescriptionListItemDescription>
-            <Link to="https://github.com/readarr/Readarr/issues">github.com/Readarr/Readarr/issues</Link>
+            <Link to="https://github.com/Rorqualx/Librarr/issues">github.com/Rorqualx/Librarr/issues</Link>
+          </DescriptionListItemDescription>
+
+          <DescriptionListItemTitle>Questions &amp; Support</DescriptionListItemTitle>
+          <DescriptionListItemDescription>
+            <Link to="https://github.com/Rorqualx/Librarr/discussions">github.com/Rorqualx/Librarr/discussions</Link>
+          </DescriptionListItemDescription>
+
+          {/*
+            Upstream's wiki. Librarr is a fork of Readarr and most operational
+            topics -- logging, remote path mappings, connection settings -- are
+            unchanged, so this is still the best documentation for them. Treat
+            anything it says about metadata sources as obsolete: that is the
+            part the fork replaced.
+          */}
+          <DescriptionListItemTitle>Wiki (upstream Readarr)</DescriptionListItemTitle>
+          <DescriptionListItemDescription>
+            <Link to="https://wiki.servarr.com/readarr">wiki.servarr.com/readarr</Link>
           </DescriptionListItemDescription>
 
         </DescriptionList>
