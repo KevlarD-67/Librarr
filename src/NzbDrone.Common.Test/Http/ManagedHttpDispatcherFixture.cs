@@ -4,10 +4,12 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.Http.Proxy;
@@ -18,9 +20,16 @@ namespace NzbDrone.Common.Test.Http
     [TestFixture]
     public class ManagedHttpDispatcherFixture : TestBase<ManagedHttpDispatcher>
     {
+        private ICacheManager _cacheManager;
+
         [SetUp]
         public void SetUp()
         {
+            // Held so a test can reach the very CredentialCache the dispatcher
+            // will use, and read it the way SocketsHttpHandler does.
+            _cacheManager = new CacheManager();
+            Mocker.SetConstant(_cacheManager);
+
             Mocker.GetMock<IUserAgentBuilder>()
                 .Setup(c => c.GetUserAgent(It.IsAny<bool>()))
                 .Returns("Librarr-Test/1.0");
@@ -116,6 +125,104 @@ namespace NzbDrone.Common.Test.Http
                 "concurrent requests to one URL must not corrupt the shared CredentialCache, but got [{0}]; first: {1}",
                 summary,
                 races.FirstOrDefault()?.Message);
+        }
+
+        // Serializing the writers is not the whole story. The reader is
+        // SocketsHttpHandler resolving credentials off the same shared cache
+        // (ManagedHttpDispatcher.CreateHttpClient assigns it to
+        // handler.Credentials), and it does not take the dispatcher's lock.
+        //
+        // Remove-then-Add leaves a window with no entry at all, so a read
+        // landing inside it returns null and the request is sent
+        // unauthenticated -- an intermittent 401, not a crash, which is why it
+        // would never be reported as the crash this fixture's other test
+        // covers. The dispatcher avoids the window by not writing when the
+        // credentials are already correct.
+        //
+        // This reads the cache directly rather than through a real server,
+        // because provoking the handler's own lookup needs a 401 challenge and
+        // that would drag a listener and real auth into a unit test. Reading
+        // the same instance without the lock models the same access.
+        [Test]
+        public async Task should_not_leave_the_credential_cache_empty_for_an_unsynchronized_reader()
+        {
+            var url = $"http://127.0.0.1:{GetClosedLoopbackPort()}/ajax/books/lib?ids=1";
+            var uri = new Uri(url);
+            var subject = Subject;
+
+            // Prime it, so the reader is not just observing the empty cache it
+            // starts life as.
+            await Fire(subject, url);
+
+            var shared = _cacheManager
+                .GetCache<CredentialCache>(typeof(ManagedHttpDispatcher), "credentialcache")
+                .Get("credentialCache", () => new CredentialCache());
+
+            shared.GetCredential(uri, "Basic").Should().NotBeNull("the priming request should have registered credentials");
+
+            var stop = false;
+            var nulls = 0;
+            var readerErrors = new ConcurrentBag<Exception>();
+
+            var reader = new Thread(() =>
+            {
+                while (!Volatile.Read(ref stop))
+                {
+                    try
+                    {
+                        if (shared.GetCredential(uri, "Basic") == null)
+                        {
+                            Interlocked.Increment(ref nulls);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        readerErrors.Add(ex);
+                    }
+                }
+            });
+
+            reader.Start();
+
+            var workers = Enumerable.Range(0, 8)
+                .Select(_ => Task.Run(async () =>
+                {
+                    for (var i = 0; i < 50; i++)
+                    {
+                        await Fire(subject, url);
+                    }
+                }))
+                .ToArray();
+
+            await Task.WhenAll(workers);
+
+            Volatile.Write(ref stop, true);
+            reader.Join();
+
+            nulls.Should().Be(0, "a reader must never observe the credential missing while requests are in flight");
+            readerErrors.Should().BeEmpty("reading the cache must not throw while requests are in flight");
+        }
+
+        private static async Task Fire(ManagedHttpDispatcher subject, string url)
+        {
+            var request = new HttpRequest(url)
+            {
+                Credentials = new NetworkCredential("calibre", "hunter2"),
+                RequestTimeout = TimeSpan.FromSeconds(5)
+            };
+
+            try
+            {
+                await subject.GetResponseAsync(request, new CookieContainer());
+            }
+            catch (HttpRequestException)
+            {
+                // Connection refused, as intended.
+            }
+            catch (OperationCanceledException)
+            {
+                // Timeout, equally uninteresting.
+            }
         }
 
         // Bind on port 0 to have the OS hand out a free port, then release it.
