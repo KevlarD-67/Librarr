@@ -137,6 +137,18 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Fixed
 
+- **Re-running the release pipeline orphaned a draft release each time.**
+  `gh release create --draft` always creates a new release, and a draft holds
+  no git tag, so GitHub had nothing to collide with and never replaced the
+  previous one — it did not even object when the tag was already published.
+  Debugging the pipeline against `v1.0.0-beta` therefore left three releases
+  for one tag: the published one, plus two invisible drafts sitting on a full
+  ~880 MB set of artifacts each. The job now clears any draft for the tag
+  before creating the next, and fails loudly rather than producing a draft
+  nobody can see if the tag has already shipped. The two orphans are deleted;
+  neither had ever been downloaded, and the published release's `SHA256SUMS`
+  was verified against its own assets first.
+
 - **One account's credentials could be sent on another account's requests.**
   Every request that authenticates with a `NetworkCredential` — Calibre,
   rTorrent, Flood and Mailgun; the `BasicNetworkCredential` users are
