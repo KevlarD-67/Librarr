@@ -221,16 +221,28 @@ difficulty dressed up as a constraint.)
   shares its instance, or cassette the OL responses (the machinery
   exists in `OpenLibraryCassetteFixture`).
 
-- [ ] **Enable private vulnerability reporting on the repository.**
-  One toggle in Settings → Security. It is off today, which means both
-  `SECURITY.md` and `CODE_OF_CONDUCT.md` currently direct people to
-  `/security/advisories/new` — a form that non-maintainers cannot
-  reach while the setting is off. `SECURITY.md` has pointed there
-  since 2026-05-19, so this channel has been documented-but-closed the
-  whole time. Until it is on, the fork has no private reporting route
-  at all: Discussions and Issues are both public, and no email address
-  is published. Found 2026-08-03 while replacing upstream's dead
+- [x] **Enable private vulnerability reporting on the repository.**
+  One toggle in Settings → Security. It was off, which meant both
+  `SECURITY.md` and `CODE_OF_CONDUCT.md` directed people to
+  `/security/advisories/new` — a form non-maintainers cannot reach
+  while the setting is off. `SECURITY.md` had pointed there since
+  2026-05-19, so the channel was documented-but-closed for 76 days,
+  during which the fork had no private reporting route at all:
+  Discussions and Issues are both public and no email address is
+  published. Found 2026-08-03 while replacing upstream's dead
   `development@readarr.com` contact.
+
+  **Resolved 2026-08-03:** enabled;
+  `GET /repos/Rorqualx/Librarr/private-vulnerability-reporting` now
+  returns `{"enabled": true}`. The reporter-side button was not
+  verified directly — that needs a second account without push access,
+  since `gh`'s token does not authenticate github.com HTML — so the
+  API state is the evidence. `SECURITY.md` was rewritten in the same
+  pass: it still claimed `1.0.0-beta` was current and promised an
+  initial response within seven days, which is not a commitment one
+  maintainer working in multi-week bursts can honour. It now states no
+  deadline and tells reporters to treat 14 days of silence as unseen
+  and disclose if severity warrants it.
 
 - [ ] **Point crash reporting somewhere Librarr owns.**
   `src/NzbDrone.Common/Instrumentation/NzbDroneLogger.cs:71-77` still

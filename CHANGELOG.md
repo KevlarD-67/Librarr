@@ -79,6 +79,17 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Changed
 
+- **There is now a private way to report a vulnerability.** `SECURITY.md` had
+  directed reporters to `/security/advisories/new` since 2026-05-19, but
+  private vulnerability reporting was never enabled on the repository, so that
+  form was unreachable by anyone without push access. For 76 days the project
+  documented a private channel it did not have — Issues and Discussions are
+  both public and no email address is published, so there was no private route
+  at all. The setting is on. `SECURITY.md` also no longer promises an initial
+  response within seven days: that was inherited boilerplate one maintainer
+  working in multi-week bursts cannot honour, and it is replaced with an
+  explicit invitation to disclose after 14 days of silence rather than wait.
+
 - **Crash reporting is off by default, and no longer goes to Readarr.** The
   inherited logger hard-coded upstream's `sentry.servarr.com` DSNs while
   `AnalyticsEnabled` defaulted to true, so every production Librarr install
