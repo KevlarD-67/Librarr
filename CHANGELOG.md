@@ -118,6 +118,26 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Fixed
 
+- **Calibre libraries could scan as empty.** Reported and fixed by
+  [@KevlarD-67](https://github.com/KevlarD-67) in
+  [#3](https://github.com/Rorqualx/Librarr/pull/3), against a live ~33k-book
+  library. `ManagedHttpDispatcher` keeps one shared `System.Net.CredentialCache`
+  and rewrote it per request; that type is not thread-safe, so two concurrent
+  requests to the same URL could both pass `Remove()` and then collide on
+  `Add()`. The scheduled `CalibreRootFolderCheck` and a `RescanFolders` disk
+  scan are exactly that pair — the only two callers of
+  `CalibreProxy.GetAllBookFilePaths` — so the health check overlapping a rescan
+  threw `An item with the same key has already been added`, aborted the scan,
+  and left the log saying only `Scan folder is empty`. The mutation is now
+  serialized.
+
+  Worth knowing how loudly this fires: mirroring the old pattern across four
+  threads on .NET 10 fails on ~99% of iterations, and through the real
+  dispatcher the backing dictionary also reported its own corruption
+  (`a concurrent update ... corrupted its state`). Covered now by
+  `ManagedHttpDispatcherFixture`, which was checked to fail without the fix
+  rather than merely pass with it.
+
 - **`build.yml` installed a .NET 6 SDK on every run that nothing used.** The
   .NET 10 migration updated `release.yml` and `azure-pipelines.yml` but missed
   `build.yml`, which had carried `DOTNET_VERSION: '6.0.x'` since the Phase 0
