@@ -59,9 +59,22 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-<development@readarr.com>.
+reported to the maintainer, [@Rorqualx](https://github.com/Rorqualx), by
+opening a [private security advisory][advisory] on this repository — it is
+the only private reporting channel the repo has, and it is read.
+
+This address used to be `development@readarr.com`, inherited from upstream
+Readarr. That mailbox belongs to a project archived in 2025 and reports sent
+there reach nobody. It is worth being blunt about what replaced it: Librarr
+has exactly one maintainer, so the person reviewing a report is the same
+person the project is run by. If your report concerns the maintainer, that
+is not a conflict this document can resolve — escalate to
+[GitHub Support](https://support.github.com/contact/report-abuse), which can
+act on this repository independently of anyone here.
+
 All complaints will be reviewed and investigated promptly and fairly.
+
+[advisory]: https://github.com/Rorqualx/Librarr/security/advisories/new
 
 All community leaders are obligated to respect the privacy and security of the
 reporter of any incident.

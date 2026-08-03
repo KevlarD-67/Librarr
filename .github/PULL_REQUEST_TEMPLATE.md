@@ -8,8 +8,9 @@ A few sentences describing the overall goals of the pull request's commits.
 
 #### Todos
 - [ ] Tests
-- [ ] Translation Keys (./src/NzbDrone.Core/Localization/Core/en.json)
-- [ ] [Wiki Updates](https://wiki.servarr.com)
+- [ ] Translation keys (`src/NzbDrone.Core/Localization/Core/en.json`)
+- [ ] Docs — `ARCHITECTURE.md`, `CHANGELOG.md`, or a per-folder `README.md`,
+      if this changes public behavior
 
 #### Issues Fixed or Closed by this PR
 
