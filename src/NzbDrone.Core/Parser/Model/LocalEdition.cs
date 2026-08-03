@@ -54,6 +54,7 @@ namespace NzbDrone.Core.Parser.Model
                     var book = new Book();
                     book.UseMetadataFrom(fullBook);
                     book.UseDbFieldsFrom(fullBook);
+
                     // A candidate that never went through the DB has no Author to
                     // lazy-load, so both the new book's Author and the matched
                     // book's Author/AuthorMetadata may be null here.
