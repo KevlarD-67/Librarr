@@ -1,5 +1,9 @@
 # Librarr
 
+[![Build](https://github.com/Rorqualx/Librarr/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/Rorqualx/Librarr/actions/workflows/build.yml)
+[![Nightly integration](https://github.com/Rorqualx/Librarr/actions/workflows/nightly-integration.yml/badge.svg)](https://github.com/Rorqualx/Librarr/actions/workflows/nightly-integration.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE.md)
+
 > **1.1.0-beta — 2026-07-30.** Forked from the archived
 > [Readarr/Readarr](https://github.com/Readarr/Readarr) project (last
 > upstream commit `0b79d300`, 2025-06-27). Rebuilds Readarr on top of

@@ -7,6 +7,8 @@ fall over an unmade tradeoff.
 
 Cross-references:
 
+- Everything still open, tiered in one table:
+  [`roadmap.md`](roadmap.md#open-work-at-a-glance)
 - Deferral rationale: [`deferred-modernization.md`](deferred-modernization.md)
 - OL bulk-data fork position + revisit triggers: [`ol-bulk-data.md`](ol-bulk-data.md)
 - Bus factor + quarterly cadence: [`governance.md`](governance.md)
@@ -33,11 +35,13 @@ that Phases 2–5 wired up.
   job (`.github/workflows/build.yml:209-242`). Boots the published
   `linux-x64` backend artefact, asserts `/api/v1/health` +
   `/api/v1/system/status`, fires a `ReidentifyLibrary` command.
-- [x] Playwright smoke suite, 14 tests (`src/NzbDrone.Playwright.Test/`):
-  7 page-load smokes (6 from the Phase 10 port plus the
-  narrator-detail page), 2 root folder form checks, 2 Add Author
-  search checks and 2 seeded library round-trips. Gated by
-  `READARR_RUN_PLAYWRIGHT=1`; opt-in per the suite's README.
+- [x] Playwright smoke suite, **16 tests** across six fixtures
+  (`src/NzbDrone.Playwright.Test/`): page-load smokes (the Phase 10
+  port plus the narrator-detail page), root folder form checks, Add
+  Author search checks, book-detail checks and seeded library
+  round-trips. 10 run without network; 6 are gated on live
+  OpenLibrary. Gated by `READARR_RUN_PLAYWRIGHT=1`; opt-in per the
+  suite's README, and run per-push in `build.yml`.
 
   It could not run at all between the .NET 10 migration and
   `5447db9` — a stale driver in the shared `_tests/` output made
@@ -54,10 +58,15 @@ that Phases 2–5 wired up.
   browser, and neither had the audiobook-profile or work-count UI.
   `NzbDroneRunner` now fails rather than boot a stale tree.
 - [x] `docker build -f distribution/docker/Dockerfile -t librarr/librarr:test .`
-  builds clean (~180 MB alpine 6.0 runtime). `docker run` boots,
+  builds clean. `docker run` boots,
   serves `/ping`, passes `tests/e2e/smoke.sh`. Eight Phase 9b
   skeleton bugs were caught and fixed in the realisation pass —
   see commit history for the per-bug breakdown.
+
+  Runtime base is `mcr.microsoft.com/dotnet/aspnet:10.0-alpine` since
+  the .NET 10 migration. This line used to quote "~180 MB alpine 6.0
+  runtime"; that size was measured on the 6.0 base and has not been
+  re-measured, so it is dropped rather than carried forward.
 - [x] Fresh-install metadata source defaults to OpenLibrary. The
   legacy `BookInfo` default pointed at `api.bookinfo.club` (retired
   upstream 2025-06-27); flipped in `ConfigService.cs:278` so fresh
@@ -89,25 +98,37 @@ that Phases 2–5 wired up.
   ecosystem deps ❌ (deferred).
 - [x] Deferred-modernization dispositions confirmed per the table
   in this checklist's "Deferred-to-1.1+" section below.
-- [ ] CHANGELOG entry covering Phases 0–12 (one-line per phase
-  closeout, linking to the closeout commit hash).
+- [x] CHANGELOG entry covering Phases 0–12. Shipped as two
+  Keep-a-Changelog releases rather than the per-phase one-liners
+  originally sketched here — `## [1.0.0-beta] — 2026-05-19` covers
+  Phases 0–12, `## [1.1.0-beta] — 2026-07-30` covers the .NET 10 move
+  and what followed. Grouping by release rather than by internal phase
+  number is the more useful shape for a reader who was never inside
+  the plan.
 
 ### Out-of-engineering (manual user-action)
 
 These cannot be executed from an LLM session; they are gates the
-human maintainer must pass through before tagging the beta.
+human maintainer must pass through before tagging the beta. **All of
+them have since been passed** — the boxes below went unticked for a
+while after the fact, which is how this section came to read as
+blocking work when nothing in it was.
 
-- [ ] Fork remote configured. The local `origin` still points at
-  the archived upstream:
-  ```bash
-  git remote rename origin upstream
-  git remote add origin git@github.com:<user>/Readarr.git
-  git push -u origin main
-  ```
-- [ ] Release secrets configured for `release.yml`. The workflow
-  fires on `v*` tag push; inspect `secrets:` references inline.
-- [ ] **Decide whether to code-sign the Windows build.** Optional —
-  with no certificate the pipeline still produces the zips and the
+- [x] Fork remote configured. `origin` is
+  `https://github.com/Rorqualx/Librarr.git`; it no longer points at
+  the archived upstream.
+- [x] Release secrets configured for `release.yml`. Confirmed by the
+  workflow having run to completion on tag push — the GHCR and Docker
+  Hub login steps are unconditional and fail loudly on a missing
+  secret, so a successful release run is itself the evidence. The
+  Windows signing secrets are the deliberate exception: optional, and
+  absent by design unless a certificate is configured (see below).
+- [x] **Decided: the Windows build is signable but unsigned by
+  default.** Retained below because the decision is a live one for
+  any fork — the mechanism is opt-in, not removed. The reasoning that
+  produced the decision, kept verbatim:
+
+  With no certificate the pipeline still produces the zips and the
   installers, just unsigned, and `distribution/windows/sign.ps1`
   says so and exits 0. Unsigned means every user meets a SmartScreen
   "unrecognised app" warning on first run, and a fresh certificate
@@ -123,14 +144,18 @@ human maintainer must pass through before tagging the beta.
   secrets exist nothing else changes — the `build-windows` and
   `installer` jobs pick them up, and the draft release notes switch
   from the SmartScreen warning to stating the build is signed.
-- [ ] `v1.0.0-beta` tag pushed. Triggers the release pipeline
-  (`.github/workflows/release.yml`):
+- [x] `v1.0.0-beta` tag pushed, and `v1.1.0-beta` after it. Both
+  exist; the release pipeline (`.github/workflows/release.yml`) fires
+  on `v*`:
   ```bash
   git tag -a v1.0.0-beta -m "Librarr 1.0.0 beta"
   git push origin v1.0.0-beta
   ```
-  Pipeline produces multi-RID binary tarballs + a `push: false`
-  Docker build. A draft GitHub release is created automatically.
+  Pipeline produces multi-RID binary tarballs, the two Windows
+  installers, and a Docker build that now genuinely pushes
+  (`release.yml:530` is `push: true` — the `push: false` this line
+  used to describe was the Phase 9b placeholder). A draft GitHub
+  release is created automatically.
 
 ---
 
@@ -144,7 +169,15 @@ remaining engineering coverage gaps are closed.
 
 - [ ] Beta has been in the wild for at least 30 days with no
   critical regressions reported in `docs/state-of-the-fork/`.
-- [ ] **Integration suite runnable unattended.** The fixtures work —
+- [ ] **Integration suite runnable unattended.** Partially addressed:
+  since 2026-08-02 `nightly-integration.yml` runs the 94 tests one
+  fixture per invocation with a pause between them, so they are no
+  longer running nowhere. That is a workaround, not the fix — the
+  scheduled job is the only place they can run, and a push-time
+  pipeline still cannot execute them. The original diagnosis, still
+  accurate:
+
+  The fixtures work —
   the Goodreads identifiers are gone, `EnsureAuthor` resolves an
   OpenLibrary author id, and the six fixtures that were marked
   "Waiting for metadata to be back again" each pass against live
@@ -186,19 +219,27 @@ remaining engineering coverage gaps are closed.
 Per [`governance.md`](governance.md):
 
 - [ ] Bus factor ≥ 2 active maintainers OR a maintenance-mode
-  declaration has been posted. Today the count is one; the
-  remaining maintainer has 90 days from solo-state to recruit a
-  second before maintenance-mode kicks in.
-- [ ] First state-of-the-fork writeup published in
-  `docs/state-of-the-fork/2026-Q2.md` (due by 2026-07-14 per
-  the README in that directory). Template is already there.
+  declaration has been posted. The count is one. **The 90 days expire
+  2026-08-14** — measured from the first commit, because the project
+  began solo rather than dropping to solo; `governance.md` § "When the
+  90 days start" records why that reading was chosen over the one
+  where the clock never starts. This is the only Tier 0 item left.
+- [x] First state-of-the-fork writeup published:
+  [`2026-Q2.md`](state-of-the-fork/2026-Q2.md), 2026-08-02. It was due
+  2026-07-14 and shipped 19 days late; the post says so in its own
+  opening rather than backdating itself. Q2 is the first quarter owed
+  — Q1 2026 predates the fork's first commit (2026-05-16) — so no
+  earlier writeup is missing.
 
 ### Out-of-engineering
 
-- [ ] Docker registry login + `push: true` in `release.yml:259`
-  (currently `push: false` per Phase 9b TODO). Decide which
-  registry (GHCR vs. Docker Hub vs. self-hosted) and configure
-  the credentials.
+- [x] Docker registry login + `push: true`. Both registries were
+  chosen rather than one: `release.yml:479-486` logs in to GHCR with
+  the built-in `GITHUB_TOKEN`, `:495-498` logs in to Docker Hub with
+  `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN`, and `:530` is `push: true`.
+  The Docker Hub step is deliberately unconditional — an
+  `if: secrets.X != ''` gate broke workflow parsing, so a missing
+  secret fails the step loudly instead of silently skipping the push.
 
 ---
 
@@ -209,10 +250,10 @@ not "fix" any of these in service of shipping 1.0.
 
 | Item | Disposition | Reference |
 |---|---|---|
-| .NET 8 LTS | **Defer** until Servarr-forked NuGets (`System.Data.SQLite.Core.Servarr`, `TagLibSharp-Lidarr`, `Mono.Posix.NETStandard...-servarr22`, `Servarr.FluentMigrator.*`) ship `net8.0` builds. No trigger date. | [`deferred-modernization.md`](deferred-modernization.md) |
+| ~~.NET 8 LTS~~ | **Done, and the target was wrong.** Landed on **.NET 10 LTS** 2026-07-30 — .NET 8 and 9 both go EOL 2026-11-10, so 8 would have bought a quarter. The deferral reason stated here was also false: every Servarr-forked NuGet named in it runs on .NET 10 unchanged, and none needed replacing. Row kept struck-through so the bad reasoning stays visible. | [`deferred-modernization.md`](deferred-modernization.md) |
 | Nullable enable | **Defer** as a multi-PR sprint post-1.0. Per-file gradual enable is the recommended approach — global enable with `TreatWarningsAsErrors` emits thousands of CS86xx errors. | [`deferred-modernization.md`](deferred-modernization.md) |
 | react-dnd / react-virtualized / react-popper | **Defer**. React core is at 18.3.1 (Phase 10, `ae4261b`); ecosystem deps still work on 18, the replacements would be breaking diffs better done after Playwright has interaction coverage. | [`deferred-modernization.md`](deferred-modernization.md) + roadmap "Later" |
-| Full Selenium → Playwright parity | **Defer beyond scaffold**. Seven smoke tests (`MainPagesTest` × 6 + `NarratorPageTest` × 1) are sufficient for the beta engineering gate. Additional Selenium-parity work is post-1.0. | [`deferred-modernization.md`](deferred-modernization.md) |
+| Full Selenium → Playwright parity | **Defer beyond scaffold**, but the scaffold has grown: 16 tests across six fixtures, not the seven this row was written against. What is still open is a *decision* rather than a port — `NzbDrone.Automation.Test` remains in the tree on Selenium 3 pins, running in no job, and should be either finished or deleted. | [`deferred-modernization.md`](deferred-modernization.md) + roadmap "Later" |
 | OL bulk-data dump fallback | **Defer** until any of the four trigger conditions in [`ol-bulk-data.md`](ol-bulk-data.md) fires: sustained 429s, archive.org guidance shift toward dump-based consumers, install count >100, or OL live-API availability/cost change. | [`ol-bulk-data.md`](ol-bulk-data.md) |
 
 The "won't (until persuaded otherwise)" items from
@@ -247,9 +288,15 @@ yarn install && ./build.sh
 READARR_RUN_PLAYWRIGHT=1 dotnet test src/NzbDrone.Playwright.Test/
 ```
 
-Dormant items intentionally not in the recipe:
+Items intentionally not in the recipe:
 
-- Integration suite (`READARR_RUN_INTEGRATION=1`) — would fail
-  setup against retired `api.bookinfo.club`.
+- Integration suite (`READARR_RUN_INTEGRATION=1`) — **not dormant
+  any more, just not runnable in one pass.** The old reason given
+  here (would fail setup against retired `api.bookinfo.club`) is
+  obsolete: the fixtures identify authors by OpenLibrary id now and
+  pass against live OL. They run in `nightly-integration.yml`, one
+  fixture per invocation. Running the whole assembly locally will get
+  your IP refused by openlibrary.org — see the stable gate above.
 - Selenium suite (`READARR_RUN_AUTOMATION=1`) — quarantined since
-  Phase 1, kept for git-archaeology only.
+  Phase 1, kept for git-archaeology only, and pending a
+  keep-or-delete decision.

@@ -7,9 +7,13 @@ without re-discovering the same constraints.
 
 ## .NET 6 → .NET 8 LTS
 
-**Status:** deferred.
+**Status: SUPERSEDED — see ".NET 10 LTS — DONE (2026-07-30)" below.**
+Both claims in this section turned out to be false: the forked NuGets
+did not need rebuilding, and .NET 8 was the wrong destination anyway.
+Kept unedited because the later section's argument is easier to follow
+next to the reasoning it overturns.
 
-**Why not now:**
+**Why not now (as written then, and wrong):**
 
 * `Directory.Packages.props` pins several Servarr-forked NuGet packages
   with `net6.0`-specific builds: `System.Data.SQLite.Core.Servarr`,
@@ -95,9 +99,12 @@ dependency audit below, not the framework bump.
 
 ## Selenium → Playwright
 
-**Status:** deferred.
+**Status: SUPERSEDED — see "Selenium → Playwright (partially done)"
+below.** The suite exists and runs; what remains is the keep-or-delete
+call on `NzbDrone.Automation.Test`. Kept for the same reason as the
+.NET section above.
 
-**Why not now:** Phase 1 already quarantined the existing Selenium 3
+**Why not now (as written then):** Phase 1 already quarantined the existing Selenium 3
 suite with `[Explicit]`. The port itself is a separate effort that
 deserves its own session — Playwright .NET has a different API surface
 (`IPage`, `IBrowserContext`) and the existing page-object pattern
@@ -147,13 +154,22 @@ conditions that would flip the decision.
 
 ## Reidentify regression test (Soon → blocked on cassettes)
 
-**Status:** harness scaffolded in `ReidentifyRegressionFixture`
-(`[Explicit]`); needs cassettes + a real 500-book library snapshot.
+**Status: mostly done — this section was stale in two places.**
+`ReidentifyRegressionFixture` is `[TestFixture]`, not `[Explicit]`
+(`src/NzbDrone.Core.Test/MusicTests/ReidentifyRegressionFixture.cs:32`),
+so it runs in the default suite. The cassettes it was "blocked on"
+are in tree — 117 real OL captures under
+`src/NzbDrone.Core.Test/Files/OpenLibrary/`, re-capturable via
+`scripts/capture-ol-cassettes.sh`.
 
-**Why not now in this session:** capturing the snapshot requires a
-running Readarr install with a real library and live OL HTTP. An
-offline session can scaffold the test shape (done) but can't
-populate the seed data.
+**What is actually still open:** only the 500-book snapshot. The
+current seed is 10 books built in memory (5 ISBN-13s + 5 title+author
+shapes) driven through the real `OpenLibraryProxy` against a
+cassette-backed `IHttpClient`. That is enough to assert the 0.85
+threshold; it is not enough to make the assertion statistically
+meaningful. Capturing a larger one still needs a running install with
+a real library — see the 1.0-stable gate in
+[`release-checklist.md`](release-checklist.md).
 
 ## React 17 → 18 (superseded — see the corrected section above)
 
