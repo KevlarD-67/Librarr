@@ -118,6 +118,24 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Fixed
 
+- **One account's credentials could be sent on another account's requests.**
+  Every request that authenticates with a `NetworkCredential` — Calibre,
+  rTorrent, Flood and Mailgun; the `BasicNetworkCredential` users are
+  unaffected — shared a single process-wide `System.Net.CredentialCache`.
+  That type prefix-matches, and .NET truncates the prefix at its last `/`, so
+  an entry registered for `/ajax/books/lib1` also answered a request for
+  `/ajax/books/lib2`. Two root folders on one Calibre server under different
+  accounts therefore resolved to whichever was registered first, and with
+  `PreAuthenticate` enabled that password was sent proactively. Host and port
+  do isolate, so the exposure was same-host, same-port, different path.
+
+  Each distinct credential now gets its own `HttpClient` and its own cache, so
+  a prefix collision can only ever return the credential that client already
+  holds. As a side effect the per-request rewriting of a shared object is gone,
+  which also closes a window where a request could go out unauthenticated
+  because the entry was momentarily absent — an intermittent 401 that looked
+  nothing like the crash it shared a cause with.
+
 - **Calibre libraries could scan as empty.** Reported and fixed by
   [@KevlarD-67](https://github.com/KevlarD-67) in
   [#3](https://github.com/Rorqualx/Librarr/pull/3), against a live ~33k-book

@@ -7,6 +7,7 @@ using System.Net.Http.Headers;
 using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,6 +69,8 @@ namespace NzbDrone.Common.Http.Dispatchers
                 requestMessage.Headers.Add("Cookie", cookieHeader);
             }
 
+            NetworkCredential networkCredential = null;
+
             if (request.Credentials != null)
             {
                 if (request.Credentials is BasicNetworkCredential bc)
@@ -79,22 +82,9 @@ namespace NzbDrone.Common.Http.Dispatchers
                 }
                 else if (request.Credentials is NetworkCredential nc)
                 {
-                    var creds = GetCredentialCache();
-
-                    // CredentialCache (System.Net) is not thread-safe and this
-                    // dispatcher's cache is a shared singleton. Concurrent
-                    // requests to the same URL — e.g. the Calibre root-folder
-                    // health check overlapping a library rescan — can both pass
-                    // Remove() and then race on Add(), throwing "An item with the
-                    // same key has already been added." Serialize the mutation.
-                    lock (creds)
-                    {
-                        foreach (var authtype in new[] { "Basic", "Digest" })
-                        {
-                            creds.Remove((Uri)request.Url, authtype);
-                            creds.Add((Uri)request.Url, authtype, nc);
-                        }
-                    }
+                    // Registered against this request's client in GetClient
+                    // below, rather than into a process-wide cache here.
+                    networkCredential = nc;
                 }
             }
 
@@ -119,7 +109,7 @@ namespace NzbDrone.Common.Http.Dispatchers
                 AddRequestHeaders(requestMessage, request.Headers);
             }
 
-            var httpClient = GetClient(request.Url);
+            var httpClient = GetClient(request.Url, networkCredential);
 
             try
             {
@@ -156,23 +146,105 @@ namespace NzbDrone.Common.Http.Dispatchers
             }
         }
 
-        protected virtual System.Net.Http.HttpClient GetClient(HttpUri uri)
+        // Keyed by credentials as well as proxy, which is what keeps one set of
+        // credentials out of another's requests.
+        //
+        // System.Net.CredentialCache prefix-matches, and .NET truncates the
+        // prefix at its last '/', so an entry registered for
+        // /ajax/books/lib1 also answers a request for /ajax/books/lib2. With a
+        // single process-wide cache, two root folders on one Calibre server
+        // under different accounts would resolve to whichever was registered
+        // first -- verified: adding lib1 as user-lib1 and lib2 as user-lib2,
+        // lib2 then resolves to user-lib1. With PreAuthenticate=true those
+        // credentials are sent proactively, so this was one account's password
+        // going out on another account's request.
+        //
+        // Giving each (proxy, credential) pair its own client and its own cache
+        // makes prefix collisions harmless: every entry inside one cache holds
+        // the same credential, so a sloppy match still returns the right
+        // answer. It also removes the per-request rewriting of a shared object
+        // that the two preceding fixes were working around.
+        //
+        // Cost: one HttpClient per distinct credential rather than per proxy.
+        // That is bounded by the number of configured services, and the clients
+        // are cached for the life of the process exactly as before -- a changed
+        // password strands the old client until restart, which is acceptable
+        // for something that changes about never.
+        // No default for `credentials`: this is virtual, and default argument
+        // values bind from the static type at the call site rather than the
+        // override, which is a trap worth not laying.
+        protected virtual System.Net.Http.HttpClient GetClient(HttpUri uri, NetworkCredential credentials)
         {
             var proxySettings = _proxySettingsProvider.GetProxySettings(uri);
 
-            var key = proxySettings?.Key ?? NO_PROXY_KEY;
+            var key = ClientKey(proxySettings, credentials);
 
-            return _httpClientCache.Get(key, () => CreateHttpClient(proxySettings));
+            var client = _httpClientCache.Get(key, () => CreateHttpClient(proxySettings, key));
+
+            if (credentials != null)
+            {
+                RegisterCredential(key, (Uri)uri, credentials);
+            }
+
+            return client;
         }
 
-        protected virtual System.Net.Http.HttpClient CreateHttpClient(HttpProxySettings proxySettings)
+        private static string ClientKey(HttpProxySettings proxySettings, NetworkCredential credentials)
+        {
+            var proxyKey = proxySettings?.Key ?? NO_PROXY_KEY;
+
+            if (credentials == null)
+            {
+                return proxyKey;
+            }
+
+            // Hashed rather than concatenated: this string is a dictionary key
+            // living for the process lifetime, and there is no reason for a
+            // password to be sitting in one in the clear.
+            var material = $"{credentials.Domain} {credentials.UserName} {credentials.Password}";
+            var fingerprint = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+
+            return $"{proxyKey}|{fingerprint}";
+        }
+
+        // Still guarded, and still conditional — but note what that now costs,
+        // because it is close to nothing. Every entry inside one client's cache
+        // carries the same credential, so Matches answers true for any URL
+        // already covered (including by a prefix), and the write is skipped.
+        // A given entry is therefore added once and never replaced, which means
+        // Remove is only ever a no-op and the entry-briefly-absent window that
+        // the previous commit was closing does not arise here at all.
+        //
+        // The lock stays regardless: first contact with two different URLs on
+        // one client can still land concurrently, and the reader — the handler
+        // resolving credentials — never takes it.
+        private void RegisterCredential(string clientKey, Uri uri, NetworkCredential credentials)
+        {
+            var creds = GetCredentialCache(clientKey);
+
+            lock (creds)
+            {
+                foreach (var authtype in new[] { "Basic", "Digest" })
+                {
+                    if (Matches(creds.GetCredential(uri, authtype), credentials))
+                    {
+                        continue;
+                    }
+
+                    creds.Remove(uri, authtype);
+                    creds.Add(uri, authtype, credentials);
+                }
+            }
+        }
+
+        protected virtual System.Net.Http.HttpClient CreateHttpClient(HttpProxySettings proxySettings, string clientKey)
         {
             var handler = new SocketsHttpHandler()
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Brotli,
                 UseCookies = false, // sic - we don't want to use a shared cookie container
                 AllowAutoRedirect = false,
-                Credentials = GetCredentialCache(),
+                Credentials = GetCredentialCache(clientKey),
                 PreAuthenticate = true,
                 MaxConnectionsPerServer = 12,
                 ConnectCallback = onConnect,
@@ -262,9 +334,35 @@ namespace NzbDrone.Common.Http.Dispatchers
             headers.Add(header, value);
         }
 
-        private CredentialCache GetCredentialCache()
+        // One cache per client, keyed identically, so the cache a handler was
+        // built with is always the one its requests register into.
+        //
+        // That identity survives a race, and it is Cached<T>.Get doing the
+        // work: on a miss it finishes with ConcurrentDictionary.GetOrAdd, which
+        // returns the winner's instance rather than the caller's. So when two
+        // threads build a client for the same key at once, both handlers are
+        // constructed around the same CredentialCache and it does not matter
+        // which client wins. Were it to hand each caller its own instance, the
+        // surviving handler could be holding a cache that RegisterCredential
+        // never writes to, and every request through it would go out
+        // unauthenticated.
+        private CredentialCache GetCredentialCache(string clientKey)
         {
-            return _credentialCache.Get("credentialCache", () => new CredentialCache());
+            return _credentialCache.Get(clientKey, () => new CredentialCache());
+        }
+
+        // Note this is asked of GetCredential, which prefix-matches rather than
+        // looking up an exact URI, so `existing` may be an entry registered for
+        // a parent or sibling path. That is fine for the question being asked:
+        // "will a request for this URL already resolve to these credentials?"
+        // If a neighbouring entry later changes, the comparison fails on the
+        // next request and the entry is written then — it self-heals.
+        private static bool Matches(NetworkCredential existing, NetworkCredential candidate)
+        {
+            return existing != null &&
+                   string.Equals(existing.UserName, candidate.UserName, StringComparison.Ordinal) &&
+                   string.Equals(existing.Password, candidate.Password, StringComparison.Ordinal) &&
+                   string.Equals(existing.Domain, candidate.Domain, StringComparison.Ordinal);
         }
 
         private bool HasRoutableIPv4Address()
