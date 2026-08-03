@@ -1,7 +1,32 @@
 # Librarr roadmap
 
-Status as of the 1.0.0-beta line. Items are roughly ordered by
+Status as of the 1.1.0-beta line. Items are roughly ordered by
 priority; nothing here is a hard commitment.
+
+## Open work at a glance
+
+Everything still open across this file,
+[`release-checklist.md`](release-checklist.md) and
+[`governance.md`](governance.md), tiered by what actually forces the
+ordering. The tier is about *what unblocks it*, not how big it is —
+a one-paragraph blog post outranks a multi-week refactor here because
+one has a clock on it and the other doesn't.
+
+| Tier | Meaning | Items |
+|---|---|---|
+| **0 — Clock running** | A dated commitment. Letting the date pass has governance consequences, not just schedule ones. | **Bus factor: recruit a second maintainer or post the maintenance-mode declaration — deadline 2026-08-14** per [`governance.md`](governance.md#when-the-90-days-start-recorded-2026-08-02) |
+| **1 — Gates 1.0.0-stable** | The stable tag cannot honestly be cut until these close. | Manual operator walkthrough steps 3–5 · 30-day beta soak with no critical regressions · integration suite runnable in one pass |
+| **2 — Coverage debt** | Real gaps. Nothing breaks by waiting, but each one is a place where a regression would ship unnoticed. | Cross-browser Playwright (Chromium-only today) · 500-book reidentify seed · decide `NzbDrone.Automation.Test`'s fate · move crash reporting off `sentry.servarr.com` |
+| **3 — Wants its own branch** | Understood, scoped, and deliberately not bundled with anything else. | `<Nullable>enable</Nullable>` · React 18 ecosystem dep refresh (`react-dnd@14`, `react-popper@1`, `react-virtualized@9`, `react-redux@7.2.4`) |
+| **4 — Trigger-gated** | Not scheduled at all. Revisit only when a named condition fires. | OL bulk-data dump fallback (four triggers in [`ol-bulk-data.md`](ol-bulk-data.md)) |
+| **Won't** | Decided against, recorded so nobody re-opens them by accident. | Namespace rename · rreading-glasses shim · CLA reintroduction |
+
+Tier 0 and Tier 1 are the only ones with a "should have happened by
+now" quality. Tiers 2–4 are healthy backlog.
+
+The 2026-Q2 state-of-the-fork writeup was the other Tier 0 item and was
+[published 2026-08-02](state-of-the-fork/2026-Q2.md), 19 days late. It
+came off this list by being done, not by being reclassified.
 
 ## Now (1.0.0-beta cycle)
 
@@ -98,23 +123,32 @@ priority; nothing here is a hard commitment.
 
 The items below are documented in `docs/deferred-modernization.md`
 with the specific reason each is deferred. They remain explicitly
-deferred per the v1.0.0 release checklist (`docs/release-checklist.md`),
-and none are safely-completable in an offline LLM session. See the
-deferred-modernization doc for the assessment per item.
+deferred per the v1.0.0 release checklist (`docs/release-checklist.md`).
+See the deferred-modernization doc for the assessment per item.
 
-- [ ] **.NET 8 LTS upgrade**. The reason recorded here previously — that
-  the Servarr-forked NuGet packages have no `net8.0` build — is wrong.
-  `Servarr.FluentMigrator.Runner{,.SQLite,.Postgres}` and
-  `System.Data.SQLite.Core.Servarr` all ship `netstandard2.0`
-  alongside `net461`, and `netstandard2.0` is consumable from `net8.0`
-  unchanged; no framework-specific build is needed. The actual cost is
-  `TreatWarningsAsErrors` + `EnforceCodeStyleInBuild` meeting three
-  framework versions' worth of new and changed analyzers at once,
-  across a codebase that currently builds clean only because it is
-  pinned to the analyzers that shipped with .NET 6. That is a triage
-  job, not a `TargetFramework` edit. Worth doing — .NET 6 went out of
-  support in November 2024 — but it wants its own branch and its own
-  session.
+(This preamble used to add "and none are safely-completable in an
+offline LLM session." The .NET runtime move below then was, which is
+why the claim is gone rather than reworded — it was a guess about
+difficulty dressed up as a constraint.)
+
+- [x] **.NET LTS upgrade — landed 2026-07-30, on .NET 10 not .NET 8.**
+  The target was wrong twice over. .NET 8 *and* .NET 9 both reach end
+  of support on 2026-11-10, so landing on 8 would have bought about a
+  quarter; .NET 10 LTS is supported to 2028-11-14. And the recorded
+  blocker — that the Servarr-forked NuGets have no modern build — was
+  never real: `Servarr.FluentMigrator.Runner 3.3.2.9`,
+  `System.Data.SQLite.Core.Servarr`, `TagLibSharp-Lidarr` and
+  `Mono.Posix.NETStandard ...-servarr22` all restore and run on .NET 10
+  unchanged, and all 48 migrations apply. No package needed replacing.
+
+  The predicted cost (an analyzer-triage slog under
+  `TreatWarningsAsErrors`) came to ~11 unique issues. The real cost was
+  something nobody predicted: ASP.NET Core 10 stopped inferring
+  `[FromBody]` on controllers that opt in via `IApiBehaviorMetadata`,
+  so every write endpoint bound an all-default model and failed
+  validation — the app could read but not write, with 2764 unit tests
+  green. 39 actions now carry explicit `[FromBody]`/`[FromQuery]`.
+  Full writeup in [`deferred-modernization.md`](deferred-modernization.md).
 
 - [ ] **Nullable enable**. Several-thousand-error build without
   per-file human triage; not a single-session task.
@@ -140,8 +174,10 @@ deferred-modernization doc for the assessment per item.
   visual-regression coverage remain out of scope and still want the
   cassette work below.
 
-- [x] **Playwright suite actually runs.** Eight tests green on the
-  pinned 1.40.0, four consecutive clean runs, ~3s. Getting there fixed
+- [x] **Playwright suite actually runs.** Green on the pinned 1.40.0,
+  four consecutive clean runs. It was eight tests when this line was
+  written; the suite is **16** across six fixtures today (10 local-only,
+  6 gated on live OpenLibrary). Getting there fixed
   three things: `add_author_page` matched two elements on "Add New" and
   had presumably never passed; `library_import_page` clicked a sidebar
   child without expanding its section first; and the per-fixture browser
@@ -150,9 +186,56 @@ deferred-modernization doc for the assessment per item.
   one per assembly. Notes in
   [`src/NzbDrone.Playwright.Test/README.md`](../src/NzbDrone.Playwright.Test/README.md).
 
+- [ ] **Decide what happens to `NzbDrone.Automation.Test`.** The
+  Selenium project is still in the tree beside the Playwright one,
+  on years-old Selenium 3 + ChromeDriver pins, running in no job.
+  Either port the remaining cases or delete it — keeping both is the
+  worst of the three options, because two suites imply coverage only
+  one of them provides. This is a decision, not a task; it needs a
+  maintainer to make the call, not a session to do the work.
+
+- [ ] **Cross-browser Playwright.** Firefox + WebKit launchers are
+  one-liners against `_AssemblyGate.cs:70`, which is Chromium-only
+  today. Wire when theme/CSS regression coverage needs it. Also
+  tracked as a 1.0-stable gate in
+  [`release-checklist.md`](release-checklist.md).
+
+- [ ] **500-book reidentify regression seed.** The 10-book in-memory
+  seed asserts the 0.85 threshold; a larger snapshot makes the
+  assertion statistically meaningful. Also a 1.0-stable gate.
+
+- [ ] **Integration suite runnable in one pass.** The nightly runs one
+  fixture per invocation with a pause between them, which works but is
+  a workaround for the real problem: every fixture starts from empty
+  appdata, so nothing is cached and a single full run gets the source
+  IP refused by openlibrary.org. Two untried routes — share one warm
+  appdata across the assembly the way `NzbDrone.Playwright.Test`
+  shares its instance, or cassette the OL responses (the machinery
+  exists in `OpenLibraryCassetteFixture`).
+
+- [ ] **Point crash reporting somewhere Librarr owns.**
+  `src/NzbDrone.Common/Instrumentation/NzbDroneLogger.cs:71-77` still
+  ships upstream's Sentry DSNs at `sentry.servarr.com`, so a Librarr
+  install that hits an unhandled exception reports it into the
+  retired parent project's infrastructure. Nobody agreed to receive
+  that traffic and nobody here can read it, which makes it both a
+  courtesy problem and a wasted signal. Options are a Librarr-owned
+  Sentry (self-hosted is on the table per
+  [`governance.md`](governance.md) § Funding), or disabling the
+  target by default and letting operators opt in. Found 2026-08-02
+  while costing out the Q2 writeup.
+
 - [ ] **OL bulk-data dump fallback**. Fork position + trigger
   conditions to revisit are in [`docs/ol-bulk-data.md`](ol-bulk-data.md).
   Phase 12+ candidate.
+
+  **One trigger is worth re-checking:** the condition is "install count
+  >100", and Docker Hub had served 370+ pulls by 2026-08-02. Pulls are
+  not installs — CI re-pulls and each multi-arch manifest fetch counts
+  — so this is a ceiling, not a count, and it is *not* being treated as
+  fired. But it is the first time the figure has been in the right
+  order of magnitude, so the next writeup should look at it rather than
+  assume.
 
 ## Won't (until persuaded otherwise)
 
