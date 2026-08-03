@@ -1,14 +1,19 @@
-# State of the fork — quarterly writeups
+# State of the fork — periodic writeups
 
-`docs/governance.md` (Public sync section) commits to a quarterly
-"state of the fork" post. This directory is where those posts land.
+This directory holds occasional posts on what Librarr's last stretch
+looked like, so a reader can find that out without reading commit logs.
 
-A writeup serves two purposes:
+**These are not a commitment.** They used to be: `docs/governance.md`
+promised one per quarter, on a 14-day deadline, with a skipped quarter
+counting as a bus-factor warning. That document was deleted 2026-08-03
+because it described a multi-maintainer project that has never existed
+here. The writeups survived the deletion because they turned out to be
+worth doing on their own merits — the 2026-Q2 post is what surfaced
+that the project moves in four-day bursts and that the planning docs
+had drifted out of sync with the code.
 
-1. External: tells readers what Librarr's last quarter looked like
-   without making them read commit logs.
-2. Internal: forces a 90-day retrospective on what shipped, what
-   slipped, and where the bus-factor stands.
+So: write one when there is something worth saying. A missed one is
+not a failure of anything.
 
 ## Filename convention
 
@@ -18,14 +23,10 @@ Quarters are calendar quarters (Q1 = Jan–Mar, etc.), not fiscal.
 
 ## Cadence
 
-Each writeup is published **within 14 days of the quarter's end** — so
-Q1 by 2026-04-14, Q2 by 2026-07-14, and so on.
-
-If a quarter is skipped, `docs/governance.md` "Bus factor" says the
-remaining maintainer has 90 days to recruit a second one. A missed
-writeup is a signal that countdown may be running — though as of
-2026-08-02 that section names its own start date and deadline, so the
-writeup is no longer the only way to notice.
+Quarterly is the natural rhythm and the filename convention assumes
+it, but nothing enforces it. The old rule — published within 14 days
+of the quarter's end, with a skipped quarter reading as a bus-factor
+warning — went with `governance.md` on 2026-08-03.
 
 ### Partial quarters (decided 2026-08-02)
 
@@ -41,9 +42,8 @@ Three options were weighed when it came up 19 days late:
    keeps the cadence's record continuous.
 2. Merge Q2 into Q3 and publish one combined post in October —
    rejected. A quarter that silently absorbs into the next one is
-   precisely the drift the cadence exists to catch, and `governance.md`
-   reads a skipped quarter as a bus-factor signal. Skipping one to save
-   effort would fire that signal for the wrong reason.
+   precisely the drift a cadence exists to catch. Skipping a quarter
+   to save an hour's writing is how the habit stops.
 3. Amend the cadence to begin at the first *full* quarter (Q3) —
    rejected for the same reason, plus it would mean the release of
    1.0.0-beta went unrecorded in the only place that tracks quarters.
@@ -66,7 +66,7 @@ _Published: YYYY-MM-DD_
 - Open PRs at quarter end: N
 - PRs closed this quarter: N (merged: N, declined: N)
 - Recent contributors: @alice, @bob, @carol
-- Active maintainers: N (target per governance.md: ≥ 2)
+- Contributors this period, if any beyond the maintainer: @alice
 
 ## Roadmap delta
 
@@ -86,7 +86,7 @@ each on why — useful context for next quarter's planning.
 
 ## Operating costs
 
-Cite `docs/governance.md` "Funding" categories:
+What the project actually costs to run:
 
 - CI runtime: $X (or "GHA free tier, $0")
 - Code-signing certs: $X
@@ -106,7 +106,7 @@ quarter's roadmap.
 
 ## Backlinks
 
-- [`docs/governance.md`](../governance.md) — defines the cadence and
-  the bus-factor consequences of skipping a writeup.
 - [`docs/roadmap.md`](../roadmap.md) — the rolling priority list this
   writeup reports deltas against.
+- [`docs/release-checklist.md`](../release-checklist.md) — what each
+  release tag requires.

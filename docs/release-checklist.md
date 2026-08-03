@@ -11,7 +11,7 @@ Cross-references:
   [`roadmap.md`](roadmap.md#open-work-at-a-glance)
 - Deferral rationale: [`deferred-modernization.md`](deferred-modernization.md)
 - OL bulk-data fork position + revisit triggers: [`ol-bulk-data.md`](ol-bulk-data.md)
-- Bus factor + quarterly cadence: [`governance.md`](governance.md)
+- Quarterly writeups: [`state-of-the-fork/`](state-of-the-fork/README.md)
 - Phase-by-phase delivery log: [`../MASTER-PLAN.md`](../MASTER-PLAN.md)
 
 ---
@@ -159,11 +159,12 @@ blocking work when nothing in it was.
 
 ---
 
-## v1.0.0-stable (gated on beta + governance)
+## v1.0.0-stable
 
 Promotes the beta to stable. Not actionable until the beta artefact
-has been in real use, the governance commitments are met, and the
-remaining engineering coverage gaps are closed.
+has been in real use and the remaining engineering coverage gaps are
+closed. It used to be gated on governance commitments as well; those
+were retired 2026-08-03 along with the document that invented them.
 
 ### Engineering
 
@@ -214,16 +215,16 @@ remaining engineering coverage gaps are closed.
   Lives under `tests/regression/`; capture via
   `sqlite3 readarr.db .dump` from a populated install.
 
-### Governance
+### Project state
 
-Per [`governance.md`](governance.md):
+This section used to gate the stable tag on two governance
+commitments: a second maintainer, and a quarterly writeup. The first
+is gone — `docs/governance.md` was deleted 2026-08-03 as a description
+of an organization that never existed, and a release should not be
+blocked on whether a stranger volunteers. Librarr is a
+single-maintainer project and that is not a defect to be cleared
+before 1.0.
 
-- [ ] Bus factor ≥ 2 active maintainers OR a maintenance-mode
-  declaration has been posted. The count is one. **The 90 days expire
-  2026-08-14** — measured from the first commit, because the project
-  began solo rather than dropping to solo; `governance.md` § "When the
-  90 days start" records why that reading was chosen over the one
-  where the clock never starts. This is the only Tier 0 item left.
 - [x] First state-of-the-fork writeup published:
   [`2026-Q2.md`](state-of-the-fork/2026-Q2.md), 2026-08-02. It was due
   2026-07-14 and shipped 19 days late; the post says so in its own
