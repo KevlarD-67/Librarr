@@ -15,6 +15,23 @@
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64;linux-musl-x64;linux-arm;linux-musl-arm;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
 
+    <!-- Up to .NET 6, publishing with a RuntimeIdentifier implied
+         SelfContained=true. .NET 7 reversed that default, and nothing here
+         ever said so out loud, so the .NET 10 migration silently turned every
+         published artifact framework-dependent: 1.2.0-beta's linux-x64 tarball
+         came out at 25 MB against 1.1.0-beta's 97 MB, with no libcoreclr.so in
+         it. Anyone unpacking that would have to install .NET 10 themselves,
+         and CI could not see the problem because runners already have it.
+
+         Conditioned on RuntimeIdentifier because SelfContained=true without
+         one is NETSDK1031, which would break plain `dotnet build` and `dotnet
+         test`. Test projects set it back to false further down this file.
+
+         The Docker image opts out explicitly on both of its publishes (its
+         base is aspnet:10.0-alpine, which already carries the runtime) and a
+         command-line value outranks this, so images stay lean. -->
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+
     <ReadarrRootDir>$(MSBuildThisFileDirectory)..\</ReadarrRootDir>
 
     <!-- Specifies the type of output -->

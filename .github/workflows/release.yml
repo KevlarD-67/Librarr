@@ -353,6 +353,56 @@ jobs:
             cp -r _output/UI/* "$rid_dir/UI/"
           done
 
+      - name: Assert the publish output is self-contained
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 1.2.0-beta shipped framework-dependent by accident. .NET 7 dropped
+          # the old rule that a RuntimeIdentifier implies SelfContained, so the
+          # .NET 10 migration quietly cut every artifact from ~97 MB to ~25 MB
+          # with no runtime inside. Nothing failed: the app builds, the tests
+          # pass, and the E2E smoke boots it happily on a runner that already
+          # has .NET installed. Only a user unpacking the tarball on a clean
+          # machine would have found out.
+          #
+          # So assert on the artifact itself rather than trusting the property.
+          # Native RIDs are checked for their host CLR; win-* carry the
+          # Windows-native equivalent, hostfxr.dll.
+          fail=0
+          checked=0
+          for rid_dir in _artifacts/*/net10.0/Readarr; do
+            [ -d "$rid_dir" ] || continue
+            checked=$((checked + 1))
+            rid=$(basename "$(dirname "$(dirname "$rid_dir")")")
+            case "$rid" in
+              win-*)  probe=hostfxr.dll ;;
+              osx-*)  probe=libcoreclr.dylib ;;
+              *)      probe=libcoreclr.so ;;
+            esac
+            if [ -e "$rid_dir/$probe" ]; then
+              echo "  ok    ${rid} (found ${probe})"
+            else
+              echo "::error::${rid} publish has no ${probe} - it is framework-dependent and will not run without a .NET install."
+              fail=1
+            fi
+          done
+
+          # A check that inspects nothing passes trivially, which is how the
+          # original bug would have slipped past a sloppier version of this
+          # step. The archive loops below cover 12 RIDs; anything under 10
+          # means artifacts went missing and the assertion is not doing its job.
+          echo "checked ${checked} publish directories"
+          if [ "$checked" -lt 10 ]; then
+            echo "::error::Only ${checked} publish directories found - expected at least 10. Refusing to vouch for artifacts that are not there."
+            exit 1
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Refusing to package a release that users cannot run. See SelfContained in src/Directory.Build.props."
+            exit 1
+          fi
+
       - name: Create per-RID archives
         shell: bash
         run: |
