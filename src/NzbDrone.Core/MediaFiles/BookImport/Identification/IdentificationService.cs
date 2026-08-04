@@ -7,6 +7,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.MediaFiles.BookImport.Aggregation;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.BookImport.Identification
@@ -22,18 +23,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private readonly IMetadataTagService _metadataTagService;
         private readonly IAugmentingService _augmentingService;
         private readonly ICandidateService _candidateService;
+        private readonly IMetadataSourceStatusService _metadataSourceStatusService;
         private readonly Logger _logger;
 
         public IdentificationService(ITrackGroupingService trackGroupingService,
                                      IMetadataTagService metadataTagService,
                                      IAugmentingService augmentingService,
                                      ICandidateService candidateService,
+                                     IMetadataSourceStatusService metadataSourceStatusService,
                                      Logger logger)
         {
             _trackGroupingService = trackGroupingService;
             _metadataTagService = metadataTagService;
             _augmentingService = augmentingService;
             _candidateService = candidateService;
+            _metadataSourceStatusService = metadataSourceStatusService;
             _logger = logger;
         }
 
@@ -81,6 +85,21 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var i = 0;
             foreach (var localRelease in releases)
             {
+                // The metadata source has refused us often enough that we have
+                // stopped asking. Every remaining book would be identified
+                // against nothing and imported unmatched, so stop instead —
+                // silently mangling the rest of a large library is a worse
+                // outcome than a run that ends early and says why.
+                //
+                // Checked rather than thrown: the catch below is deliberately
+                // broad so one bad book cannot end a run, and it would swallow
+                // any exception raised from here just as effectively.
+                if (!_metadataSourceStatusService.IsAvailable)
+                {
+                    _logger.Error("Metadata source is unavailable; abandoning identification after {0} of {1} books. The rest have been left alone — re-run the import once it recovers.", i, releases.Count);
+                    break;
+                }
+
                 i++;
                 _logger.ProgressInfo($"Identifying book {i}/{releases.Count}");
                 _logger.Debug($"Identifying book files:\n{localRelease.LocalBooks.Select(x => x.Path).ConcatToString("\n")}");

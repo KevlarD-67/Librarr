@@ -33,13 +33,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         private readonly IHttpClient _httpClient;
         private readonly IOpenLibraryRequestBuilder _requestBuilder;
+        private readonly IMetadataSourceStatusService _statusService;
         private readonly Logger _logger;
         private readonly CachingService _cache;
 
         public OpenLibraryProxy(IHttpClient httpClient,
                                 IOpenLibraryRequestBuilder requestBuilder,
+                                IMetadataSourceStatusService statusService,
                                 Logger logger)
         {
+            _statusService = statusService;
             _httpClient = httpClient;
             _requestBuilder = requestBuilder;
             _logger = logger;
@@ -742,7 +745,38 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         // round-trip via cast works at runtime but is ugly and brittle when
         // the upstream IHttpClient signature evolves). Worth a re-look once
         // more OL endpoints land — until then, the inline loop is plenty.
+        // Every OL request funnels through here, which makes it the only place
+        // that sees all the ways a request can fail — status-coded refusals and
+        // the raw HttpRequestException/IOException a torn connection throws past
+        // the retry loop. Recording availability anywhere higher up would miss
+        // the network-level cases entirely: CandidateService's handlers filter
+        // on `NzbDroneException or HttpException`, and those are neither.
         private HttpResponse<T> Send<T>(HttpRequest request)
+            where T : new()
+        {
+            _statusService.EnsureAvailable();
+
+            try
+            {
+                var response = SendCore<T>(request);
+
+                // Any answer at all means the source is reachable.
+                _statusService.RecordReachable();
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                // The status service classifies: a 404 counts as contact, a
+                // retry-exhausted 429/5xx or a torn connection counts as a
+                // refusal.
+                _statusService.RecordFailure(ex);
+
+                throw;
+            }
+        }
+
+        private HttpResponse<T> SendCore<T>(HttpRequest request)
             where T : new()
         {
             var delay = InitialRetryDelay;

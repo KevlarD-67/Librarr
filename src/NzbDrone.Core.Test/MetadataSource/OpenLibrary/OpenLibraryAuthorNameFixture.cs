@@ -5,6 +5,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 using NzbDrone.Core.Test.Framework;
@@ -173,6 +174,25 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             _editionCalls.Should().Be(2, "different ISBNs are different cache entries");
             _authorCalls.Should().Be(1, "the author name is cached independently of the book");
+        }
+
+        // Proxy-wide short-circuit. Once the breaker is open the point is to stop
+        // sending — continuing to hammer an endpoint that is rate-limiting us is
+        // what extends the ban.
+        [Test]
+        public void should_not_send_anything_while_the_breaker_is_open()
+        {
+            GivenEdition(EditionJson);
+            GivenAuthorLookup(AuthorOk);
+
+            Mocker.GetMock<IMetadataSourceStatusService>()
+                .Setup(s => s.EnsureAvailable())
+                .Throws(new MetadataSourceUnavailableException("open"));
+
+            Assert.Throws<MetadataSourceUnavailableException>(() => Subject.SearchByIsbn(Isbn));
+
+            _editionCalls.Should().Be(0);
+            _authorCalls.Should().Be(0);
         }
 
         [Test]
