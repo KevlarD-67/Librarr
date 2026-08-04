@@ -217,7 +217,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
                 catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping ISBN search due to metadata source error");
+                    LogSkippedSearch(e, "ISBN search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -239,7 +239,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
                 catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping ASIN search due to metadata source error");
+                    LogSkippedSearch(e, "ASIN search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -262,7 +262,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     }
                     catch (Exception e) when (e is NzbDroneException or HttpException)
                     {
-                        _logger.Info(e, "Skipping Goodreads ID search due to metadata source error");
+                        LogSkippedSearch(e, "Goodreads ID search");
                         remoteBooks = new List<Book>();
                     }
 
@@ -317,7 +317,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
                 catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping author/title search due to metadata source error");
+                    LogSkippedSearch(e, "author/title search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -340,7 +340,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
             catch (Exception e) when (e is NzbDroneException or HttpException)
             {
-                _logger.Info(e, "Skipping book title search due to metadata source error");
+                LogSkippedSearch(e, "book title search");
                 remoteBooks = new List<Book>();
             }
 
@@ -358,7 +358,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
                 catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping author search due to metadata source error");
+                    LogSkippedSearch(e, "author search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -366,6 +366,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     yield return candidate;
                 }
+            }
+        }
+
+        // Skipping a search is now survivable, which means it is also quiet. That
+        // is right for the common case — one edition OpenLibrary no longer serves
+        // — but an HttpException here has already been through Send()'s retry
+        // loop, so it means OL refused us three times. When that is happening
+        // across a large import every lookup fails and the run finishes having
+        // matched nothing, which is worth a Warn rather than an Info nobody reads.
+        private void LogSkippedSearch(Exception e, string search)
+        {
+            if (e is HttpException)
+            {
+                _logger.Warn(e, "Skipping {0}: metadata source HTTP error", search);
+            }
+            else
+            {
+                _logger.Info(e, "Skipping {0}: metadata source error", search);
             }
         }
 
