@@ -54,16 +54,36 @@ namespace NzbDrone.Core.Parser.Model
                     var book = new Book();
                     book.UseMetadataFrom(fullBook);
                     book.UseDbFieldsFrom(fullBook);
-                    book.Author.Value.UseMetadataFrom(fullBook.Author.Value);
-                    book.Author.Value.UseDbFieldsFrom(fullBook.Author.Value);
-                    book.Author.Value.Metadata = fullBook.AuthorMetadata.Value;
-                    book.AuthorMetadata = fullBook.AuthorMetadata.Value;
+
+                    // A candidate that never went through the DB has no Author to
+                    // lazy-load, so both the new book's Author and the matched
+                    // book's Author/AuthorMetadata may be null here.
+                    var fullAuthor = fullBook.Author?.Value;
+                    var fullAuthorMeta = fullBook.AuthorMetadata?.Value ?? new AuthorMetadata { Name = string.Empty };
+
+                    if (book.Author?.Value == null)
+                    {
+                        book.Author = new Author();
+                    }
+
+                    if (fullAuthor != null)
+                    {
+                        book.Author.Value.UseMetadataFrom(fullAuthor);
+                        book.Author.Value.UseDbFieldsFrom(fullAuthor);
+                    }
+
+                    book.Author.Value.Metadata = fullAuthorMeta;
+                    book.AuthorMetadata = fullAuthorMeta;
                     book.BookFiles = fullBook.BookFiles;
                     book.Editions = new List<Edition> { edition };
 
-                    if (fullBook.SeriesLinks.IsLoaded)
+                    // Remote candidates arrive with SeriesLinks unset, which NREs
+                    // on the .IsLoaded check. Treat null as "no series".
+                    if (fullBook.SeriesLinks != null && fullBook.SeriesLinks.IsLoaded)
                     {
-                        book.SeriesLinks = fullBook.SeriesLinks.Value.Select(l => new SeriesBookLink
+                        book.SeriesLinks = fullBook.SeriesLinks.Value
+                            .Where(l => l.Series?.Value != null)
+                            .Select(l => new SeriesBookLink
                         {
                             Book = book,
                             Series = new Series

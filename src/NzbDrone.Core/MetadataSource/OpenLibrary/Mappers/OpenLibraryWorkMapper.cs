@@ -87,6 +87,19 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 .Select(k => new AuthorMetadata { ForeignAuthorId = ExtractKey(k), TitleSlug = ExtractKey(k) })
                 .ToList();
 
+            // Attach the primary author to the book itself. Callers that hand a
+            // freshly-mapped book to import identification (rather than adding it
+            // to the DB first) get no lazy-load, so Book.Author and
+            // Book.AuthorMetadata would stay null and dereference downstream.
+            // ForeignAuthorId is enough to match on; the display name is filled in
+            // by the per-author /authors/{key}.json refresh.
+            var primaryAuthor = authors.FirstOrDefault();
+            if (primaryAuthor != null)
+            {
+                book.AuthorMetadata = primaryAuthor;
+                book.Author = new Author { Metadata = primaryAuthor, CleanName = string.Empty };
+            }
+
             return (book, authors);
         }
 
