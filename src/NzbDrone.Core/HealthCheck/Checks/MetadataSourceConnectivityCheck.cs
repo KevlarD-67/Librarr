@@ -6,6 +6,7 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Configuration.Events;
 using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Localization;
+using NzbDrone.Core.MetadataSource.Events;
 using NzbDrone.Core.MetadataSource.OpenLibrary;
 
 namespace NzbDrone.Core.HealthCheck.Checks
@@ -16,6 +17,14 @@ namespace NzbDrone.Core.HealthCheck.Checks
     // an active runtime setting.
     [CheckOn(typeof(ApplicationStartedEvent))]
     [CheckOn(typeof(ConfigSavedEvent))]
+
+    // Also re-probe the moment the circuit breaker trips. Until this, the check
+    // only ran at startup and on a config save, so an outage that began during
+    // a long import was invisible on the health page for exactly as long as it
+    // mattered. The probe goes direct through IHttpClient rather than the proxy,
+    // so an open breaker does not suppress the very request that would confirm
+    // it.
+    [CheckOn(typeof(MetadataSourceUnavailableEvent))]
     public class MetadataSourceConnectivityCheck : HealthCheckBase
     {
         private readonly IConfigService _configService;
