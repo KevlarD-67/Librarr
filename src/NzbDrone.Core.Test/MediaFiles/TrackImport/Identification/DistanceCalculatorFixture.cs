@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.MediaFiles.BookImport.Identification;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
@@ -90,6 +92,68 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             authors.Should().HaveCount(2);
             authors.Should().Contain("First Last");
             authors.Should().Contain("Second Third, Fourth Fifth");
+        }
+
+        // A candidate mapped straight from a metadata source has not been
+        // through a DB lazy load, so Book.AuthorMetadata can be null. Scoring
+        // one must not take the whole import run down.
+        [Test]
+        public void should_score_candidate_with_no_author_metadata()
+        {
+            var edition = new Edition
+            {
+                Title = "Neuromancer",
+                Book = new Book
+                {
+                    Title = "Neuromancer",
+                    AuthorMetadata = null
+                }
+            };
+
+            var localBooks = new List<LocalBook>
+            {
+                new LocalBook
+                {
+                    Path = "/books/neuromancer.epub",
+                    FileTrackInfo = new ParsedTrackInfo
+                    {
+                        Authors = new List<string> { "William Gibson" },
+                        BookTitle = "Neuromancer"
+                    }
+                }
+            };
+
+            var distance = DistanceCalculator.BookDistance(localBooks, edition);
+
+            // An absent author is maximum author-distance, not a crash.
+            distance.NormalizedDistance().Should().BeGreaterThan(0.0);
+        }
+
+        [Test]
+        public void should_score_candidate_whose_book_is_not_attached()
+        {
+            var edition = new Edition
+            {
+                Title = "Neuromancer",
+                Book = null
+            };
+
+            var localBooks = new List<LocalBook>
+            {
+                new LocalBook
+                {
+                    Path = "/books/neuromancer.epub",
+                    FileTrackInfo = new ParsedTrackInfo
+                    {
+                        Authors = new List<string> { "William Gibson" },
+                        BookTitle = "Neuromancer"
+                    }
+                }
+            };
+
+            var distance = DistanceCalculator.BookDistance(localBooks, edition);
+
+            distance.NormalizedDistance().Should().BeGreaterThan(0.0);
         }
     }
 }

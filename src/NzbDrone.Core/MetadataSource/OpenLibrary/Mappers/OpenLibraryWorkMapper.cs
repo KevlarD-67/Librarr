@@ -84,7 +84,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             var authors = (work.Authors ?? new List<OpenLibraryAuthorLink>())
                 .Select(a => a.Author?.Key)
                 .Where(k => k.IsNotNullOrWhiteSpace())
-                .Select(k => new AuthorMetadata { ForeignAuthorId = ExtractKey(k), TitleSlug = ExtractKey(k) })
+                .Select(k => new AuthorMetadata { ForeignAuthorId = ExtractKey(k), TitleSlug = ExtractKey(k), Name = string.Empty })
                 .ToList();
 
             // Attach the primary author to the book itself. Callers that hand a
@@ -92,7 +92,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             // to the DB first) get no lazy-load, so Book.Author and
             // Book.AuthorMetadata would stay null and dereference downstream.
             // ForeignAuthorId is enough to match on; the display name is filled in
-            // by the per-author /authors/{key}.json refresh.
+            // by the per-author /authors/{key}.json refresh. Name is empty rather
+            // than null so downstream string handling matches the stub
+            // CandidateService.ToCandidates builds for the same situation.
             var primaryAuthor = authors.FirstOrDefault();
             if (primaryAuthor != null)
             {

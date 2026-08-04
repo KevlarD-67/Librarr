@@ -383,6 +383,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 // identification (DistanceCalculator, LocalEdition.PopulateMatch)
                 // dereferences them, so a null here fails the whole import run rather
                 // than just skipping the candidate.
+                //
+                // Note these writes land on the caller's Book instance, which for the
+                // OL paths is the object OpenLibraryProxy holds in its LazyCache (30
+                // days for ISBN/ASIN) and hands to every subsequent caller. That
+                // sharing predates this method — `edition.Book = book` below has
+                // always mutated it — but see the warning on
+                // OpenLibraryProxy.GetAuthorInfo before adding more.
                 if (book.AuthorMetadata?.Value == null)
                 {
                     book.AuthorMetadata = new AuthorMetadata { Name = string.Empty };

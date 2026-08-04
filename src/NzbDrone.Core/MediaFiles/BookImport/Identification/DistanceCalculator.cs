@@ -41,7 +41,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             // A candidate mapped straight from a metadata source has not been
             // through a DB lazy-load, so Book/AuthorMetadata can be unpopulated.
-            var editionAuthorName = edition.Book?.Value?.AuthorMetadata?.Value?.Name ?? string.Empty;
+            // Resolve the book once — guarding only some of the dereferences below
+            // would read as handled without being it.
+            var editionBook = edition.Book?.Value;
+            var editionAuthorName = editionBook?.AuthorMetadata?.Value?.Name ?? string.Empty;
 
             dist.AddString("author", authors, editionAuthorName);
             Logger.Trace("author: '{0}' vs '{1}'; {2}", authors.ConcatToString("' or '"), editionAuthorName, dist.NormalizedDistance());
@@ -59,9 +62,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 titleOptions.Add(maintitle);
             }
 
-            if (edition.Book.Value.SeriesLinks?.Value?.Any() ?? false)
+            var editionSeriesLinks = editionBook?.SeriesLinks?.Value;
+            if (editionSeriesLinks?.Any() ?? false)
             {
-                foreach (var l in edition.Book.Value.SeriesLinks.Value)
+                foreach (var l in editionSeriesLinks)
                 {
                     if (l.Series?.Value?.Title?.IsNotNullOrWhiteSpace() ?? false)
                     {
