@@ -94,6 +94,51 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             authors.Should().Contain("Second Third, Fourth Fifth");
         }
 
+        // Issue #7. An absent author name is scored as maximum author-distance
+        // rather than "unknown", so on an otherwise-perfect ISBN match it costs
+        // 0.1875 of the 0.20 budget in CloseAlbumMatchSpecification — leaving no
+        // room for any other imperfection. OpenLibraryProxy now resolves the
+        // name for ISBN-sourced candidates; this pins what that is worth, so the
+        // margin cannot quietly come back.
+        [Test]
+        public void absent_author_name_should_cost_most_of_the_accept_budget()
+        {
+            const string Isbn = "9780345391803";
+
+            double Score(string editionAuthorName)
+            {
+                var edition = new Edition
+                {
+                    Title = "Neuromancer",
+                    Isbn13 = Isbn,
+                    Book = new Book
+                    {
+                        Title = "Neuromancer",
+                        AuthorMetadata = new AuthorMetadata { Name = editionAuthorName }
+                    }
+                };
+
+                var localBooks = new List<LocalBook>
+                {
+                    new LocalBook
+                    {
+                        Path = "/books/neuromancer.epub",
+                        FileTrackInfo = new ParsedTrackInfo
+                        {
+                            Authors = new List<string> { "William Gibson" },
+                            BookTitle = "Neuromancer",
+                            Isbn = Isbn
+                        }
+                    }
+                };
+
+                return DistanceCalculator.BookDistance(localBooks, edition).NormalizedDistance();
+            }
+
+            Score("William Gibson").Should().Be(0.0);
+            Score(string.Empty).Should().BeApproximately(0.1875, 0.0001);
+        }
+
         // A candidate mapped straight from a metadata source has not been
         // through a DB lazy load, so Book.AuthorMetadata can be null. Scoring
         // one must not take the whole import run down.

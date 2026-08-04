@@ -7,6 +7,8 @@ using LazyCache;
 using LazyCache.Providers;
 using Microsoft.Extensions.Caching.Memory;
 using NLog;
+using NzbDrone.Common.Exceptions;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Mappers;
@@ -359,7 +361,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public List<Book> SearchByIsbn(string isbn)
         {
-            return Cached(true, $"oisbn_{isbn}", TimeSpan.FromDays(30), () =>
+            var books = Cached(true, $"oisbn_{isbn}", TimeSpan.FromDays(30), () =>
             {
                 var request = _requestBuilder.For($"isbn/{isbn}.json").Build();
                 request.AllowAutoRedirect = true;
@@ -372,6 +374,100 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                 return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
             });
+
+            return WithAuthorNames(books);
+        }
+
+        // The /isbn/ and /books/ endpoints return author keys but no names, and
+        // an authorless candidate is scored as maximum author-distance rather
+        // than "unknown" — a fixed 0.1875 penalty against a 0.20 accept gate,
+        // which leaves no room for any other imperfection (issue #7).
+        //
+        // Deliberately called *outside* the callers' Cached(...) factories.
+        // Resolving inside one would store whatever came back, so a single OL
+        // 5xx or exhausted 429 would persist a nameless book for the full 30
+        // days — turning a comfortable match into a borderline one long after
+        // OL recovered. Out here, a failure simply means the next call retries.
+        //
+        // The write lands on the cached Book instance, so a later cache hit
+        // gets the name for free. That instance is already shared (see the note
+        // on GetAuthorInfo below); this particular mutation is idempotent and
+        // only ever goes empty -> resolved.
+        private List<Book> WithAuthorNames(List<Book> books)
+        {
+            foreach (var book in books ?? new List<Book>())
+            {
+                var metadata = book?.AuthorMetadata?.Value;
+
+                if (metadata == null ||
+                    metadata.ForeignAuthorId.IsNullOrWhiteSpace() ||
+                    metadata.Name.IsNotNullOrWhiteSpace())
+                {
+                    continue;
+                }
+
+                var name = GetAuthorName(metadata.ForeignAuthorId);
+
+                if (name.IsNullOrWhiteSpace())
+                {
+                    continue;
+                }
+
+                metadata.Name = name;
+
+                if (book.Author?.Value != null)
+                {
+                    book.Author.Value.CleanName = Parser.Parser.CleanAuthorName(name);
+                }
+            }
+
+            return books;
+        }
+
+        // Just the display name. GetAuthorInfo would also produce it, but it
+        // additionally fetches authors/{id}/works.json?limit=1000 and re-maps
+        // the entire discography on every call — a works-list round trip per
+        // distinct author during a large import, to populate one string.
+        //
+        // Best-effort by design: a candidate that cannot be named is still a
+        // usable candidate, it just scores as authorless.
+        public string GetAuthorName(string foreignAuthorId)
+        {
+            if (foreignAuthorId.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            // Not Cached(): LazyCache stores the faulted factory, so a lookup that
+            // threw would keep throwing for the full TTL — the same
+            // cache-the-failure bug this method exists to avoid, just with a
+            // shorter fuse. Cache hits only. A name we never got is
+            // indistinguishable from one we never asked for, and both retry.
+            var cacheKey = $"oan_{foreignAuthorId}";
+            var cached = _cache.Get<string>(cacheKey);
+
+            if (cached.IsNotNullOrWhiteSpace())
+            {
+                return cached;
+            }
+
+            try
+            {
+                var req = _requestBuilder.For($"authors/{foreignAuthorId}.json").Build();
+                var name = Send<OpenLibraryAuthorResource>(req)?.Resource?.Name;
+
+                if (name.IsNotNullOrWhiteSpace())
+                {
+                    _cache.Add(cacheKey, name, DateTimeOffset.UtcNow.AddHours(24));
+                }
+
+                return name;
+            }
+            catch (Exception ex) when (ex is NzbDroneException or HttpException)
+            {
+                _logger.Debug(ex, "Could not resolve a display name for author {0}; its books will score as authorless", foreignAuthorId);
+                return null;
+            }
         }
 
         public List<Book> SearchByAsin(string asin)
@@ -411,7 +507,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 // search box is a typo, not a server fault.
                 try
                 {
-                    return Cached(true, $"oe_{foreignBookId}", TimeSpan.FromDays(30), () =>
+                    var books = Cached(true, $"oe_{foreignBookId}", TimeSpan.FromDays(30), () =>
                     {
                         var resp = Send<OpenLibraryEditionResource>(_requestBuilder.For($"books/{foreignBookId}.json").Build());
                         if (resp?.Resource == null)
@@ -421,6 +517,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
                         return new List<Book> { OpenLibraryEditionMapper.ToBook(resp.Resource) };
                     });
+
+                    return WithAuthorNames(books);
                 }
                 catch (Exception ex) when (IsNotFound(ex))
                 {
