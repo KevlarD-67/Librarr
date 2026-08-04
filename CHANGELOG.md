@@ -7,6 +7,28 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
+### Added
+
+- **Librarr now stops importing when Open Library stops answering.** Since
+  imports stopped aborting on metadata errors, a systematic refusal — a
+  rate-limit ban, an outage — no longer announced itself: every lookup failed,
+  every book imported unmatched, and the run reported success. Continuing to
+  hammer a rate-limiting endpoint also extends the ban.
+
+  After five refusals with no successful contact in between, Librarr stops
+  sending for 5 minutes, then 15, then an hour, reset by any successful answer.
+  The import stops rather than grinding through the rest of the library, and
+  says how far it got. The existing "Open Library is unreachable" health check
+  now re-runs the moment this trips — until now it only fired at startup and on
+  a config save, so an outage beginning during a long import was invisible on
+  the health page for exactly as long as it mattered.
+
+  A 404 deliberately does not count. That is the source answering about a
+  record it does not have, which any library of obscure ISBNs produces
+  constantly; counting those would trip the breaker on a perfectly healthy
+  import. Only the absence of an answer counts — a retry-exhausted 429 or 5xx,
+  or a network-level failure such as a DNS error.
+
 ### Fixed
 
 - **ISBN imports matched on a hair's margin.** Diagnosed by
