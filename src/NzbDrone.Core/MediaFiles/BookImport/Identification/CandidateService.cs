@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.MetadataSource;
-using NzbDrone.Core.MetadataSource.Goodreads;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.BookImport.Identification
@@ -213,9 +215,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchByIsbn(isbns[0]);
                 }
-                catch (GoodreadsException e)
+                catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping ISBN search due to Goodreads Error");
+                    LogSkippedSearch(e, "ISBN search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -235,9 +237,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchByAsin(asins[0]);
                 }
-                catch (GoodreadsException e)
+                catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping ASIN search due to Goodreads Error");
+                    LogSkippedSearch(e, "ASIN search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -258,9 +260,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     {
                         remoteBooks = _bookSearchService.SearchByForeignBookId(goodreads[0], true);
                     }
-                    catch (GoodreadsException e)
+                    catch (Exception e) when (e is NzbDroneException or HttpException)
                     {
-                        _logger.Info(e, "Skipping Goodreads ID search due to Goodreads Error");
+                        LogSkippedSearch(e, "Goodreads ID search");
                         remoteBooks = new List<Book>();
                     }
 
@@ -313,9 +315,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchForNewBook(bookTag, authorTag);
                 }
-                catch (GoodreadsException e)
+                catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping author/title search due to Goodreads Error");
+                    LogSkippedSearch(e, "author/title search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -336,9 +338,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 remoteBooks = _bookSearchService.SearchForNewBook(bookTag, null);
             }
-            catch (GoodreadsException e)
+            catch (Exception e) when (e is NzbDroneException or HttpException)
             {
-                _logger.Info(e, "Skipping book title search due to Goodreads Error");
+                LogSkippedSearch(e, "book title search");
                 remoteBooks = new List<Book>();
             }
 
@@ -354,9 +356,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     remoteBooks = _bookSearchService.SearchForNewBook(a, null);
                 }
-                catch (GoodreadsException e)
+                catch (Exception e) when (e is NzbDroneException or HttpException)
                 {
-                    _logger.Info(e, "Skipping author search due to Goodreads Error");
+                    LogSkippedSearch(e, "author search");
                     remoteBooks = new List<Book>();
                 }
 
@@ -364,6 +366,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 {
                     yield return candidate;
                 }
+            }
+        }
+
+        // Skipping a search is now survivable, which means it is also quiet. That
+        // is right for the common case — one edition OpenLibrary no longer serves
+        // — but an HttpException here has already been through Send()'s retry
+        // loop, so it means OL refused us three times. When that is happening
+        // across a large import every lookup fails and the run finishes having
+        // matched nothing, which is worth a Warn rather than an Info nobody reads.
+        private void LogSkippedSearch(Exception e, string search)
+        {
+            if (e is HttpException)
+            {
+                _logger.Warn(e, "Skipping {0}: metadata source HTTP error", search);
+            }
+            else
+            {
+                _logger.Info(e, "Skipping {0}: metadata source error", search);
             }
         }
 
@@ -375,6 +395,44 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             {
                 // We have to make sure various bits and pieces are populated that are normally handled
                 // by a database lazy load
+                //
+                // Author/AuthorMetadata/SeriesLinks are part of that set. A metadata
+                // source can leave them unset — the ISBN/ASIN edition lookup builds a
+                // slim book with no author at all, and the work and search mappers omit
+                // the author when the source returns no name or key. Downstream
+                // identification (DistanceCalculator, LocalEdition.PopulateMatch)
+                // dereferences them, so a null here fails the whole import run rather
+                // than just skipping the candidate.
+                //
+                // Note these writes land on the caller's Book instance, which for the
+                // OL paths is the object OpenLibraryProxy holds in its LazyCache (30
+                // days for ISBN/ASIN) and hands to every subsequent caller. That
+                // sharing predates this method — `edition.Book = book` below has
+                // always mutated it — but see the warning on
+                // OpenLibraryProxy.GetAuthorInfo before adding more.
+                if (book.AuthorMetadata?.Value == null)
+                {
+                    book.AuthorMetadata = new AuthorMetadata { Name = string.Empty };
+                }
+                else if (book.AuthorMetadata.Value.Name == null)
+                {
+                    book.AuthorMetadata.Value.Name = string.Empty;
+                }
+
+                if (book.Author?.Value == null)
+                {
+                    book.Author = new Author { Metadata = book.AuthorMetadata.Value, CleanName = string.Empty };
+                }
+                else if (book.Author.Value.Metadata?.Value == null)
+                {
+                    book.Author.Value.Metadata = book.AuthorMetadata.Value;
+                }
+
+                if (book.SeriesLinks == null)
+                {
+                    book.SeriesLinks = new List<SeriesBookLink>();
+                }
+
                 foreach (var edition in book.Editions.Value)
                 {
                     edition.Book = book;

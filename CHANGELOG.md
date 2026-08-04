@@ -7,6 +7,47 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
+### Fixed
+
+- **One bad book could kill an entire library import.** Reported and fixed by
+  [@KevlarD-67](https://github.com/KevlarD-67) in
+  [#5](https://github.com/Rorqualx/Librarr/pull/5) and
+  [#6](https://github.com/Rorqualx/Librarr/pull/6), against the same live
+  ~33k-book library as [#3](https://github.com/Rorqualx/Librarr/pull/3). Two
+  independent causes, both of which aborted the run rather than skipping the
+  one book they could not handle.
+
+  The first is a leftover from the Goodreads-to-OpenLibrary migration. All six
+  metadata lookups in `CandidateService` sit in a `try`/`catch` that logs
+  "skipping … search" and carries on, so the code reads as though it tolerates
+  a dead edition. Every one of those handlers caught `GoodreadsException`,
+  which `OpenLibraryException` is a *sibling* of rather than a subtype — and a
+  404 arrives as `HttpException`, which is not in that hierarchy at all. The
+  handlers could never fire. They now catch what the OpenLibrary path actually
+  throws.
+
+  The second is that import identification assumed every `Book` it was handed
+  had been through a database lazy-load. Candidates mapped straight from a
+  metadata source have not: the ISBN/ASIN edition lookup builds a slim book
+  with no author, and `SeriesLinks` arrives unset. `DistanceCalculator` and
+  `LocalEdition.PopulateMatch` dereferenced both unconditionally, so the first
+  such candidate threw a `NullReferenceException` and took the run with it.
+
+  Both are covered by tests confirmed to fail against the unfixed code, not
+  merely to pass with it — five NRE reproductions plus the `OpenLibraryException`
+  and `HttpException` cases `CandidateServiceFixture` had been missing.
+
+  Two notes on what changed beyond the reported bugs. `DistanceCalculator` had
+  been left half-guarded, still dereferencing `edition.Book.Value.SeriesLinks`
+  twenty lines below a guarded read of the same object; a partial null-guard
+  reads as handled without being it, so the book is now resolved once. And an
+  HTTP failure that survives the retry loop in `OpenLibraryProxy.Send` now logs
+  at **Warn**, not Info: a 404 on one edition is routine, but an exhausted 429
+  means OpenLibrary is refusing us and the run is about to finish having
+  matched nothing. Aborting is no longer how you find that out, so it needs to
+  be audible. A counter that gives up after N consecutive refusals is the
+  fuller answer and is not done here.
+
 ## [1.2.1-beta] — 2026-08-03
 
 Ships what 1.2.0-beta was meant to ship. Everything in the 1.2.0-beta

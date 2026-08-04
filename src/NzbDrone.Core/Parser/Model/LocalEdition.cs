@@ -54,35 +54,56 @@ namespace NzbDrone.Core.Parser.Model
                     var book = new Book();
                     book.UseMetadataFrom(fullBook);
                     book.UseDbFieldsFrom(fullBook);
-                    book.Author.Value.UseMetadataFrom(fullBook.Author.Value);
-                    book.Author.Value.UseDbFieldsFrom(fullBook.Author.Value);
-                    book.Author.Value.Metadata = fullBook.AuthorMetadata.Value;
-                    book.AuthorMetadata = fullBook.AuthorMetadata.Value;
+
+                    // A candidate that never went through the DB has no Author to
+                    // lazy-load, so the matched book's Author/AuthorMetadata may
+                    // be null here. (`book` is a fresh Book, whose constructor
+                    // always gives it an Author, so only `fullBook` needs guarding.)
+                    var fullAuthor = fullBook.Author?.Value;
+                    var fullAuthorMeta = fullBook.AuthorMetadata?.Value ?? new AuthorMetadata { Name = string.Empty };
+
+                    if (fullAuthor != null)
+                    {
+                        book.Author.Value.UseMetadataFrom(fullAuthor);
+                        book.Author.Value.UseDbFieldsFrom(fullAuthor);
+                    }
+
+                    book.Author.Value.Metadata = fullAuthorMeta;
+                    book.AuthorMetadata = fullAuthorMeta;
                     book.BookFiles = fullBook.BookFiles;
                     book.Editions = new List<Edition> { edition };
 
-                    if (fullBook.SeriesLinks.IsLoaded)
+                    // Remote candidates arrive with SeriesLinks unset, which NREs
+                    // on the .IsLoaded check. Treat null as "no series" in both
+                    // branches — a null here would just move the NRE downstream.
+                    //
+                    // Links whose Series did not resolve are dropped silently. For
+                    // a DB-sourced book that masks a data problem, but nothing in
+                    // Parser/Model logs and this is not the place to be the first.
+                    if (fullBook.SeriesLinks != null && fullBook.SeriesLinks.IsLoaded)
                     {
-                        book.SeriesLinks = fullBook.SeriesLinks.Value.Select(l => new SeriesBookLink
-                        {
-                            Book = book,
-                            Series = new Series
+                        book.SeriesLinks = fullBook.SeriesLinks.Value
+                            .Where(l => l.Series?.Value != null)
+                            .Select(l => new SeriesBookLink
                             {
-                                ForeignSeriesId = l.Series.Value.ForeignSeriesId,
-                                Title = l.Series.Value.Title,
-                                Description = l.Series.Value.Description,
-                                Numbered = l.Series.Value.Numbered,
-                                WorkCount = l.Series.Value.WorkCount,
-                                PrimaryWorkCount = l.Series.Value.PrimaryWorkCount
-                            },
-                            IsPrimary = l.IsPrimary,
-                            Position = l.Position,
-                            SeriesPosition = l.SeriesPosition
-                        }).ToList();
+                                Book = book,
+                                Series = new Series
+                                {
+                                    ForeignSeriesId = l.Series.Value.ForeignSeriesId,
+                                    Title = l.Series.Value.Title,
+                                    Description = l.Series.Value.Description,
+                                    Numbered = l.Series.Value.Numbered,
+                                    WorkCount = l.Series.Value.WorkCount,
+                                    PrimaryWorkCount = l.Series.Value.PrimaryWorkCount
+                                },
+                                IsPrimary = l.IsPrimary,
+                                Position = l.Position,
+                                SeriesPosition = l.SeriesPosition
+                            }).ToList();
                     }
                     else
                     {
-                        book.SeriesLinks = fullBook.SeriesLinks;
+                        book.SeriesLinks = fullBook.SeriesLinks ?? new List<SeriesBookLink>();
                     }
 
                     edition.Book = book;

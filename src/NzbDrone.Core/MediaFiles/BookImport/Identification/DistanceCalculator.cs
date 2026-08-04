@@ -39,8 +39,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var authors = GetAuthorVariants(fileAuthors);
 
-            dist.AddString("author", authors, edition.Book.Value.AuthorMetadata.Value.Name);
-            Logger.Trace("author: '{0}' vs '{1}'; {2}", authors.ConcatToString("' or '"), edition.Book.Value.AuthorMetadata.Value.Name, dist.NormalizedDistance());
+            // A candidate mapped straight from a metadata source has not been
+            // through a DB lazy-load, so Book/AuthorMetadata can be unpopulated.
+            // Resolve the book once — guarding only some of the dereferences below
+            // would read as handled without being it.
+            var editionBook = edition.Book?.Value;
+            var editionAuthorName = editionBook?.AuthorMetadata?.Value?.Name ?? string.Empty;
+
+            dist.AddString("author", authors, editionAuthorName);
+            Logger.Trace("author: '{0}' vs '{1}'; {2}", authors.ConcatToString("' or '"), editionAuthorName, dist.NormalizedDistance());
 
             var title = localTracks.MostCommon(x => x.FileTrackInfo.BookTitle) ?? "";
             var titleOptions = new List<string> { edition.Title };
@@ -49,15 +56,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 titleOptions.Add(StripSeriesRegex.Replace(titleOptions[0]));
             }
 
-            var (maintitle, _) = edition.Title.SplitBookTitle(edition.Book.Value.AuthorMetadata.Value.Name);
+            var (maintitle, _) = edition.Title.SplitBookTitle(editionAuthorName);
             if (!titleOptions.Contains(maintitle))
             {
                 titleOptions.Add(maintitle);
             }
 
-            if (edition.Book.Value.SeriesLinks?.Value?.Any() ?? false)
+            var editionSeriesLinks = editionBook?.SeriesLinks?.Value;
+            if (editionSeriesLinks?.Any() ?? false)
             {
-                foreach (var l in edition.Book.Value.SeriesLinks.Value)
+                foreach (var l in editionSeriesLinks)
                 {
                     if (l.Series?.Value?.Title?.IsNotNullOrWhiteSpace() ?? false)
                     {
