@@ -9,6 +9,31 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ### Fixed
 
+- **ISBN imports matched on a hair's margin.** Diagnosed by
+  [@KevlarD-67](https://github.com/KevlarD-67) in
+  [#4](https://github.com/Rorqualx/Librarr/pull/4); fixed in
+  [#7](https://github.com/Rorqualx/Librarr/issues/7). OpenLibrary's `/isbn/`
+  endpoint returns author *keys* and never author *names*, and the matcher
+  scores an absent name as maximum author-distance rather than "unknown". So an
+  otherwise-perfect ISBN candidate — right title, ISBN matching at weight
+  `10.0` — arrived at `0.1875` against the `0.20` accept gate. It matched, but
+  94% of the error budget was spent before anything else was considered, and a
+  single word of title difference was enough to reject it: `0.2277` without a
+  name against `0.0402` with one.
+
+  The edition mapper now attaches the author key and the proxy resolves the
+  display name separately. Two details carry most of the value. The lookup
+  fetches only `/authors/{key}.json` rather than going through `GetAuthorInfo`,
+  which would also pull `works.json?limit=1000` and re-map an author's entire
+  discography to obtain one string. And it happens *outside* the 30-day
+  response cache — inside it, one OpenLibrary hiccup would have persisted a
+  nameless book for a month.
+
+  Writing the test for that second point found the same bug a level down:
+  LazyCache stores a faulted factory, so caching the name lookup with
+  `GetOrAdd` retained the failure for its whole TTL. It now caches successes
+  only.
+
 - **One bad book could kill an entire library import.** Reported and fixed by
   [@KevlarD-67](https://github.com/KevlarD-67) in
   [#5](https://github.com/Rorqualx/Librarr/pull/5) and

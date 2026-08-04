@@ -102,6 +102,33 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 Editions = new List<Edition> { edition }
             };
 
+            // The edition JSON carries author *keys* and never author *names*.
+            // Attach the primary key so the caller knows who to ask about; the
+            // display name has to come from a separate /authors/{key}.json
+            // lookup, which OpenLibraryProxy does outside its response cache.
+            //
+            // This matters more than it looks. Import identification scores
+            // candidates on the author name, and an empty name is maximum
+            // author-distance rather than "unknown" — a fixed 0.1875 against a
+            // 0.20 accept gate, before anything else is even considered. See
+            // issue #7.
+            //
+            // Name is empty rather than null, matching the stub
+            // CandidateService.ToCandidates builds for the same situation.
+            var authorKey = ExtractKey(resource.Authors?.FirstOrDefault()?.Key);
+            if (authorKey.IsNotNullOrWhiteSpace())
+            {
+                var metadata = new AuthorMetadata
+                {
+                    ForeignAuthorId = authorKey,
+                    TitleSlug = authorKey,
+                    Name = string.Empty
+                };
+
+                book.AuthorMetadata = metadata;
+                book.Author = new Author { Metadata = metadata, CleanName = string.Empty };
+            }
+
             // TODO Phase 4: also fetch the work for richer metadata when callers
             // can absorb a second HTTP call.
             return book;
