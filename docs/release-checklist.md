@@ -101,10 +101,18 @@ that Phases 2–5 wired up.
 - [x] CHANGELOG entry covering Phases 0–12. Shipped as two
   Keep-a-Changelog releases rather than the per-phase one-liners
   originally sketched here — `## [1.0.0-beta] — 2026-05-19` covers
-  Phases 0–12, `## [1.1.0-beta] — 2026-07-30` covers the .NET 10 move
-  and `## [1.2.0-beta] — 2026-08-03` what followed it. Grouping by
-  release rather than by internal phase number is the more useful
-  shape for a reader who was never inside the plan.
+  Phases 0–12, `## [1.1.0-beta] — 2026-07-30` the Library Import
+  wizard and the first ARM images, and `## [1.2.0-beta] — 2026-08-03`
+  the .NET 10 move and what followed it. Grouping by release rather
+  than by internal phase number is the more useful shape for a reader
+  who was never inside the plan.
+
+  This line used to credit the .NET 10 move to 1.1.0-beta. It is not
+  in that tag: `v1.1.0-beta` was cut at 12:59 on 2026-07-30 and the
+  migration landed at 16:46, so the 1.2.x line is the first .NET 10
+  build the project ever shipped. Worth stating plainly, because a
+  release everyone believed was proven on .NET 10 was nothing of the
+  kind, and the self-contained regression below is what that bought.
 
 ### Out-of-engineering (manual user-action)
 
@@ -145,8 +153,19 @@ blocking work when nothing in it was.
   `installer` jobs pick them up, and the draft release notes switch
   from the SmartScreen warning to stating the build is signed.
 - [x] `v1.0.0-beta` tag pushed, then `v1.1.0-beta`, then
-  `v1.2.0-beta` (2026-08-03 — the first tag to carry Windows
-  installers). All three exist; the release pipeline
+  `v1.2.0-beta` and `v1.2.1-beta` (both 2026-08-03 — the first tags
+  to carry Windows installers, and the first .NET 10 builds).
+
+  **`v1.2.0-beta`'s downloads were never published.** Its artifacts
+  came out framework-dependent, because .NET 7 had dropped the rule
+  that a RuntimeIdentifier implies a self-contained build and nothing
+  here set the property explicitly. The draft was deleted unpublished
+  at zero downloads and superseded by `v1.2.1-beta`; its Docker images
+  were unaffected and remain published. The release pipeline now
+  refuses to package a build whose publish output has no host CLR in
+  it, so a future release cannot repeat this quietly.
+
+  All four tags exist; the release pipeline
   (`.github/workflows/release.yml`) fires on `v*`:
   ```bash
   git tag -a v1.0.0-beta -m "Librarr 1.0.0 beta"

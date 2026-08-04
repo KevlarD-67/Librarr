@@ -7,6 +7,36 @@ and this project loosely follows [Semantic Versioning](https://semver.org/spec/v
 
 ## [Unreleased]
 
+## [1.2.1-beta] — 2026-08-03
+
+Ships what 1.2.0-beta was meant to ship. Everything in the 1.2.0-beta
+section below applies to this release too.
+
+### Fixed
+
+- **Downloadable builds needed a .NET install to start.** Up to .NET 6,
+  publishing with a RuntimeIdentifier implied a self-contained build, so every
+  Librarr archive carried its own runtime. .NET 7 reversed that default and
+  nothing in this repository ever set the property explicitly, so the .NET 10
+  migration silently made every artifact framework-dependent — the linux-x64
+  tarball fell from 97 MB to 25 MB with no `libcoreclr.so` in it. Unpacking one
+  on a machine without .NET 10 would have failed at launch.
+
+  Nothing caught it. The solution builds, 3471 tests pass, and the E2E smoke
+  boots the artifact happily, because CI runners already have .NET installed.
+  The only signal was the file size.
+
+  `SelfContained` is now set explicitly for any publish that names a runtime
+  (`src/Directory.Build.props`), and the release pipeline asserts each
+  published RID actually contains its host CLR before it will package
+  anything — including a floor on how many RIDs it inspected, so a check that
+  finds nothing cannot pass by default.
+
+  **1.2.0-beta's downloads were affected and were never published.** The draft
+  was deleted unpublished with zero downloads. Its Docker images are fine and
+  remain available: the image opts out of self-contained deliberately, because
+  its `aspnet:10.0-alpine` base already carries the runtime.
+
 ## [1.2.0-beta] — 2026-08-03
 
 Minor rather than patch: this line adds per-format quality profiles, a
@@ -529,7 +559,8 @@ fork's code-level inventory.
 - Internal `Readarr.*` csproj rename / `NzbDrone.*` namespace
   rebrand (deliberately preserved).
 
-[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.2.0-beta...HEAD
+[Unreleased]: https://github.com/Rorqualx/Librarr/compare/v1.2.1-beta...HEAD
+[1.2.1-beta]: https://github.com/Rorqualx/Librarr/compare/v1.2.0-beta...v1.2.1-beta
 [1.2.0-beta]: https://github.com/Rorqualx/Librarr/compare/v1.1.0-beta...v1.2.0-beta
 [1.1.0-beta]: https://github.com/Rorqualx/Librarr/compare/v1.0.0-beta...v1.1.0-beta
 [1.0.0-beta]: https://github.com/Rorqualx/Librarr/releases/tag/v1.0.0-beta
