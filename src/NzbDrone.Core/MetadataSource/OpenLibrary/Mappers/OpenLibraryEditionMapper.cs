@@ -8,10 +8,17 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
 {
     internal static class OpenLibraryEditionMapper
     {
+        // Overload kept for method-group use (OpenLibraryWorkMapper maps a
+        // work's edition list with no queried ISBN in play).
         public static Edition ToEdition(OpenLibraryEditionResource resource)
         {
+            return ToEdition(resource, null);
+        }
+
+        public static Edition ToEdition(OpenLibraryEditionResource resource, string queriedIsbn)
+        {
             var olKey = ExtractKey(resource.Key);
-            var isbn13 = resource.Isbn13?.FirstOrDefault();
+            var isbn13 = SelectIsbn13(resource, queriedIsbn);
             var asin = resource.Identifiers?.Amazon?.FirstOrDefault();
             var format = NormalizeFormat(resource.PhysicalFormat);
 
@@ -23,7 +30,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             //      majority of Sparknotes / Pottermore editions whose JSON
             //      omits `covers`. `?default=false` (set in
             //      OpenLibraryCoverUrls) makes missing covers 404 so the
-            //      MediaCoverProxy 404-quiet path takes over.
+            //      MediaCoverProxy 404-quiet path takes over. A *derived*
+            //      ISBN-13 (isbn_10-only edition, see SelectIsbn13) works
+            //      here too: OL's cover index resolves checksum-equivalents,
+            //      verified live for both isbn_10-only captures (2026-08-05).
             //   3. olid-keyed — final fallback for editions that have no
             //      ISBN either; cheap to keep, harmless when it 404s.
             // When none of the three actually produces an image, the
@@ -59,6 +69,122 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             };
         }
 
+        // Issue #10: two of the five captured /isbn/ payloads carry no
+        // `isbn_13` at all — OL answered with `isbn_10` only, in both cases
+        // the checksum-equivalent of the ISBN-13 that was queried. Reading
+        // `isbn_13` alone sent those candidates to the matcher with no ISBN,
+        // which drops the 10.0-weight isbn bucket from DistanceCalculator's
+        // denominator and lets the 3.0-weight author penalty dominate the
+        // normalised score (0.2857 against the 0.20 gate, measured in PR #4).
+        // Deriving the ISBN-13 from `isbn_10` is a checksum, not a round trip.
+        //
+        // Which entry matters. Dune's edition record lists two ISBN-10s —
+        // different printings on one record — and only the second is the ISBN
+        // that was queried. Blindly taking the first would attach a
+        // *different* ISBN-13 than the one the caller looked up, which is
+        // worse than none: a present-and-mismatched ISBN scores the full
+        // 10.0-weight bucket at distance 1. So the queried ISBN, when the
+        // caller knows it, wins over list order.
+        private static string SelectIsbn13(OpenLibraryEditionResource resource, string queriedIsbn)
+        {
+            var queried = NormalizeQueriedIsbn(queriedIsbn);
+
+            if (resource.Isbn13 != null && resource.Isbn13.Count > 0)
+            {
+                var preferred = queried != null
+                    ? resource.Isbn13.FirstOrDefault(i => NormalizeIsbn(i) == queried)
+                    : null;
+
+                return preferred ?? resource.Isbn13.First();
+            }
+
+            var derived = resource.Isbn10?
+                .Select(Isbn10ToIsbn13)
+                .Where(i => i != null)
+                .ToList();
+
+            if (derived == null || derived.Count == 0)
+            {
+                return null;
+            }
+
+            return derived.FirstOrDefault(i => i == queried) ?? derived.First();
+        }
+
+        // The queried ISBN can arrive in either format — ReidentifyService
+        // passes whatever the file's tags carry, and older or Calibre-tagged
+        // files commonly hold an ISBN-10. Candidates are compared in ISBN-13
+        // space (listed `isbn_13` entries are 13 digits; derived ones by
+        // construction), so a 10-digit query is converted before comparison.
+        // Without this it could never match, and the preference would fall
+        // back to list order without anyone noticing.
+        private static string NormalizeQueriedIsbn(string queriedIsbn)
+        {
+            var normalized = NormalizeIsbn(queriedIsbn);
+            if (normalized == null || normalized.Length != 10)
+            {
+                return normalized;
+            }
+
+            return Isbn10ToIsbn13(normalized) ?? normalized;
+        }
+
+        // Prefix 978, drop the ISBN-10 check digit, recompute mod-10. The
+        // entry's own checksum is validated first, so a corrupt value is
+        // skipped rather than laundered into a plausible-looking ISBN-13.
+        private static string Isbn10ToIsbn13(string isbn10)
+        {
+            var normalized = NormalizeIsbn(isbn10);
+            if (normalized == null || normalized.Length != 10 || !IsValidIsbn10(normalized))
+            {
+                return null;
+            }
+
+            var stem = "978" + normalized.Substring(0, 9);
+            var sum = 0;
+            for (var i = 0; i < 12; i++)
+            {
+                sum += (stem[i] - '0') * (i % 2 == 0 ? 1 : 3);
+            }
+
+            return stem + (char)('0' + ((10 - (sum % 10)) % 10));
+        }
+
+        private static bool IsValidIsbn10(string isbn)
+        {
+            var sum = 0;
+            for (var i = 0; i < 9; i++)
+            {
+                if (!char.IsDigit(isbn[i]))
+                {
+                    return false;
+                }
+
+                sum += (isbn[i] - '0') * (10 - i);
+            }
+
+            var check = isbn[9] == 'X' ? 10 : isbn[9] - '0';
+            if (isbn[9] != 'X' && !char.IsDigit(isbn[9]))
+            {
+                return false;
+            }
+
+            return (sum + check) % 11 == 0;
+        }
+
+        // Hyphens and casing vary between what callers pass and what OL
+        // stores; compare on bare digits (plus the ISBN-10 X check digit).
+        private static string NormalizeIsbn(string isbn)
+        {
+            if (isbn.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var chars = isbn.Where(c => char.IsDigit(c) || c == 'X' || c == 'x').ToArray();
+            return chars.Length == 0 ? null : new string(chars).ToUpperInvariant();
+        }
+
         // OL's Languages list carries entries like {"key": "/languages/eng"}.
         // Extract the 3-letter ISO 639-2 code from the last segment of the
         // first entry. Cycle 2 of the Le Guin completeness loop: Edition
@@ -80,7 +206,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             return slash >= 0 ? key.Substring(slash + 1) : key;
         }
 
-        public static Book ToBook(OpenLibraryEditionResource resource)
+        public static Book ToBook(OpenLibraryEditionResource resource, string queriedIsbn = null)
         {
             // When an external ID lookup (ISBN, ASIN, edition OLID) hits OL,
             // we only know the edition. Reconstruct a slim book wrapper so
@@ -88,7 +214,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
             var workKey = resource.Works?.FirstOrDefault()?.Key;
             var foreignBookId = workKey.IsNotNullOrWhiteSpace() ? ExtractKey(workKey) : ExtractKey(resource.Key);
 
-            var edition = ToEdition(resource);
+            var edition = ToEdition(resource, queriedIsbn);
 
             var book = new Book
             {
