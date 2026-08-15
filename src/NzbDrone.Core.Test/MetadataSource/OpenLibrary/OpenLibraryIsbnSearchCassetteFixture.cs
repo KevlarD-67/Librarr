@@ -75,11 +75,13 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
     public class OpenLibraryIsbnSearchCassetteFixture : CoreTest<OpenLibraryProxy>
     {
         private int _authorCalls;
+        private int _workCalls;
 
         [SetUp]
         public void Setup()
         {
             _authorCalls = 0;
+            _workCalls = 0;
 
             // The request builder is pure URL construction — use the real one so
             // the URLs the proxy asks for are the URLs under test.
@@ -89,6 +91,22 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 .Setup(c => c.Get<OpenLibraryEditionResource>(It.IsAny<HttpRequest>()))
                 .Returns((HttpRequest r) => new HttpResponse<OpenLibraryEditionResource>(
                     Response(r, OpenLibraryFixtureLoader.LoadJson(CassetteForEditionUrl(r.Url.ToString())), HttpStatusCode.OK)));
+
+            // Work lookups back the #9 fallback: an edition with no author key is
+            // named by reaching through works/{id}.json for authors[0]. Served
+            // from the real work cassettes, keyed off the requested OLID.
+            Mocker.GetMock<IHttpClient>()
+                .Setup(c => c.Get<OpenLibraryWorkResource>(It.IsAny<HttpRequest>()))
+                .Returns((HttpRequest r) =>
+                {
+                    _workCalls++;
+
+                    var cassette = CassetteForWorkUrl(r.Url.ToString());
+
+                    return cassette == null
+                        ? new HttpResponse<OpenLibraryWorkResource>(Response(r, null, HttpStatusCode.NotFound))
+                        : new HttpResponse<OpenLibraryWorkResource>(Response(r, OpenLibraryFixtureLoader.LoadJson(cassette), HttpStatusCode.OK));
+                });
 
             // Author lookups are served from the real author cassettes, keyed
             // off the requested OLID. A key we have no cassette for is a 404 —
@@ -160,23 +178,36 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             books[0].Author.Value.CleanName.Should().NotBeNullOrEmpty("DistanceCalculator compares clean names");
             _authorCalls.Should().Be(1);
+            _workCalls.Should().Be(0, "an edition-level author key is resolved directly, without reaching through the work");
         }
 
         // 1984 and Sapiens really came back from OL with no edition-level
-        // `authors` — the author hangs on the work. The #7 fix deliberately
-        // does not chase that (it would be a second lookup per candidate for
-        // a case the edition data can't see), so these candidates stay
-        // authorless and score accordingly. If a work-level fallback ever
-        // lands, these are the cases that should start carrying a name.
-        [TestCase("9780451524935", TestName = "{m}(1984)")]
-        [TestCase("9780062316097", TestName = "{m}(sapiens)")]
-        public void Isbn_cassette_without_edition_level_authors_should_skip_the_author_lookup(string isbn)
+        // `authors` — the author hangs on the work. This is the case #9's
+        // work-level fallback exists for, and the boundary the #7 fix left:
+        // the candidate now reaches the caller named, via one work lookup
+        // (works/{id}.json for authors[0]) plus the same author lookup the
+        // edition-keyed path uses.
+        public static IEnumerable WorkLevelAuthorCases()
+        {
+            yield return new TestCaseData("9780451524935", "OL118077A", "George Orwell").SetName("{m}(1984)");
+            yield return new TestCaseData("9780062316097", "OL3778242A", "Yuval Noah Harari").SetName("{m}(sapiens)");
+        }
+
+        [TestCaseSource(nameof(WorkLevelAuthorCases))]
+        public void Isbn_cassette_without_edition_level_authors_should_resolve_via_the_work(string isbn, string authorId, string authorName)
         {
             var books = Subject.SearchByIsbn(isbn);
 
-            books.Should().HaveCount(1, "no author is still a usable candidate");
-            books[0].AuthorMetadata.Should().BeNull("OL's edition JSON carried no author key to resolve");
-            _authorCalls.Should().Be(0, "there is nothing to look up");
+            books.Should().HaveCount(1);
+
+            var metadata = books[0].AuthorMetadata.Value;
+            metadata.Should().NotBeNull("the author hangs on the work, so it can still be resolved (issue #9)");
+            metadata.ForeignAuthorId.Should().Be(authorId);
+            metadata.Name.Should().Be(authorName);
+
+            books[0].Author.Value.CleanName.Should().NotBeNullOrEmpty("DistanceCalculator compares clean names");
+            _workCalls.Should().Be(1, "one work lookup resolves the author key the edition lacked");
+            _authorCalls.Should().Be(1, "then one author lookup for the display name");
         }
 
         // ── helpers ─────────────────────────────────────────────────
@@ -216,6 +247,36 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             if (url.Contains("authors/OL26320A.json"))
             {
                 return "author_tolkien.json";
+            }
+
+            // #9 work-level fallback: the authors 1984 and Sapiens hang on the
+            // work, resolved from these real /authors/ captures.
+            if (url.Contains("authors/OL118077A.json"))
+            {
+                return "author_orwell.json";
+            }
+
+            if (url.Contains("authors/OL3778242A.json"))
+            {
+                return "author_harari.json";
+            }
+
+            return null;
+        }
+
+        // Work lookups for the #9 fallback — only the two isbn captures with no
+        // edition-level author reach here; every other work key is a 404, which
+        // the author-bearing cases assert never happens.
+        private static string CassetteForWorkUrl(string url)
+        {
+            if (url.Contains("works/OL1168083W.json"))
+            {
+                return "work_1984.json";
+            }
+
+            if (url.Contains("works/OL17075811W.json"))
+            {
+                return "work_sapiens.json";
             }
 
             return null;
