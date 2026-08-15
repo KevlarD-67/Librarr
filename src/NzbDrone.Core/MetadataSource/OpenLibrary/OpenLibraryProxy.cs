@@ -402,9 +402,31 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             {
                 var metadata = book?.AuthorMetadata?.Value;
 
-                if (metadata == null ||
-                    metadata.ForeignAuthorId.IsNullOrWhiteSpace() ||
-                    metadata.Name.IsNotNullOrWhiteSpace())
+                // No author key on the edition at all. OpenLibrary keeps authors
+                // on the *work*, and an edition record repeating them is common
+                // but not guaranteed — 1984 and Sapiens in the captured corpus
+                // carry none, so ToBook attaches no AuthorMetadata and the
+                // candidate would otherwise score as authorless (the full
+                // 0.1875 #7 was meant to remove). Reach through the work for the
+                // author key, then resolve the name the same way. Issue #9.
+                //
+                // Only the authorless case pays for this — the 3-of-5 that
+                // already carry an edition author key skip it — so the case #7
+                // fixed gains no round trip.
+                if (metadata == null || metadata.ForeignAuthorId.IsNullOrWhiteSpace())
+                {
+                    var workAuthorId = GetAuthorIdFromWork(book?.ForeignBookId);
+                    var workAuthorName = GetAuthorName(workAuthorId);
+
+                    if (workAuthorName.IsNotNullOrWhiteSpace())
+                    {
+                        AttachAuthor(book, workAuthorId, workAuthorName);
+                    }
+
+                    continue;
+                }
+
+                if (metadata.Name.IsNotNullOrWhiteSpace())
                 {
                     continue;
                 }
@@ -425,6 +447,85 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             }
 
             return books;
+        }
+
+        // Attach a freshly-resolved author to a book that reached ToBook with no
+        // author key — mirrors the AuthorMetadata/Author pair ToBook builds when
+        // the edition *does* carry one, so downstream (the Book.AuthorMetadataId
+        // join, DistanceCalculator's clean-name compare) sees the same shape.
+        private static void AttachAuthor(Book book, string foreignAuthorId, string name)
+        {
+            var metadata = new AuthorMetadata
+            {
+                ForeignAuthorId = foreignAuthorId,
+                TitleSlug = foreignAuthorId,
+                Name = name
+            };
+
+            book.AuthorMetadata = metadata;
+            book.Author = new Author
+            {
+                Metadata = metadata,
+                CleanName = Parser.Parser.CleanAuthorName(name)
+            };
+        }
+
+        // Issue #9. The primary author key hangs on the work, not the edition, so
+        // fetch just the work document (not its edition list — GetBookInfo's
+        // heavier bundle is for callers that need the editions too) and read
+        // authors[0]. Caches the resolved key only, for the same reason
+        // GetAuthorName does: LazyCache would pin a faulted factory for the whole
+        // TTL, re-poisoning exactly the transient-failure case #7 took pains to
+        // survive. A key we never got is indistinguishable from one we never
+        // asked for, and both retry next time.
+        public string GetAuthorIdFromWork(string foreignBookId)
+        {
+            if (foreignBookId.IsNullOrWhiteSpace() ||
+                !foreignBookId.EndsWith("W", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var cacheKey = $"owa_{foreignBookId}";
+            var cached = _cache.Get<string>(cacheKey);
+
+            if (cached.IsNotNullOrWhiteSpace())
+            {
+                return cached;
+            }
+
+            try
+            {
+                var req = _requestBuilder.For($"works/{foreignBookId}.json").Build();
+                var work = Send<Resources.OpenLibraryWorkResource>(req)?.Resource;
+                var authorKey = work?.Authors?.FirstOrDefault()?.Author?.Key;
+                var authorId = ExtractOlid(authorKey);
+
+                if (authorId.IsNotNullOrWhiteSpace())
+                {
+                    _cache.Add(cacheKey, authorId, DateTimeOffset.UtcNow.AddDays(7));
+                }
+
+                return authorId;
+            }
+            catch (Exception ex) when (ex is NzbDroneException or HttpException)
+            {
+                _logger.Debug(ex, "Could not resolve an author key from work {0}; its edition will score as authorless", foreignBookId);
+                return null;
+            }
+        }
+
+        // OL keys are "/authors/OL...A", "/works/OL...W"; downstream wants the
+        // bare OLID. Last path segment, empty guarded.
+        private static string ExtractOlid(string key)
+        {
+            if (key.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var slash = key.LastIndexOf('/');
+            return slash >= 0 ? key.Substring(slash + 1) : key;
         }
 
         // Just the display name. GetAuthorInfo would also produce it, but it
