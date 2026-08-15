@@ -193,6 +193,56 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  unit-tests-debug:
+    # Issue #12. The "Unit tests (Linux)" job above runs the *published
+    # Release* artifacts, so BuildInfo.IsDebug is false and LoggingTest's
+    # AssertNoUnexpectedLogs teardown — the assertion that fails a test which
+    # logged an undeclared Warn/Error/Fatal — never fires there. Eleven such
+    # tests rode into main that way before anyone noticed (see #11). This job
+    # builds and runs the unit suites in Debug so that assertion is actually
+    # exercised on every push.
+    #
+    # Separate from the Release coverage job on purpose: a log-assertion
+    # failure and a coverage/packaging problem should never be the same red X.
+    # It builds straight from source (no artifact dependency, so it starts in
+    # parallel) and excludes Category=IntegrationTest so it stays fast and
+    # network-free — the third-party suites have their own jobs.
+    name: Unit tests (Debug — log assertions)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build the solution (Debug)
+        shell: bash
+        # Build the whole solution, not just the test projects: AutoMoqer
+        # reflection-loads the platform shim (Readarr.Mono on Linux) by name
+        # rather than referencing it, so `dotnet test <Core.Test.csproj>`
+        # alone never builds it and every CoreTest<T> then dies in setup with
+        # "Could not load file or assembly 'Readarr.Mono'". OutputPath is a
+        # shared dir (no $(Configuration)/per-project split), so a full build
+        # lands Readarr.Mono.dll beside the test assembly where Assembly.Load
+        # finds it — which is what the published-artifact flow relies on too.
+        run: dotnet build src/Readarr.sln -c Debug
+
+      - name: Common.Test (Debug)
+        shell: bash
+        run: dotnet test src/NzbDrone.Common.Test/Readarr.Common.Test.csproj -c Debug --no-build --filter 'Category!=IntegrationTest'
+
+      - name: Core.Test (Debug)
+        # always(), so a Common.Test failure still yields the Core result
+        # rather than masking it.
+        if: always()
+        shell: bash
+        run: dotnet test src/NzbDrone.Core.Test/Readarr.Core.Test.csproj -c Debug --no-build --filter 'Category!=IntegrationTest'
+
   lint-frontend:
     name: Lint frontend
     runs-on: ubuntu-22.04

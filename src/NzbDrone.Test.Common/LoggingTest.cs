@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -128,14 +129,46 @@ namespace NzbDrone.Test.Common
         [TearDown]
         public void LoggingDownBase()
         {
-            //can't use because of a bug in mono with 2.6.2,
-            //https://bugs.launchpad.net/nunitv2/+bug/1076932
-            if (BuildInfo.IsDebug && TestContext.CurrentContext.Result.Outcome == ResultState.Success)
+            if (TestContext.CurrentContext.Result.Outcome == ResultState.Success)
             {
-                ExceptionVerification.AssertNoUnexpectedLogs();
+                // The mono 2.6.2 nunit teardown bug this guard was added for
+                // (https://bugs.launchpad.net/nunitv2/+bug/1076932, 2012)
+                // predates .NET Core; the Debug gate survives only to keep a
+                // bare `dotnet test` fast. Its cost is that a *Release*-
+                // configured run verifies none of its logs — and because
+                // OutputPath ignores $(Configuration) (Directory.Build.props),
+                // building Release once (e.g. to check StyleCop) leaves every
+                // later `dotnet test` silently Release-flavoured with this
+                // assertion off. CI ran only published Release artifacts, so it
+                // never fired there at all — eleven undeclared Error logs rode
+                // in that way (issue #12). CI now runs a Debug unit-test leg
+                // (build.yml) so it fires; here, announce the skip once per run
+                // so a local Release run is never silently, half-verified green.
+                if (BuildInfo.IsDebug)
+                {
+                    ExceptionVerification.AssertNoUnexpectedLogs();
+                }
+                else
+                {
+                    AnnounceLogAssertionsDisabledOnce();
+                }
             }
 
             TestLogger.Info("--- End: {0} ---", TestContext.CurrentContext.Test.FullName);
+        }
+
+        private static int _logAssertionSkipAnnounced;
+
+        private static void AnnounceLogAssertionsDisabledOnce()
+        {
+            if (Interlocked.Exchange(ref _logAssertionSkipAnnounced, 1) == 0)
+            {
+                TestContext.Progress.WriteLine(
+                    "WARNING: AssertNoUnexpectedLogs is OFF — this run is not a Debug build, so " +
+                    "undeclared Warn/Error/Fatal logs will NOT fail any test. Rebuild in Debug to " +
+                    "re-enable it (issue #12); OutputPath ignores $(Configuration), so a single " +
+                    "earlier Release build makes every later `dotnet test` here Release-flavoured.");
+            }
         }
     }
 }
