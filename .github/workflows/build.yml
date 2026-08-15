@@ -220,16 +220,28 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Build the solution (Debug)
+        shell: bash
+        # Build the whole solution, not just the test projects: AutoMoqer
+        # reflection-loads the platform shim (Readarr.Mono on Linux) by name
+        # rather than referencing it, so `dotnet test <Core.Test.csproj>`
+        # alone never builds it and every CoreTest<T> then dies in setup with
+        # "Could not load file or assembly 'Readarr.Mono'". OutputPath is a
+        # shared dir (no $(Configuration)/per-project split), so a full build
+        # lands Readarr.Mono.dll beside the test assembly where Assembly.Load
+        # finds it — which is what the published-artifact flow relies on too.
+        run: dotnet build src/Readarr.sln -c Debug
+
       - name: Common.Test (Debug)
         shell: bash
-        run: dotnet test src/NzbDrone.Common.Test/Readarr.Common.Test.csproj -c Debug --filter 'Category!=IntegrationTest'
+        run: dotnet test src/NzbDrone.Common.Test/Readarr.Common.Test.csproj -c Debug --no-build --filter 'Category!=IntegrationTest'
 
       - name: Core.Test (Debug)
         # always(), so a Common.Test failure still yields the Core result
         # rather than masking it.
         if: always()
         shell: bash
-        run: dotnet test src/NzbDrone.Core.Test/Readarr.Core.Test.csproj -c Debug --filter 'Category!=IntegrationTest'
+        run: dotnet test src/NzbDrone.Core.Test/Readarr.Core.Test.csproj -c Debug --no-build --filter 'Category!=IntegrationTest'
 
   lint-frontend:
     name: Lint frontend
