@@ -8,6 +8,7 @@ using NzbDrone.Common.Http;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.Events;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MetadataSource
 {
@@ -63,6 +64,8 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             GivenFailures(1, status);
             Subject.IsAvailable.Should().BeFalse();
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -74,6 +77,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             }
 
             Subject.IsAvailable.Should().BeFalse("a DNS failure is the clearest possible refusal");
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -87,6 +92,8 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             Subject.RecordFailure(new IOException("stream torn"));
             Subject.IsAvailable.Should().BeFalse();
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -105,6 +112,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             GivenFailures(5, HttpStatusCode.TooManyRequests);
 
             Assert.Throws<MetadataSourceUnavailableException>(() => Subject.EnsureAvailable());
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -131,6 +140,9 @@ namespace NzbDrone.Core.Test.MetadataSource
                 Subject.Now = Subject.UnavailableUntil.Value;
                 Subject.IsAvailable.Should().BeTrue("the window has expired, so we probe again");
             }
+
+            // One Error per trip; tripping is meant to be loud.
+            ExceptionVerification.ExpectedErrors(expected.Length);
         }
 
         [Test]
@@ -147,6 +159,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             // Escalation reset too: the next outage starts at the shortest window.
             GivenFailures(5, HttpStatusCode.TooManyRequests);
             (Subject.UnavailableUntil.Value - Subject.Now).TotalMinutes.Should().BeApproximately(5.0, 0.01);
+
+            ExceptionVerification.ExpectedErrors(2);
         }
 
         [Test]
@@ -155,6 +169,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             GivenFailures(5, HttpStatusCode.TooManyRequests);
 
             VerifyEventPublished<MetadataSourceUnavailableEvent>();
+
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]
@@ -167,6 +183,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             GivenFailures(3, HttpStatusCode.TooManyRequests);
 
             Subject.UnavailableUntil.Should().Be(first, "the window must not keep sliding out");
+
+            ExceptionVerification.ExpectedErrors(1);
         }
     }
 
