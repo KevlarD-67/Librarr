@@ -68,12 +68,31 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
-        public void ToEdition_should_fall_back_to_the_first_valid_isbn10_without_a_queried_isbn()
+        public void ToEdition_should_leave_isbn13_null_for_several_isbn10_without_a_queried_isbn()
         {
+            // #13 review, Finding 2. On the work-list mapping path there is no
+            // queried ISBN to pick a printing by. Committing to the first would
+            // fabricate a *different* edition's ISBN-13 (0441172660 derives to
+            // 9780441172665, not the 9780441172719 a file might carry), which
+            // then scores the full 10.0-weight mismatch — worse than the 0.1
+            // isbn_missing that null yields. With nothing to disambiguate,
+            // stay null rather than guess.
             var edition = OpenLibraryEditionMapper.ToEdition(Resource(
                 isbn10: new List<string> { "0441172660", "0441172717" }));
 
-            edition.Isbn13.Should().Be("9780441172665");
+            edition.Isbn13.Should().BeNull();
+        }
+
+        [Test]
+        public void ToEdition_should_still_derive_a_lone_isbn10_without_a_queried_isbn()
+        {
+            // The single-printing case (Sapiens) is unambiguous, so the
+            // work-list path still derives it — only several-with-no-query
+            // stays null.
+            var edition = OpenLibraryEditionMapper.ToEdition(Resource(
+                isbn10: new List<string> { "0062316095" }));
+
+            edition.Isbn13.Should().Be("9780062316097");
         }
 
         [Test]

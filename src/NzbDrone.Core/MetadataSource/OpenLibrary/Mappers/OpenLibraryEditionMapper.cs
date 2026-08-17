@@ -85,21 +85,37 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
         // worse than none: a present-and-mismatched ISBN scores the full
         // 10.0-weight bucket at distance 1. So the queried ISBN, when the
         // caller knows it, wins over list order.
+        //
+        // Which entry can be chosen at all. The queried ISBN, when the caller
+        // knows it, disambiguates. Without it — the work-list mapping path,
+        // where ToEdition is a method group with no ISBN in play — a record
+        // carrying several printings has nothing to pick by, and committing to
+        // an arbitrary one fabricates an ISBN-13 the file may then mismatch at
+        // the full 10.0 weight (worse than the 0.1 isbn_missing that null
+        // yields). So a lone derivable ISBN-10 is taken, but several with no
+        // query stay null. (#13 review, Finding 2.)
         private static string SelectIsbn13(OpenLibraryEditionResource resource, string queriedIsbn)
         {
-            var queried = NormalizeQueriedIsbn(queriedIsbn);
+            // The queried ISBN can arrive in either format — ReidentifyService
+            // passes whatever the file's tags carry, and older or Calibre-
+            // tagged files commonly hold an ISBN-10. Compare in ISBN-13 space.
+            var queried = IsbnUtils.ToIsbn13(queriedIsbn);
 
             if (resource.Isbn13 != null && resource.Isbn13.Count > 0)
             {
                 var preferred = queried != null
-                    ? resource.Isbn13.FirstOrDefault(i => NormalizeIsbn(i) == queried)
+                    ? resource.Isbn13.FirstOrDefault(i => IsbnUtils.NormalizeIsbn(i) == queried)
                     : null;
 
+                // Several listed isbn_13 with no query is the same ambiguity as
+                // the derived branch below, but each is a real ISBN-13 that OL
+                // attached to the record rather than one this code invented, and
+                // this first-wins was the behaviour before #13 — left as is.
                 return preferred ?? resource.Isbn13.First();
             }
 
             var derived = resource.Isbn10?
-                .Select(Isbn10ToIsbn13)
+                .Select(IsbnUtils.Isbn10ToIsbn13)
                 .Where(i => i != null)
                 .ToList();
 
@@ -108,81 +124,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Mappers
                 return null;
             }
 
-            return derived.FirstOrDefault(i => i == queried) ?? derived.First();
-        }
-
-        // The queried ISBN can arrive in either format — ReidentifyService
-        // passes whatever the file's tags carry, and older or Calibre-tagged
-        // files commonly hold an ISBN-10. Candidates are compared in ISBN-13
-        // space (listed `isbn_13` entries are 13 digits; derived ones by
-        // construction), so a 10-digit query is converted before comparison.
-        // Without this it could never match, and the preference would fall
-        // back to list order without anyone noticing.
-        private static string NormalizeQueriedIsbn(string queriedIsbn)
-        {
-            var normalized = NormalizeIsbn(queriedIsbn);
-            if (normalized == null || normalized.Length != 10)
+            if (queried != null)
             {
-                return normalized;
+                return derived.FirstOrDefault(i => i == queried) ?? derived.First();
             }
 
-            return Isbn10ToIsbn13(normalized) ?? normalized;
-        }
-
-        // Prefix 978, drop the ISBN-10 check digit, recompute mod-10. The
-        // entry's own checksum is validated first, so a corrupt value is
-        // skipped rather than laundered into a plausible-looking ISBN-13.
-        private static string Isbn10ToIsbn13(string isbn10)
-        {
-            var normalized = NormalizeIsbn(isbn10);
-            if (normalized == null || normalized.Length != 10 || !IsValidIsbn10(normalized))
-            {
-                return null;
-            }
-
-            var stem = "978" + normalized.Substring(0, 9);
-            var sum = 0;
-            for (var i = 0; i < 12; i++)
-            {
-                sum += (stem[i] - '0') * (i % 2 == 0 ? 1 : 3);
-            }
-
-            return stem + (char)('0' + ((10 - (sum % 10)) % 10));
-        }
-
-        private static bool IsValidIsbn10(string isbn)
-        {
-            var sum = 0;
-            for (var i = 0; i < 9; i++)
-            {
-                if (!char.IsDigit(isbn[i]))
-                {
-                    return false;
-                }
-
-                sum += (isbn[i] - '0') * (10 - i);
-            }
-
-            var check = isbn[9] == 'X' ? 10 : isbn[9] - '0';
-            if (isbn[9] != 'X' && !char.IsDigit(isbn[9]))
-            {
-                return false;
-            }
-
-            return (sum + check) % 11 == 0;
-        }
-
-        // Hyphens and casing vary between what callers pass and what OL
-        // stores; compare on bare digits (plus the ISBN-10 X check digit).
-        private static string NormalizeIsbn(string isbn)
-        {
-            if (isbn.IsNullOrWhiteSpace())
-            {
-                return null;
-            }
-
-            var chars = isbn.Where(c => char.IsDigit(c) || c == 'X' || c == 'x').ToArray();
-            return chars.Length == 0 ? null : new string(chars).ToUpperInvariant();
+            return derived.Count == 1 ? derived[0] : null;
         }
 
         // OL's Languages list carries entries like {"key": "/languages/eng"}.
